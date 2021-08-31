@@ -1,0 +1,7 @@
+# SourceWellTotNum: number of public wells
+SourceWellTotNum = [%NUMOFWELL%]
+# List: Wells parameters' files
+# List starts with the label "List =" and ends with the label "EndList ="
+List =
+[%WELLLIST%]
+EndList =

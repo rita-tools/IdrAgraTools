@@ -1,0 +1,3019 @@
+# -*- coding: utf-8 -*-
+
+"""
+/***************************************************************************
+ IdrAgraTools
+ A QGIS plugin to manage water demand simulation with IdrAgra model
+ The plugin shares user interfaces and tools to manage water in irrigation districts
+-------------------
+		begin				: 2020-12-01
+		copyright			: (C) 2020 by Enrico A. Chiaradia
+		email				    : enrico.chiaradia@unimi.it
+ ***************************************************************************/
+
+/***************************************************************************
+ *																		   *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or	   *
+ *   (at your option) any later version.								   *
+ *																		   *
+ ***************************************************************************/
+"""
+__author__ = 'Enrico A. Chiaradia'
+__date__ = '2020-12-01'
+__copyright__ = '(C) 2020 by Enrico A. Chiaradia'
+
+# This will get replaced with a git SHA1 when you do a git archive
+
+__revision__ = '$Format:%H$'
+
+import gc
+import os
+import shutil
+import sys
+import inspect
+import glob
+from datetime import datetime, timedelta, date
+import time
+import random
+
+import scipy.io as sio
+import os.path as osp
+import numpy as np
+
+from PyQt5 import QtSql
+from PyQt5.QtXml import QDomDocument
+from qgis import processing
+
+from .data_manager.chart_widget import ChartWidget
+from .tools.gis_grid import GisGrid
+from .tools.iface_progress import IfaceProgress
+from .tools.import_from_csv import importDataFromCSVXXX
+from .tools.import_raster_in_db import importRasterInDB
+from .tools.my_progress import MyProgress
+from .forms.manage_rasters_dialog import ManageRastersDialog
+from .tools.export_irrigation_method import exportIrrigationMethod
+from .forms.attribute_table_view import AttributesTableView
+from .forms.new_db_dialog import NewDbDialog
+from .tools.utils import returnExtent
+from .tools.export_bat import exportBat
+from .tools.export_cell_list import exportCellList
+from .tools.export_land_use import exportLandUse
+from .tools.export_water_sources import makeDischSerie, exportWaterSources
+from .tools.write_pars_to_template import writeParsToTemplate
+
+cmd_folder = os.path.split(inspect.getfile(inspect.currentframe()))[0]
+
+if cmd_folder not in sys.path:
+    sys.path.insert(0, cmd_folder)
+
+from qgis.core import QgsProcessingAlgorithm, QgsApplication, QgsProject, QgsVectorLayer, QgsGeometry, QgsFeature, \
+    QgsFeatureRequest, QgsExpression
+from qgis.PyQt.QtCore import QVariant
+from processing import execAlgorithmDialog
+
+from PyQt5.QtCore import qVersion, QCoreApplication, QLocale, QSettings, QTranslator, QThread, Qt, QTimer
+from PyQt5.QtGui import QIcon, QColor, QPixmap
+from PyQt5.QtWidgets import QAction, QMenu, QMessageBox, QProgressBar, QDialog
+
+from .idragratools_provider import IdrAgraToolsProvider
+
+from .forms.custom_input import *
+
+from .tools.save_metadata import saveMetadata
+from .tools.get_raster_geoinfo import getRasterGeoinfo
+from .tools.get_vector_geoinfo import getVectorGeoinfo
+from .tools.raster_extractor import rasterExtractor
+from .tools.vector_extractor import vectorExtractor
+from .tools.export_geodata import exportGeodata
+
+from .tools.sqlite_driver import SQLiteDriver
+from .tools.parse_par_file import parseParFile
+from .tools.add_features_from_csv import addFeaturesFromCSV
+
+from .tools.export_meteodata import exportMeteodataFromDB
+
+
+# TODO:
+# soilmap for each year
+# id field nell'algoritmo dei pesi
+
+class Feedback():
+    def __init__(self, iface):
+        self.iface = iface
+        self.progressMessageBar = iface.messageBar().createMessage("IdrAgraTools...")
+        self.progress = QProgressBar()
+        self.progress.setMaximum(100)
+        self.progress.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.progressMessageBar.layout().addWidget(self.progress)
+        self.iface.messageBar().pushWidget(self.progressMessageBar, Qgis.Info)
+
+    def setPercentage(self, val):
+        try:
+            val = int(val)
+        except:
+            val = 0
+
+        self.progress.setValue(val)
+
+    def setInfo(self, msg):
+        self.progressMessageBar.setText("INFO: %s" % msg)
+
+    def error(self, msg):
+        self.progressMessageBar.setText("ERROR: %s" % msg)
+
+    def unload(self):
+        self.progressMessageBar.clearWidgets()
+
+
+
+class IdrAgraTools():
+
+    def __init__(self, iface):
+        self.iface = iface
+        self.canvas = iface.mapCanvas()
+
+        # initialize plugin directory
+        self.plugin_dir = os.path.dirname(__file__)
+        # initialize locale
+        locale = QSettings().value("locale/userLocale")[0:2]
+        localePath = os.path.join(self.plugin_dir, 'i18n', 'idragra_tools_{}.qm'.format(locale))
+
+        if os.path.exists(localePath):
+            self.translator = QTranslator(QCoreApplication.instance())
+            self.translator.load(localePath)
+
+            if qVersion() > '4.3.3':
+                QCoreApplication.installTranslator(self.translator)
+
+        # add processing provider
+        self.provider = IdrAgraToolsProvider()
+
+        self.s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+
+        self.STATFUN = {'SUM': self.tr('Sum'), 'AVG': self.tr('Mean'), 'MAX': self.tr('Max'), 'MIN': self.tr('Min')}
+
+        # init table and layer names and labels
+        # TODO: for the next release 'idr_gw_wells': self.tr('Ground water wells'),
+        self.LYRNAME = {'idr_control_points':self.tr('Control points'),
+                        'idr_nodes': self.tr('Nodes'),
+                        'idr_links': self.tr('Links'),
+                        'idr_distrmap': self.tr('Irrigation units'),
+                        'node_act_disc': self.tr('Actual discharge at node (m^3/s)'),
+                        'node_disc': self.tr('Estimated discharge at node (m^3/s)'),
+                        'idr_weather_stations': self.tr('Weather stations'),
+                        'idr_soilmap': self.tr('Soils map'),
+                        'idr_soil_types': self.tr('Soil types'),
+                        'idr_soil_profiles': self.tr('Soil profiles'),
+                        'idr_usemap': self.tr('Uses map'),
+                        'idr_irrmap': self.tr('Irrigation methods map'),
+                        'idr_crop_types': self.tr('Crop types'),
+                        'idr_soiluses': self.tr('Soil uses'),
+                        'idr_irrmet_types': self.tr('Irrigation methods'),
+                        'ws_tmin': self.tr('Min temp. (°C)'), 'ws_tmax': self.tr('Max temp.(°C)'),
+                        'ws_ptot': self.tr('Precipitation (mm)'),
+                        'ws_umin': self.tr('Min air humidity (-)'), 'ws_umax': self.tr('Max air humidity (-)'),
+                        'ws_vmed': self.tr('Wind velocity (m/s)'), 'ws_rgcorr': self.tr('Solar radiation (J/m2)'),
+                        'ws_co2':self.tr('CO2 concentration (p.p.m.)')
+                        }
+
+        # the order is the same in the legend (from bottom to top)
+        self.LYRGRPNAME = { 'idr_soil_types': self.tr('Soil'),
+                           'idr_soil_profiles':self.tr('Soil'),
+                           'idr_crop_types': self.tr('Land use'),
+                           'idr_soiluses': self.tr('Land use'),
+                           'idr_irrmet_types': self.tr('Land use'),
+                           'ws_tmin': self.tr('Weather'), 'ws_tmax': self.tr('Weather'),
+                           'ws_ptot': self.tr('Weather'),
+                           'ws_umin': self.tr('Weather'), 'ws_umax': self.tr('Weather'),
+                           'ws_vmed': self.tr('Weather'), 'ws_rgcorr': self.tr('Weather'),
+                            'ws_co2': self.tr('Weather'),
+                            'idr_soilmap': self.tr('Soil'),
+                            'idr_usemap': self.tr('Land use'),
+                            'idr_irrmap': self.tr('Land use'),
+                            'idr_weather_stations': self.tr('Weather'),
+                            'idr_gw_wells': self.tr('Ground water'),
+                           'node_act_disc': self.tr('Network'),
+                           'node_disc': self.tr('Network'),
+                            'idr_nodes': self.tr('Network'), 'idr_links': self.tr('Network'),
+                            'idr_distrmap': self.tr('Network'),
+                            'idr_control_points': self.tr('Analysis')
+                            }
+
+        self.METEONAME = {'ws_tmin': self.tr('Min temp. (°C)'), 'ws_tmax': self.tr('Max temp.(°C)'),
+                          'ws_ptot': self.tr('Precipitation (mm)'),
+                          'ws_umin': self.tr('Min air humidity (-)'), 'ws_umax': self.tr('Max air humidity (-)'),
+                          'ws_vmed': self.tr('Wind velocity (m/s)'), 'ws_rgcorr': self.tr('Solar radiation (J/m2)'),
+                          'ws_co2':self.tr('CO2 concentration (p.p.m.)')}
+
+        self.WELLNAME = {'well_watertable': self.tr('Water table (m)')}
+
+        self.CPVARNAME = {
+            'cp_rain_mm': self.tr('Local precipitation (mm)'),
+            'cp_Tmax': self.tr('Local max temp.(°C)'),
+            'cp_Tmin': self.tr('local min temp.(°C)'),
+            'cp_et0': self.tr('Potential ET (mm)'),
+            'cp_kcb': self.tr('Crop coefficient'),
+            'cp_lai': self.tr('Leaf Area index (-)'),
+            'cp_pday': self.tr('p factor'),
+            'cp_irrig_mm': self.tr('Irrigation (mm)'),
+            'cp_peff_mm': self.tr('Local actual precipitation (mm)'),
+            'cp_h2o_dispL_mm': self.tr('Gross available water (mm)'),
+            'cp_h2o_disp_mm': self.tr('Net available water (mm)'),
+            'cp_interception_mm': self.tr('Interception (mm)'),
+            'cp_runoff_mm': self.tr('Runoff (mm)'),
+            'cp_infiltration_mm': self.tr('Infiltration (mm)'),
+            'cp_eva_pot_mm': self.tr('Potential evaporation (mm)'),
+            'cp_eva_mm': self.tr('Actual evaporation (mm)'),
+            'cp_perc1_mm': self.tr('1th layer percolation (mm)'),
+            'cp_theta1_mm': self.tr('1th layer water content (mm)'),
+            'cp_ponding_mm': self.tr('Ponding (mm)'),
+            'cp_trasp_pot_mm': self.tr('Potential transpiration (mm)'),
+            'cp_trasp_act_mm': self.tr('Actual transpiration (mm)'),
+            'cp_ks': self.tr('Stress coefficient'),
+            'cp_thickness_II_m': self.tr('2nd layer thickness (m)'),
+            'cp_wat_table_depth_under_root_m': self.tr('Water table depth (m)'),
+            'cp_capflux_mm': self.tr('Capilar rise (mm)'),
+            'cp_perc2_mm': self.tr('2nd layer percolation (mm)'),
+            'cp_theta2_mm': self.tr('2nd layer water content (mm)'),
+            'cp_theta_old_mm': self.tr('Soil water content before (mm)'),
+            'cp_rawbig': self.tr('RAW big'),
+            'cp_rawinf': self.tr('RAW inf'),
+            'cp_wat_table_depth_m': self.tr('Local Water table depth (mm)'),
+            'cp_distr_irr_mm': self.tr('District irrigation (mm)'),
+            'cp_priv_well_irr_mm': self.tr('Private well irrigation (mm)'),
+            'cp_espperc1': self.tr('Esp perc 1'),
+            'cp_espperc2': self.tr('Esp perc 2'),
+            'cp_irr_loss_mm': self.tr('Irrigation losses (mm)')
+        }
+
+        # add control points time serie to analysis
+        # for k,v in self.CPVARNAME.items():
+        #     self.LYRGRPNAME[k]= self.tr('Analysis')
+        #     self.LYRNAME[k]= v
+
+#        print(self.LYRGRPNAME)
+
+        self.STEPNAME = {
+            'stp_irr': self.tr('Irrigation (mm)'),
+            'stp_irr_distr': self.tr('Irrigation from district’s water supply (mm)'),
+            'stp_irr_loss': self.tr('Irrigation losses (mm)'),
+            'stp_irr_privw': self.tr('Irrigation from private wells (mm)'),
+            'stp_prec': self.tr('Precipitation at field (mm)'),
+            'stp_runoff': self.tr('Runoff (mm)'),
+            'stp_trasp_act': self.tr('Actual transpiration (mm)'),
+            'stp_trasp_pot': self.tr('Potential transpiration (mm)'),
+            'stp_et_act': self.tr('Actual evapotranspiration (mm)'),
+            'stp_et_pot': self.tr('Potential evapotranspiration (mm)'),
+            'stp_caprise': self.tr('Capillary rise from groundwater to the transpirative layer (mm)'),
+            'stp_flux2': self.tr(
+                'Net flux from the transpirative layer to groundwater, i.e. percolation – capillary rise (mm)')
+        }
+
+        self.AGGRFUNCTIONS = {
+            '_count':self.tr('Count'),
+            '_sum': self.tr('Sum'),
+            '_mean': self.tr('Mean'),
+            '_median': self.tr('Median'),
+            '_stdev': self.tr('Standard deviation'),
+            '_min': self.tr('Minimum'),
+            '_max': self.tr('Maximum'),
+            '_range': self.tr('Range'),
+            '_variance': self.tr('Variance'),
+        }
+
+        self.DISTRFUNCTIONS = {
+            'repeat': self.tr('Repeat over the step'),
+            'distribute': self.tr('Distribute over the step')
+                               }
+
+        self.WATERSOURCENAME = {'node_disc': self.tr('Estimated discharge (m^3/s)'),
+                                'node_act_disc': self.tr('Actual discharge (m^3/s)')}
+
+        self.STATS = {
+                    'varName': self.tr('Variable'),
+                    'startDate': self.tr('Start date'),
+                    'endDate': self.tr('End date'),
+                    'nOfExpDays': self.tr('Num. exp. val.'),
+                    'nOfFilled': self.tr('Num. fil. val.'),
+                    'fullness': self.tr('Perc. of fullness'),
+                    'minVal': self.tr('Minimum'),
+                    'maxVal': self.tr('Maximum'),
+                    'meanVal': self.tr('Mean'),
+                    'cumVal': self.tr('Cumulative'),
+                    'perc25': self.tr('25 perc.'),
+                    'perc50': self.tr('50 perc.'),
+                    'perc75': self.tr('75 perc.'),
+                    }
+
+        self.GROUPBY = {
+            'name':self.tr('Field name'),
+            'id_soil':self.tr('Soil type'),
+            'id_soiluse': self.tr('Soil use'),
+            'id_wsource': self.tr('Water source'),
+            'id_wstation': self.tr('Weather station'),
+            'id_gw_well': self.tr('Ground water well'),
+            'id_drainto': self.tr('Drainage node')
+        }
+
+        self.TIMESTEP = {
+            'years': self.tr('Years'),
+            'months': self.tr('Months'),
+            'days': self.tr('Days')
+        }
+
+        self.SIMMODE = {
+                        '0':'Without irrigation',
+                        '1':'Consumptions',
+                        '2':'Field capacity needs satisfaction',
+                        '3':'Fixed volumes',
+                        '4':'Scheduled irrigation'
+                        }
+
+        self.SIMDIC = {'DBFILE':'',
+                       'LOAD_SAMPLE_PAR':True,
+                       'LOAD_SAMPLE_DATA': False,
+                        'OUTPUTPATH':'',
+                        'OUTPUTFOLDER':'simout',
+                        'SPATIALFOLDER':'geodata',
+                        'METEOFOLDER':'meteodata',
+                        'PHENOFOLDER':'pheno',
+                        'IRRFOLDER':'irrmethods',
+                        'WATSOURFOLDER':'wsources',
+                        'WSFOLDER':'meteodata',
+                        'WSFILE':'weather_stations.dat',
+                        'CANOPYRESMOD':1,
+                        'CO2FILE': 'CO2_conc.dat',
+                        'MODE':0,
+                        'CAPILLARYFLAG':'F',
+                        'NOFMETEO':'',
+                        'NUMMETEOWEIGTH':5,
+                        'NOFSOILUSES':'',
+                        'SOILUSESLIST':'',
+                        'SOILUSEVARFLAG':'T',
+                        'RANDWIND':6,
+                        'STARTIRRSEASON':1,
+                        'ENDIRRSEASON':366,
+                        'NBASINS':0,
+                        'NSOURCE':0,
+                        'NSOURCEDER':0,
+                        'NSFLOWWELLS':0,
+                        'NTAILWAT':0,
+                        'NPUBWELL':0,
+                        'STARTYEAR' : '',
+                        'ENDYEAR': '',
+                        'YEARS':[],
+                        'PERIOD':'',
+                        'ZEVALAY':0.1,
+                        'ZTRANSLAY':0.9,
+                        'LANDUSES':'landuses',
+                        'EXTENT': '',
+                        'CRS': '',
+                        'CELLSIZE': 250,
+                        'WATERTABLEMAP': {},
+                        'ELEVMAP': {},
+                        'STARTOUTPUT':105,
+                        'ENDOUTPUT': 273,
+                        'STEPOUTPUT': 10,
+                        'MONTHOUTPUT':'F'
+
+                       }
+
+        self.PHENOVARS = {'CNvalue':self.tr('CN value'),
+                         'H':self.tr('Plant height'),
+                         'Kcb':self.tr('Crop coefficient'),
+                         'LAI': self.tr('Leaf area index'),
+                         'Sr': self.tr('Root depth')
+                         }
+
+        # enable macro for this session
+        s = QgsSettings()
+        self.MACROPOLICY = s.value('qgis/enableMacros')
+        #self.TABLEPOLICY = s.value('qgis/attributeTableView')
+        s.setValue('qgis/enableMacros', 'SessionOnly')
+        #s.setValue('qgis/attributeTableView', 1)
+
+        self.DBM = None
+
+        self.actionList = []
+        self.actionState = []
+
+        self.mainMenu = None
+        self.iface.projectRead.connect(self.loadFromProject)
+        self.iface.newProjectCreated.connect(self.resetMenuItemState)
+
+        # reload if project is already loaded
+        #if QgsProject.instance():
+        #    self.loadFromProject()
+
+    def printSome(self):
+        self.showCriticalMessageBox(self.tr('Not implemented yet'),
+                                    self.tr('This function is not implemented, I\'m sorry :('),
+                                    self.tr('Really so sorry ...'))
+
+    def initGui(self):
+        # add Main Menu
+        self.mainMenu = self._addmenu(self.iface.mainWindow().menuBar(), 'IdrAgraTools', 'IdrAgraTools')
+        self.dbMenu = self._addmenu(self.mainMenu, 'Database', self.tr('Start'),True)
+        #self._addmenuitem(self.dbMenu, 'LoadDB', self.tr('Open'), self.openDB, True)
+        self._addmenuitem(self.dbMenu, 'NewDB', self.tr('New'), self.newDB, True)
+        self.mainMenu.addMenu(self.dbMenu)
+
+        self.weatherMenu = self._addmenu(self.mainMenu, 'Weather', self.tr('Weather'), False)
+        self._addmenuitem(self.weatherMenu, 'ImportWeatherStations', self.tr('Import weather stations'), self.importWeatherStations,
+                          False)
+        # self._addmenuitem(self.weatherMenu, 'ImportWeightMap', self.tr('Import weight map'),
+        #                   self.importWeightMap,
+        #                   False)
+        self._addmenuitem(self.weatherMenu, 'ImportMeteoData', self.tr('Import meteo data'), self.importMeteoData, False)
+
+        self.mainMenu.addMenu(self.weatherMenu)
+
+
+        self.soilMenu = self._addmenu(self.mainMenu, 'Soil', self.tr('Soil'), False)
+        self._addmenuitem(self.soilMenu, 'ImportSoilMap', self.tr('Import soil map'), self.importSoilMap, False)
+        self._addmenuitem(self.soilMenu, 'EditSoilType', self.tr('Edit soil type'), self.printSome, False)
+
+        self.mainMenu.addMenu(self.soilMenu)
+
+        self.landuseMenu = self._addmenu(self.mainMenu, 'LandUse', self.tr('Land use'), False)
+        self._addmenuitem(self.landuseMenu, 'ImportLandUseMap', self.tr('Import land use map'), self.importLandUseMap, False)
+        self._addmenuitem(self.landuseMenu, 'EditLandUseType', self.tr('Edit land use type'), self.printSome, False)
+        self.mainMenu.addMenu(self.landuseMenu)
+
+        self.irrigationMenu = self._addmenu(self.mainMenu, 'Irrigation', self.tr('Irrigation'), False)
+        self._addmenuitem(self.irrigationMenu, 'ImportWaterDistrictMap', self.tr('Import irrigation units map'), self.importWaterDistrictMap, False)
+        self._addmenuitem(self.irrigationMenu, 'ImportNodeMap', self.tr('Import node map'),  self.importNodes, False)
+        self._addmenuitem(self.irrigationMenu, 'ImportLinkMap', self.tr('Import link map'), self.importLinks, False)
+        #self._addmenuitem(self.irrigationMenu, 'CheckNetwork', self.tr('Check network'), self.printSome, False)
+        self._addmenuitem(self.irrigationMenu, 'ImportDischargeData', self.tr('Import discharge data'), self.importDischargeData, False)
+
+        self.mainMenu.addMenu(self.irrigationMenu)
+
+        self.elevationMenu = self._addmenu(self.mainMenu, 'Elevation', self.tr('Elevation'), False)
+        self._addmenuitem(self.elevationMenu, 'SetDTM', self.tr('Set/edit elevation'), self.setElevation, False)
+        self.mainMenu.addMenu(self.elevationMenu)
+
+        self.wtMenu = self._addmenu(self.mainMenu, 'WaterTable', self.tr('Ground water'), False)
+        self._addmenuitem(self.wtMenu, 'SetWT', self.tr('Set/edit water table'), self.setWaterTable, False)
+        self.mainMenu.addMenu(self.wtMenu)
+
+        self.simulationMenu = self._addmenu(self.mainMenu, 'Simulation', self.tr('IdrAgra'), False)
+        self._addmenuitem(self.simulationMenu, 'RunAll', self.tr('Run all'), self.runAll, False)
+        self.simulationMenu.addSeparator()
+        self._addmenuitem(self.simulationMenu, 'SetSimulation', self.tr('Set simulation'), self.setSimulation, False)
+        self._addmenuitem(self.simulationMenu, 'ExportMeteoData', self.tr('Export meteo data'), self.exportMeteoData, False)
+        self._addmenuitem(self.simulationMenu, 'ExportSpatialData', self.tr('Export spatial data'), self.exportSpatialData, False)
+        self._addmenuitem(self.simulationMenu, 'ExportIrrigationMethods', self.tr('Export irrigation methods'),
+                          self.exportIrrigationMethods, False)
+
+        self._addmenuitem(self.simulationMenu, 'ExportWaterSourcesData', self.tr('Export water sources data'), self.exportWaterSourcesData, False)
+        self._addmenuitem(self.simulationMenu, 'ExportSimProj', self.tr('Export simulation project'), self.exportSimProj, False)
+
+        self._addmenuitem(self.simulationMenu, 'RunSimulation', self.tr('Run simulation'),
+                          lambda: self.runAsThread(self.runSimulation), False)
+
+        self.mainMenu.addMenu(self.simulationMenu)
+
+        self.analysisMenu = self._addmenu(self.mainMenu, 'Analysis', self.tr('Analysis'), False)
+        #self._addmenuitem(self.analysisMenu, 'ImportControlPointsResults', self.tr('Import control points results'),
+        #                  lambda: self.runAsThread(self.importControlPointsResults), False)
+        self._addmenuitem(self.analysisMenu, 'DischargeToNode', self.tr('Node water demand'),
+                          lambda: self.runAsThread(self.computeNodeDischarge), False)
+        self._addmenuitem(self.analysisMenu, 'GroupedStats', self.tr('Grouped statistics'),
+                          self.makeGroupedStats, False)
+
+        self.mainMenu.addMenu(self.analysisMenu)
+
+        self.advancedMenu = self._addmenu(self.mainMenu, 'Advanced', self.tr('Advanced'), False)
+        self._addmenuitem(self.advancedMenu, 'ManageTimeSerie', self.tr('Manage time serie'), self.manageTimeSerie,
+                          False)
+        #self._addmenuitem(self.advancedMenu, 'Options', self.tr('Options'), self.setOptions,True)
+        self._addmenuitem(self.advancedMenu, 'Test', self.tr('test'), self.test,
+                          False)
+
+        self.mainMenu.addMenu(self.advancedMenu)
+
+        # add to the QGIS GUI
+        menuBar = self.iface.mainWindow().menuBar()
+        menuBar.insertMenu(self.iface.firstRightStandardMenu().menuAction(), self.mainMenu)
+
+        # Init settings
+        self.setSettings()
+
+        # Init procesing provider
+        QgsApplication.processingRegistry().addProvider(self.provider)
+
+    # init demo db
+    # self.openDB('C:/idragra_code/dataset/test.gpkg')
+
+    def resetMenuItemState(self):
+        if self.mainMenu:
+            for action,activate in zip(self.actionList,self.actionState):
+                ACT = self.mainMenu.findChild(QAction, action)
+                if ACT: ACT.setEnabled(activate)
+                MENU = self.mainMenu.findChild(QMenu, action)
+                if MENU: MENU.setEnabled(activate)
+
+
+    def checkLayerToBeRemoved(self,layerIds):
+        proj = QgsProject.instance()
+        for id in layerIds:
+            lay = proj.mapLayer (id)
+            laySource = lay.source().replace('\\','/')
+
+            for name,path in self.SIMDIC['RASTERMAP'].items():
+                if laySource == path.replace('\\','/'):
+                    self.showInfoMessageBox(
+                        self.tr('The selected file is used as %s map and will be removed')%name,
+                        self.tr('TODO: It may not effect the process...'))
+                    #self.deleteRaster(name)
+
+    def setMenuItemState(self):
+        # activate function
+        for action in self.actionList:
+            ACT = self.mainMenu.findChild(QAction, action)
+            if ACT: ACT.setEnabled(not ACT.isEnabled())
+            MENU = self.mainMenu.findChild(QMenu, action)
+            if MENU: MENU.setEnabled(not MENU.isEnabled())
+
+    def unload(self):
+        self.mainMenu.deleteLater()
+        # remove processing provider
+        QgsApplication.processingRegistry().removeProvider(self.provider)
+        # restore macro policy
+        s = QgsSettings()
+        s.setValue('qgis/enableMacros', self.MACROPOLICY)
+        #s.setValue('qgis/attributeTableView', self.TABLEPOLICY)
+
+    def _addmenuitem(self, parent, name, text, function, activate=True):
+        self.actionList.append(name)
+        self.actionState.append(activate)
+        action = QAction(parent)
+        action.setObjectName(name)
+        action.setIcon(QIcon(self.plugin_dir + '/icons/' + name + '.svg'))
+        action.setText(text)
+        action.setEnabled(activate)
+        # connect the action to the run method
+        action.triggered.connect(function)
+        # QObject.connect(action, SIGNAL("activated()"), function)
+        parent.addAction(action)
+
+    def _addAction(self, parent, name, text, description, function, checkable=False, activate=False):
+        action = QAction(parent)
+        action.setObjectName(name)
+        action.setIcon(QIcon(self.plugin_dir + '/icons/' + name + '.svg'))
+        action.setText(text)
+        action.setWhatsThis(description)
+        action.setCheckable(checkable)
+        action.setEnabled(activate)
+        action.triggered.connect(function)
+        if parent:
+            parent.addAction(action)
+        else:
+            self.iface.addToolBarIcon(action)
+
+        return action
+
+    def _addmenu(self, parent, name, text, activate=True):
+        self.actionList.append(name)
+        self.actionState.append(activate)
+        menu = QMenu(parent)
+        menu.setIcon(QIcon(self.plugin_dir + '/icons/' + name + '.svg'))
+        menu.setObjectName(name)
+        menu.setTitle(text)
+        menu.setEnabled(activate)
+        return menu
+
+    def _getAction(self, parent, name):
+        for action in parent.actions():
+            if action.objectName() == name:
+                return action
+
+    def showCriticalMessageBox(self, text, infoText, detailText):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        msg.setText(text)
+        msg.setInformativeText(infoText)
+        msg.setWindowTitle('IdrAgraTools')
+        msg.setDetailedText(detailText)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+
+    def showInfoMessageBox(self, text, infoText):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setText(text)
+        msg.setInformativeText(infoText)
+        msg.setWindowTitle('IdrAgraTools')
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+
+    def tr(self, source_text):
+        return QgsApplication.translate('IdrAgraTools', source_text)
+
+    def setSettings(self):
+        s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+        if not s.value('bufDist'):
+            s.setValue('bufDist', str(self.bufDist))
+        else:
+            self.bufDist = float(s.value('bufDist'))
+        if not s.value('bufSeg'):
+            s.setValue('bufSeg', str(self.bufSeg))
+        else:
+            self.bufSeg = int(s.value('bufSeg'))
+        if not s.value('plotVar'):
+            s.setValue('plotVar', self.plotVar)
+        else:
+            self.plotVar = s.value('plotVar')
+        if not s.value('crsId'):
+            s.setValue('crsId', str(self.CRS))
+        else:
+            self.CRS = int(s.value('crsId'))
+
+    def extractDateTime(self, text, dateFormat='state_%d%m%y_%H%M.mat'):
+        # filename is "state_080518_0000.mat"
+        dt = datetime.strptime(text, dateFormat)
+        return dt
+
+    def newDB(self,isDemo = False):
+        s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+        # get the filename of the project file
+        proj = QgsProject.instance()
+        filename = proj.fileName()
+        crs =  proj.crs()
+        #print('crs',crs.postgisSrid())
+        if filename == '':
+            # ask to save the project first
+            self.showCriticalMessageBox(self.tr("Please save the project first"),
+                                        self.tr("Before continue you have to save the project"),
+                                        self.tr("Go to Project --> Save "))
+        else:
+            rootName = os.path.basename(filename)
+            rootName = rootName[:-4]
+            rootPath = os.path.dirname(filename)
+            dbpath = os.path.join(rootPath, rootName + '_DATA' + '.gpkg')
+
+            self.SIMDIC['DBFILE']= dbpath
+            self.SIMDIC['OUTPUTPATH'] = os.path.join(rootPath, rootName + '_SIM')
+            self.SIMDIC['CRS'] = crs.postgisSrid()
+            self.updatePars()
+
+            # show dialog
+            # TODO
+            dlg = NewDbDialog(self.iface.mainWindow(),self.SIMDIC)
+            dlg.show()
+            result = dlg.exec_()
+            # See if OK was pressed
+            res = []
+            if result == 1:
+                res = dlg.getData()
+                #print('res',res)
+                self.SIMDIC['LOAD_SAMPLE_PAR'] = res['loadSamplePar']
+                self.SIMDIC['LOAD_SAMPLE_DATA'] = res['loadSampleData']
+                self.SIMDIC['DBFILE'] = res['dbFile']
+                self.SIMDIC['OUTPUTPATH'] = os.path.join(rootPath, rootName + '_SIM')
+                self.updatePars()
+
+                self.runAsThread(self.newDBTH,self.updateProj)
+
+    def updateProj(self):
+        self.DBM = SQLiteDriver(self.SIMDIC['DBFILE'], False)
+        # activate other actions
+        self.setMenuItemState()
+        # load layers
+        self.loadLayer()
+        self.setupAllLayers()
+        self.updatePars()
+
+    def updatePars(self):
+        proj = QgsProject.instance()
+        proj.writeEntry('IdrAgraTools', 'dbname', str(self.SIMDIC['DBFILE']))
+        proj.writeEntry('IdrAgraTools', 'simsettings', str(self.SIMDIC))
+
+        # if dialog res is true then
+            # set up SIMDICT
+
+    def newDBTH(self,progress):
+        crs = QgsCoordinateReferenceSystem()
+        #crs.createFromSrsId(int(self.SIMDIC['CRS']))
+        crs.createFromString('EPSG:%s'%self.SIMDIC['CRS'])
+        # print('crs id',self.SIMDIC['CRS'])
+        # print(crs)
+
+        processing.run("idragratools:IdragraCreateDB", {'DB_FILENAME': self.SIMDIC['DBFILE'],
+                                                        'CRS': crs,
+                                                        'LOAD_SAMPLE_PAR': bool(self.SIMDIC['LOAD_SAMPLE_PAR']),
+                                                        'LOAD_SAMPLE_DATA': bool(self.SIMDIC['LOAD_SAMPLE_DATA'])},
+                       context = None, feedback = progress, is_child_algorithm = False)
+
+
+
+
+
+
+    def openDB(self, dbpath=None):
+        s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+        if not dbpath:
+            #print('dbpath in openDB',dbpath)
+            dbpath = QFileDialog.getOpenFileName(None, self.tr('Open idragra database'), s.value('lastPath'),
+                                                 self.tr('Geopackage file (*.gpkg)'))
+            dbpath = dbpath[0]
+
+        self.DBM = SQLiteDriver(dbpath, False)
+        # activate other actions
+        self.setMenuItemState()
+        # load layers
+        self.loadLayer()
+        self.setupAllLayers()
+
+        # add to project
+        QgsProject.instance().writeEntry('IdrAgraTools', 'dbname', str(dbpath))
+
+    def loadDemoData(self, fGeodata=True):
+        # load crop types
+        path2crop = os.path.join(self.plugin_dir, 'sample', 'crop')
+        fileList = os.listdir(path2crop)
+        for f in fileList:
+            cropDict = parseParFile(filename=os.path.join(path2crop, f), parSep='=', colSep=' ', feedback=None, tr=None)
+            cropValues = list(cropDict.values())
+            sql = "INSERT INTO idr_crop_types VALUES (null,'%s');" % ("','".join(cropValues))
+            msg = self.DBM.executeSQL(sql)
+
+        # load irrigation methods
+        path2irrmethod = os.path.join(self.plugin_dir, 'sample', 'irr_method')
+        fileList = os.listdir(path2irrmethod)
+        for f in fileList:
+            irrDict = parseParFile(filename=os.path.join(path2irrmethod, f), parSep='=', colSep=' ', feedback=None,
+                                   tr=None)
+            irrValues = list(irrDict.values())
+            sql = "INSERT INTO idr_irrmet_types VALUES (null,'%s');" % ("','".join(irrValues))
+            msg = self.DBM.executeSQL(sql)
+
+        # load soil types
+        path2soil = os.path.join(self.plugin_dir, 'sample', 'soil')
+        fileList = os.listdir(path2soil)
+        for f in fileList:
+            soilDict = parseParFile(filename=os.path.join(path2soil, f), parSep='=', colSep=' ', feedback=None, tr=None)
+            soilValues = list(soilDict.values())
+            sql = "INSERT INTO idr_soil_types VALUES (null,'%s');" % ("','".join(soilValues))
+            msg = self.DBM.executeSQL(sql)
+
+        # load soil uses
+        path2soiluse = os.path.join(self.plugin_dir, 'sample', 'soiluse')
+        fileList = os.listdir(path2soiluse)
+        for f in fileList:
+            soiluseDict = parseParFile(filename=os.path.join(path2soiluse, f), parSep='=', colSep=' ', feedback=None,
+                                       tr=None)
+            soiluseValues = list(soiluseDict.values())
+            sql = "INSERT INTO idr_soiluses VALUES (null,'%s');" % ("','".join(soiluseValues))
+            msg = self.DBM.executeSQL(sql)
+
+        if (fGeodata == True):
+            # load geometries
+            path2geodata = os.path.join(self.plugin_dir, 'sample', 'geodata')
+            listOfFile = ['idr_weather_stations', 'idr_gw_wells', 'idr_nodes', 'idr_links', 'idr_crop_fields']
+            for f in listOfFile:
+                # load crop field
+                gpkg_layer = self.DBM.DBName + '|layername=' + f
+                csvFile = os.path.join(path2geodata, f + '.csv')
+                addFeaturesFromCSV(gpkg_layer, csvFile)
+
+            # load meteo data
+            path2weather = os.path.join(self.plugin_dir, 'sample', 'weather')
+            fileList = os.listdir(path2weather)
+            varList = ['ws_tmax', 'ws_tmin', 'ws_ptot', 'ws_umax', 'ws_umin', 'ws_vmed', 'ws_rgcorr']
+            for c, f in enumerate(fileList):
+                for i, var in enumerate(varList):
+                    self.importDataFromCSV(filename=os.path.join(path2weather, f), tablename=var, timeFldIdx=0,
+                                           valueFldIdx=i + 1, sensorId=c + 1, skip=1, timeFormat='%Y/%m/%d',
+                                           column_sep=',', progress=None)
+
+            # load discharge data
+            path2disch = os.path.join(self.plugin_dir, 'sample', 'discharge')
+            fileList = os.listdir(path2disch)
+            varList = ['node_act_disc']
+            for c, f in enumerate(fileList):
+                for i, var in enumerate(varList):
+                    self.importDataFromCSV(filename=os.path.join(path2disch, f), tablename=var, timeFldIdx=0,
+                                           valueFldIdx=i + 1, sensorId=c + 1, skip=1, timeFormat='%d/%m/%Y',
+                                           column_sep=';', progress=None)
+
+    def loadLayer(self):
+        lyrSourcesList = [layer.source().replace('\\','/') for layer in QgsProject.instance().mapLayers().values()]
+        for n, a in self.LYRNAME.items():
+            gpkg_layer = self.DBM.DBName + '|layername=' + n
+            gpkg_layer = gpkg_layer.replace('\\', '/')
+            if not gpkg_layer in lyrSourcesList:
+                vlayer = QgsVectorLayer(gpkg_layer, a, "ogr")
+                if not vlayer.isValid():
+                    print("Failed to load layer %s"%a)  # TODO
+                else:
+                    groupIndex, mygroup = self.getGroupIndex(self.LYRGRPNAME[n])
+                    vlayer.loadNamedStyle(os.path.join(self.plugin_dir, 'styles', n + '.qml'))
+                    QgsProject.instance().addMapLayer(vlayer, False)
+                    mygroup.insertChildNode(groupIndex, QgsLayerTreeLayer(vlayer))
+
+                # set up layer field
+
+        # load rasters
+        for n,s in self.SIMDIC['ELEVMAP'].items():
+            self.loadRaster(rasterPath = s, rasterName=n, layGroup=self.tr('Elevation'))
+
+        for n,s in self.SIMDIC['WATERTABLEMAP'].items():
+            self.loadRaster(rasterPath = s, rasterName=n, layGroup=self.tr('Ground water'))
+
+    def setupAllLayers(self):
+        self.setupNodeLayer()
+        self.setupLinkLayer()
+        self.setupWeatherStationsLayer()
+        self.setupCropTypesLayer()
+        self.setupSoilUsesLayer()
+        self.setupIrrTypesLayer()
+        self.setupIrrigationUnitLayer()
+        self.setupControlPointLayer()
+
+    def setupControlPointLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_control_points'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'control_point_dialog')
+
+    def setupIrrigationUnitLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_distrmap'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'irrigation_unit_dialog')
+
+    def setupNodeLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_nodes'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'node_dialog')
+
+    def setupLinkLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_links'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'link_dialog')
+
+    def setupWeatherStationsLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_weather_stations'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'weather_station_dialog')
+
+    def setupCropTypesLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_crop_types'])
+        for vlayer in vlayerList:
+            self.setFieldCheckable(vlayer, 'irrigation')
+            self.setCustomForm(vlayer, 'crop_type_dialog')
+
+    def setupSoilUsesLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_soiluses'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'soiluse_dialog')
+
+    def setupIrrTypesLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_irrmet_types'])
+        for vlayer in vlayerList:
+            self.setFieldCheckable(vlayer, 'f_interception')
+            self.setCustomForm(vlayer, 'irrigation_method_dialog')
+
+    def importMeteoData(self):
+        # get meteo id,name
+        data = self.DBM.getRecord(tableName='idr_weather_stations',
+                                  fieldsList=['id', 'name'], filterFld='', filterValue='')
+        sensorsDict = {}
+        for d in data:
+            sensorsDict[d[0]] = '%s [%s]'%(d[1],d[0])
+
+        self.importData(sensorsDict,self.METEONAME)
+
+    def importDischargeData(self):
+        # get meteo id,name
+        data = self.DBM.getRecord(tableName='idr_nodes',
+                                  fieldsList=['id', 'name'], filterFld='', filterValue='')
+        sensorsDict = {}
+        for d in data:
+            sensorsDict[d[0]] = '%s [%s]' % (d[1], d[0])
+
+        self.importData(sensorsDict, self.WATERSOURCENAME)
+
+    def importData(self,sensorsDict = {},varDict={}):
+
+        from .forms.import_data import ImportData
+        dlg = ImportData(self.iface.mainWindow(),varDict,sensorsDict,self.s)
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            progress = IfaceProgress(self.iface)
+            self.importDataFromCSV(
+                             filename=res['selFile'], tablename=res['selVar'],
+                             timeFldIdx=res['timeFldIdx'],valueFldIdx=res['valueFldIdx'],
+                             sensorId=res['selSensor'],
+                             skip=res['skipLines'], timeFormat=res['timeFormat'], column_sep=res['sep'],
+                             overWrite = res['overWrite'],saveEdit = res['saveEdit'],year = '',
+                             progress=progress)
+
+    def importWeatherStations(self):
+        wsLay = self.getVectorLayerByName('idr_weather_stations')
+        layList = self.getLayerList(geomTypeList = [QgsWkbTypes.PointGeometry])
+        from .forms.import_vector_dialog import ImportVectorDialog
+        dlg = ImportVectorDialog(self.iface.mainWindow(), layList = layList, fields=wsLay.fields(),
+                                 skipFields = ['fid'], settings=self.s, title= self.tr('Weather stations'))
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            progress = IfaceProgress(self.iface)
+            self.importVector(
+                             fromLay=res['lay'],toLay=wsLay, fieldDict=res['fieldDict'],assignDate = None,
+                             saveEdit = res['saveEdit'],
+                             progress=progress)
+
+    def importNodes(self):
+        nodeLay = self.getVectorLayerByName('idr_nodes')
+        layList = self.getLayerList(geomTypeList=[QgsWkbTypes.PointGeometry])
+        from .forms.import_vector_dialog import ImportVectorDialog
+        dlg = ImportVectorDialog(self.iface.mainWindow(), layList=layList, fields=nodeLay.fields(),
+                                 skipFields=['fid'], settings=self.s, title= self.tr('Import nodes'))
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            progress = IfaceProgress(self.iface)
+            self.importVector(
+                fromLay=res['lay'], toLay=nodeLay, fieldDict=res['fieldDict'], assignDate=None,
+                saveEdit=res['saveEdit'],
+                progress=progress)
+
+
+    def importLinks(self):
+        linkLay = self.getVectorLayerByName('idr_links')
+        layList = self.getLayerList(geomTypeList=[QgsWkbTypes.LineGeometry])
+        from .forms.import_vector_dialog import ImportVectorDialog
+        dlg = ImportVectorDialog(self.iface.mainWindow(), layList=layList, fields=linkLay.fields(),
+                                 skipFields=['fid'], settings=self.s, title = self.tr('Import links'))
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            progress = IfaceProgress(self.iface)
+            self.importVector(
+                fromLay=res['lay'], toLay=linkLay, fieldDict=res['fieldDict'], assignDate=None,
+                saveEdit=res['saveEdit'],
+                progress=progress)
+
+    def importVector(self,fromLay,toLay, fieldDict, assignDate = None, saveEdit = False, progress=None):
+        # reset counter
+        self.DBM.resetCounter()
+        # start ediding
+        toLay.startEditing()
+        if toLay.isEditable():
+            pass
+        else:
+            flg = toLay.startEditing()
+            if flg == False:
+                progress.reportError(
+                    self.tr('Unable to edit layer %s') %
+                    (toLay.name()), True)
+                return
+
+        pr = toLay.dataProvider()
+        fieldNames = [field.name() for field in pr.fields()]
+
+        # loop in fromLay feature
+        nOfFeat =  fromLay.selectedFeatureCount()
+        if nOfFeat>0:
+            featureList = fromLay.getSelectedFeatures()
+        else:
+            nOfFeat = fromLay.featureCount()
+            featureList = fromLay.getFeatures()
+
+        i=0
+        progress.pushInfo(self.tr('Copying features ...'))
+
+        for feat in featureList:
+            newFeat = QgsFeature(pr.fields())
+            newFeat.setGeometry(feat.geometry())
+            for k,v in fieldDict.items():
+                #print('-->',k,v)
+                idx = fieldNames.index(k)
+                newFeat.setAttribute(idx, feat[v])
+
+            if assignDate:
+                idx = fieldNames.index('date')
+                newFeat.setAttribute(idx, assignDate)
+
+            toLay.addFeature(newFeat)
+
+            i += 1
+            if progress: progress.setPercentage(100 * i / nOfFeat)
+
+        progress.pushInfo(self.tr('Copying completed!'))
+
+        if saveEdit:
+            toLay.commitChanges()
+            progress.pushInfo(self.tr('Edits saved'))
+
+    def importWeightMap(self):
+        pass
+
+    def importSoilMap(self):
+        wsLay = self.getVectorLayerByName('idr_soilmap')
+        layList = self.getLayerList(geomTypeList = [QgsWkbTypes.PolygonGeometry])
+        from .forms.import_vector_dialog import ImportVectorDialog
+        dlg = ImportVectorDialog(self.iface.mainWindow(), layList=layList, fields=wsLay.fields(),
+                                 skipFields=['fid','date'], dateFld = [], settings=self.s,title= self.tr('Import soil map'))
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            progress = IfaceProgress(self.iface)
+            self.importVector(
+                             fromLay=res['lay'], toLay=wsLay, fieldDict=res['fieldDict'], assignDate=res['assignDate'],
+                             saveEdit=res['saveEdit'],
+                             progress=progress)
+
+    def importLandUseMap(self):
+        wsLay = self.getVectorLayerByName('idr_usemap')
+        layList = self.getLayerList(geomTypeList=[QgsWkbTypes.PolygonGeometry])
+        from .forms.import_vector_dialog import ImportVectorDialog
+        dlg = ImportVectorDialog(self.iface.mainWindow(), layList=layList, fields=wsLay.fields(),
+                                 skipFields=['fid'], dateFld=['date'], settings=self.s, title= self.tr('Import land use map'))
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            progress = IfaceProgress(self.iface)
+            self.importVector(
+                             fromLay=res['lay'], toLay=wsLay, fieldDict=res['fieldDict'], assignDate=res['assignDate'],
+                             saveEdit=res['saveEdit'],
+                             progress=progress)
+
+    def importWaterDistrictMap(self):
+        wsLay = self.getVectorLayerByName('idr_distrmap')
+        layList = self.getLayerList(geomTypeList=[QgsWkbTypes.PolygonGeometry])
+        from .forms.import_vector_dialog import ImportVectorDialog
+        dlg = ImportVectorDialog(self.iface.mainWindow(), layList=layList, fields=wsLay.fields(),
+                                 skipFields=['fid'], dateFld=[], settings=self.s, title= self.tr('Import irrigation units map'))
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            progress = IfaceProgress(self.iface)
+            self.importVector(
+                             fromLay=res['lay'], toLay=wsLay, fieldDict=res['fieldDict'], assignDate=None,
+                             saveEdit=res['saveEdit'],
+                             progress=progress)
+
+
+    def getVectorLayerByName(self, tablename):
+        gpkg_layer = self.DBM.DBName + '|layername=' + tablename
+        gpkg_layer = gpkg_layer.replace('\\', '/')
+        vLayer = None
+        for layer in QgsProject.instance().mapLayers().values():
+            if (layer.source().replace('\\', '/') == gpkg_layer) :
+                vLayer = layer
+                break
+
+        if vLayer is None:
+            vLayer = QgsVectorLayer(gpkg_layer, tablename, "ogr")
+
+        return vLayer
+
+    def getRasterLayerByName(self,tablename):
+        gpkg_layer = 'GPKG:'+self.DBM.DBName + ':' + tablename
+        gpkg_layer = gpkg_layer.replace('\\', '/')
+        rLayer = None
+        for layer in QgsProject.instance().mapLayers().values():
+            if (layer.source().replace('\\', '/') == gpkg_layer) :
+                rLayer = layer
+                break
+
+        return rLayer
+
+    def getRasterLayerBySource(self,tablesource):
+        rLayer = None
+        for layer in QgsProject.instance().mapLayers().values():
+            if (layer.source().replace('\\', '/') == tablesource) :
+                rLayer = layer
+                break
+
+        return rLayer
+
+    def getLayerByName(self,layName):
+        rLayer = None
+        for layer in QgsProject.instance().mapLayers().values():
+            if (layer.name() == layName) :
+                rLayer = layer
+                break
+
+        return rLayer
+
+    def getLayerList(self,geomTypeList = [QgsWkbTypes.PointGeometry,QgsWkbTypes.LineGeometry,
+                                          QgsWkbTypes.PolygonGeometry,QgsWkbTypes.UnknownGeometry,
+                                          QgsWkbTypes.NullGeometry]):
+        res = {}
+
+        for layer in QgsProject.instance().mapLayers().values():
+            if layer.type() == QgsMapLayer.VectorLayer:
+                vector_type = layer.geometryType()
+                if vector_type in geomTypeList:
+                    res[layer.name()]=layer
+
+        return res
+
+
+    def manageTimeSerie(self):
+        from .data_manager.data_manager_mainwindow import DataManagerMainwindow
+        import copy
+        import random
+
+        minTime = ''
+        maxTime = ''
+
+        tNameList = list(self.METEONAME.keys()) + list(self.WATERSOURCENAME.keys())
+
+        for tName in tNameList:
+            vals = self.DBM.getMinMax(tName, 'timestamp')
+            vals = vals[0]
+            if vals[0]:
+                if minTime == '':
+                    minTime = vals[0]
+                else:
+                    if minTime > vals[0]:
+                        minTime = vals[0]
+
+            if vals[1]:
+                if maxTime == '':
+                    maxTime = vals[1]
+                else:
+                    if maxTime < vals[1]:
+                        maxTime = vals[1]
+
+        confDict = {}
+        for lyrTable, lyrName in self.LYRNAME.items():
+            # 'idr_crop_fields','idr_weather_stations','idr_gw_wells','idr_nodes','idr_links'
+            lyrDict = {}
+            baseList = []
+            if lyrTable == 'idr_weather_stations':
+                baseList = [{'name': self.METEONAME['ws_tmax'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                             'axes': 'y', 'table': "ws_tmax", 'id': -1},
+                            {'name': self.METEONAME['ws_tmin'], 'plot': 'False', 'color': '#00ffffff', 'style': '-',
+                             'axes': 'y', 'table': "ws_tmin", 'id': -1},
+                            {'name': self.METEONAME['ws_ptot'], 'plot': 'False', 'color': '#0000ff', 'style': 's',
+                             'axes': 'y', 'table': "ws_ptot", 'id': -1},
+                            {'name': self.METEONAME['ws_umin'], 'plot': 'False', 'color': '#00ffff54', 'style': '-',
+                             'axes': 'y', 'table': "ws_umin", 'id': -1},
+                            {'name': self.METEONAME['ws_umax'], 'plot': 'False', 'color': '#0000ff54', 'style': '-',
+                             'axes': 'y', 'table': "ws_umax", 'id': -1},
+                            {'name': self.METEONAME['ws_vmed'], 'plot': 'False', 'color': '#ff660054', 'style': '-',
+                             'axes': 'y', 'table': "ws_vmed", 'id': -1},
+                            {'name': self.METEONAME['ws_rgcorr'], 'plot': 'False', 'color': '#80800054', 'style': '-',
+                             'axes': 'y', 'table': "ws_rgcorr", 'id': -1}
+                            ]
+
+            if lyrTable == 'idr_control_points':
+                baseList = [
+                    {'name': self.CPVARNAME['cp_rain_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_rain_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_Tmax'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_Tmax', 'id': -1},
+                    {'name': self.CPVARNAME['cp_Tmin'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_Tmin', 'id': -1},
+                    {'name': self.CPVARNAME['cp_et0'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_et0', 'id': -1},
+                    {'name': self.CPVARNAME['cp_kcb'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_kcb', 'id': -1},
+                    {'name': self.CPVARNAME['cp_lai'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_lai', 'id': -1},
+                    {'name': self.CPVARNAME['cp_pday'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_pday', 'id': -1},
+                    {'name': self.CPVARNAME['cp_irrig_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_irrig_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_peff_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_peff_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_h2o_dispL_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_h2o_dispL_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_h2o_disp_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_h2o_disp_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_interception_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_interception_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_runoff_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_runoff_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_infiltration_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_infiltration_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_eva_pot_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_eva_pot_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_eva_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_eva_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_perc1_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_perc1_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_theta1_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_theta1_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_ponding_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_ponding_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_trasp_pot_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_trasp_pot_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_trasp_act_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_trasp_act_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_ks'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-', 'axes': 'y',
+                     'table': 'cp_ks', 'id': -1},
+                    {'name': self.CPVARNAME['cp_thickness_II_m'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_thickness_II_m', 'id': -1},
+                    {'name': self.CPVARNAME['cp_wat_table_depth_under_root_m'], 'plot': 'False', 'color': '#ff0000ff',
+                     'style': '-', 'axes': 'y', 'table': 'cp_wat_table_depth_under_root_m', 'id': -1},
+                    {'name': self.CPVARNAME['cp_capflux_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_capflux_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_perc2_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_perc2_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_theta2_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_theta2_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_theta_old_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_theta_old_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_rawbig'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_rawbig', 'id': -1},
+                    {'name': self.CPVARNAME['cp_rawinf'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_rawinf', 'id': -1},
+                    {'name': self.CPVARNAME['cp_wat_table_depth_m'], 'plot': 'False', 'color': '#ff0000ff',
+                     'style': '-', 'axes': 'y', 'table': 'cp_wat_table_depth_m', 'id': -1},
+                    {'name': self.CPVARNAME['cp_distr_irr_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_distr_irr_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_priv_well_irr_mm'], 'plot': 'False', 'color': '#ff0000ff',
+                     'style': '-', 'axes': 'y', 'table': 'cp_priv_well_irr_mm', 'id': -1},
+                    {'name': self.CPVARNAME['cp_espperc1'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_espperc1', 'id': -1},
+                    {'name': self.CPVARNAME['cp_espperc2'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_espperc2', 'id': -1},
+                    {'name': self.CPVARNAME['cp_irr_loss_mm'], 'plot': 'False', 'color': '#ff0000ff', 'style': '-',
+                     'axes': 'y', 'table': 'cp_irr_loss_mm', 'id': -1}
+                ]
+
+            if lyrTable == 'idr_nodes':
+                baseList = [
+                    {'name': self.WATERSOURCENAME['node_disc'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'node_disc', 'id': -1},
+                    {'name': self.WATERSOURCENAME['node_act_disc'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'node_act_disc', 'id': -1}
+                ]
+
+            if len(baseList) > 0:
+                # open layer
+                # ~ gpkg_layer = self.DBM.DBName + '|layername='+lyrTable
+                # ~ vLayer = QgsVectorLayer(gpkg_layer, lyrTable, "ogr")
+                vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME[lyrTable])
+                vLayer = None
+                if len(vlayerList) > 0:
+                    vLayer = vlayerList[0]
+
+                    # thanks to https://gis.stackexchange.com/questions/138769/is-it-possible-to-sort-the-features-by-an-attribute-programmatically
+                    request = QgsFeatureRequest()
+
+                    # set order by field
+                    clause = QgsFeatureRequest.OrderByClause('id', ascending=True)
+                    orderby = QgsFeatureRequest.OrderBy([clause])
+                    request.setOrderBy(orderby)
+
+                    # loop in features
+                    featDict = {}
+                    if vLayer.selectedFeatureCount() > 0:
+                        featList = vLayer.getSelectedFeatures(request)
+                    else:
+                        featList = vLayer.getFeatures(request)
+
+                    for feat in featList:
+                        f_add = 1
+                        # ~ try: f_add = feat['f_alloutput']
+                        # ~ except: f_add = 1
+
+                        if f_add == 1:
+                            # add to dictionary
+                            featName = '%s [%s]' % (feat['name'], feat['id'])
+                            featDict[featName] = copy.deepcopy(baseList)
+
+                            for p in range(len(baseList)):
+                                featDict[featName][p]['name'] = '%s [%s]' % (baseList[p]['name'], feat['id'])
+                                featDict[featName][p]['id'] = feat['id']
+                                if featDict[featName][p]['color'] == '': featDict[featName][p]['color'] = "#" + ''.join(
+                                    [random.choice('0123456789ABCDEF') for j in range(6)])
+
+                            confDict[self.LYRNAME[lyrTable]] = featDict
+
+        self.dlg = DataManagerMainwindow(self.iface.mainWindow(), self.tr('Data manager'), confDict, self.DBM.DBName,
+                                         minTime,
+                                         maxTime,
+                                         self.s)  # it's required the new mainwindow lives in the plugin object
+        self.dlg.show()
+
+    def runAll(self):
+        self.setSimulation(callback = lambda: self.runAsThread(self.runAllTH))
+
+    def runAllTH(self, progress):
+        self.exportMeteoDataTH(progress)
+        self.updatePars()
+        self.exportSpatialDataTH(progress)
+        self.updatePars()
+        self.exportIrrigationMethodsTH(progress)
+        self.updatePars()
+        self.exportWaterSourcesDataTH(progress)
+        self.updatePars()
+        self.exportSimProjTH(progress)
+        self.runSimulation(progress)
+
+    def setSimulation(self, callback = None):
+        tNameList = list(self.METEONAME.keys()) + list(self.WATERSOURCENAME.keys())
+        startDate, endDate = self.DBM.getMultiMinMax(tNameList, 'timestamp')
+        yearList = range(startDate, endDate + 1)
+        yearList = [str(y) for y in yearList]
+
+        # show dialog to choose folder and set simulation parameters
+        from .forms.set_simulation_dialog import SetSimulationDialog
+        dlg = SetSimulationDialog(self.iface, yearList, list(self.SIMMODE.values()),self.SIMDIC)
+        result = 1
+        #result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        def updateSim():
+            res = dlg.getData()
+            ### set output path
+            self.SIMDIC['OUTPUTPATH'] = res['outfolder']
+            self.SIMDIC['SOILUSEVARFLAG'] = res['useyearlymaps']
+            ### set simulation period
+            self.SIMDIC['STARTYEAR'] = res['from']
+            self.SIMDIC['ENDYEAR'] = res['to']
+            self.SIMDIC['YEARS'] = list(range(res['from'], res['to'] + 1))
+            ### set spatial resolution
+            self.SIMDIC['EXTENT'] = res['extent'].toString(4)
+            self.SIMDIC['CRS'] = res['crs'].postgisSrid()
+            self.SIMDIC['CELLSIZE'] = res['cellsize']
+            ### set hydrological model
+            self.SIMDIC['ZEVALAY'] = res['zevalay']
+            self.SIMDIC['ZTRANSLAY'] = res['ztranslay']
+            self.SIMDIC['CAPILLARYFLAG'] = res['capRise']
+            ### set irrigation variable
+            self.SIMDIC['MODE'] = res['simMode']
+            self.SIMDIC['STARTIRRSEASON'] = res['irrStart']
+            self.SIMDIC['ENDIRRSEASON'] = res['irrEnd']
+            ### set output settings
+            self.SIMDIC['MONTHOUTPUT']=res['outMonth']
+            self.SIMDIC['STARTOUTPUT'] = res['outStartDate']
+            self.SIMDIC['ENDOUTPUT'] = res['outEndDate']
+            self.SIMDIC['STEPOUTPUT'] = res['outStep']
+
+            #print(self.SIMDIC)
+            self.updatePars()
+
+            ### set executable path
+            s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+            s.setValue('idragraPath', res['idragraPath'])
+            s.setValue('cropcoeffPath', res['cropcoeffPath'])
+            s.setValue('MCRpath', res['MCRpath'])
+            s.setValue('MinGWPath', res['MinGWPath'])
+
+            if callback:
+                callback()
+
+        dlg.accepted.connect(updateSim)
+        dlg.show()
+
+        return result
+
+    def exportIrrigationMethods(self):
+        self.runAsThread(function = self.exportIrrigationMethodsTH, onFinished = None)
+
+    def exportIrrigationMethodsTH(self,progress):
+        # export irrigation parameters
+        progress.setText(self.tr('Export irrigation parameters'))
+        path2irrigation = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['IRRFOLDER'])
+        if not os.path.exists(path2irrigation):
+            os.makedirs(path2irrigation)
+        else:
+            progress.pushInfo('Directory %s already exists' % path2irrigation, False)
+
+        exportIrrigationMethod(self.DBM, path2irrigation, progress, self.tr)
+
+    def exportMeteoData(self,progress):
+        self.runAsThread(function = self.exportMeteoDataTH, onFinished = self.updatePars)
+
+    def exportMeteoDataTH(self,progress):
+        # make output directory
+        path2Pheno = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['PHENOFOLDER'])
+        if not os.path.exists(path2Pheno):
+            os.makedirs(path2Pheno)
+        else:
+            progress.pushInfo('Directory %s already exists' % path2Pheno, False)
+
+        path2Meteodata = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['METEOFOLDER'])
+        if not os.path.exists(path2Meteodata):
+            os.makedirs(path2Meteodata)
+        else:
+            progress.pushInfo('Directory %s already exists' % path2Meteodata, False)
+
+        path2Geodata = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['SPATIALFOLDER'])
+        if not os.path.exists(path2Geodata):
+            os.makedirs(path2Geodata)
+            progress.pushInfo(self.tr('Exporting to %s ...') % path2Geodata)
+        else:
+            progress.pushInfo(self.tr('Directory %s already exists') % path2Geodata)
+
+        # export meteo data
+        progress.setText(self.tr('Export meteo data'))
+        stationDataList, yearList, CO2List = exportMeteodataFromDB(self.DBM, path2Meteodata, self.SIMDIC['YEARS'][0], self.SIMDIC['YEARS'][-1], progress, self.tr)
+        numOfStat = len(stationDataList)
+        numOfMatrix = 5 # maximum number of weigth matrix
+        if numOfStat<5:
+            numOfMatrix = numOfStat
+
+        self.SIMDIC['NOFMETEO']=numOfStat
+        self.SIMDIC['NUMMETEOWEIGTH']= numOfMatrix
+
+        stationsdata = '\n'.join(stationDataList)
+        writeParsToTemplate(outfile=os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['WSFILE']),
+                            parsDict={'NUMOFSTATIONS': numOfStat,
+                                      'STATIONSDATA': stationsdata
+                                      },
+                            templateName='weather_stations.txt')
+
+        # export CO2 data
+        CO2Text = ''
+        for y,co2 in zip(yearList,CO2List):
+            if not co2:
+                co2 = 337
+                progress.reportError(self.tr('CO2 concentration set to default value (337 p.p.m.) for year %s')%y,False)
+
+            CO2Text+='%s %s\n'%(y,co2)
+
+        writeParsToTemplate(outfile=os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['CO2FILE']),
+                            parsDict={'YEAR_CONC': CO2Text},
+                            templateName='co2_conc.txt')
+
+        progress.setText(self.tr('Export crop parameters'))
+        path2fielduse = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['LANDUSES'])
+        if not os.path.exists(path2fielduse):
+            os.makedirs(path2fielduse)
+        else:
+            progress.pushInfo('Directory %s already exists' % path2fielduse, False)
+
+        soiluseIds = exportLandUse(self.DBM, path2fielduse, progress, self.tr)
+        numOfLanduses = len(soiluseIds)
+        self.SIMDIC['NOFSOILUSES'] = numOfLanduses
+        self.SIMDIC['SOILUSESLIST'] = ' '.join(soiluseIds)
+
+        # setup cropcoeff par file
+        writeParsToTemplate(outfile=os.path.join(self.SIMDIC['OUTPUTPATH'], 'cropcoef.txt'),
+                            parsDict={
+                                'WSFILENAME': self.SIMDIC['WSFILE'],
+                                'METEOFOLDER': self.SIMDIC['METEOFOLDER'],
+                                'CROPFOLDER': self.SIMDIC['LANDUSES'],
+                                'OUTPUTFOLDER': self.SIMDIC['PHENOFOLDER'],
+                                'CANOPYRESMOD': self.SIMDIC['CANOPYRESMOD']
+                            },
+                            templateName='cropcoef.txt')
+
+        progress.setPercentage(100.)
+
+    def exportWaterSourcesData(self, progress):
+        if self.SIMDIC['MODE']==1:
+            self.runAsThread(function = self.exportWaterSourcesDataTH, onFinished = self.updatePars)
+        else:
+            self.showCriticalMessageBox(self.tr('Water sources are not required by simulation mode'),'','')
+
+    def exportWaterSourcesDataTH(self, progress):
+        progress.setText(self.tr('Export water sources'))
+        path2WSources = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['WATSOURFOLDER'])
+        if not os.path.exists(path2WSources):
+            os.makedirs(path2WSources)
+        else:
+            progress.pushInfo('Directory %s already exists' % path2WSources, False)
+
+        res = exportWaterSources(self.DBM, path2WSources, self.SIMDIC['YEARS'][0], self.SIMDIC['YEARS'][-1], progress, self.tr)
+
+        # update sim parameters
+        self.SIMDIC['NBASINS'] = res['nbasins']
+        self.SIMDIC['NSOURCE'] = res['nsource']
+        self.SIMDIC['NSOURCEDER'] = res['nsourceder']
+        self.SIMDIC['NTAILWAT'] = res['noftwostage']
+        self.SIMDIC['NPUBWELL'] = res['npubwell']
+
+        progress.setPercentage(100.)
+
+    def exportSimProj(self, progress):
+        self.runAsThread(function = self.exportSimProjTH, onFinished = self.updatePars)
+
+    def exportSimProjTH(self,progress):
+        # export cell list
+        progress.setPercentage(25.)
+        progress.setText(self.tr('Export ancillary file'))
+
+        # export simulation parameters
+        progress.setPercentage(50.)
+        progress.setText(self.tr('Export IdrAgra simulation parameters'))
+
+        writeParsToTemplate(outfile=os.path.join(self.SIMDIC['OUTPUTPATH'], 'idragra_parameters.txt'),
+                            parsDict=self.SIMDIC,
+                            templateName='idragra_parameters.txt')
+
+        progress.setPercentage(75.)
+        progress.setText(self.tr('Export Cropcoeff simulation parameters'))
+
+        # export bat/sh file
+        progress.setPercentage(100.)
+        progress.setText(self.tr('Export bat file'))
+
+        exportBat(self.SIMDIC['OUTPUTPATH'], progress, self.tr)
+
+
+    def exportSpatialData(self,progress):
+        self.runAsThread(function = self.exportSpatialDataTH, onFinished = self.updatePars)
+        #prog = MyProgress()
+        #self.exportSpatialDataTH(prog)
+
+    def exportSpatialDataTH(self,progress=None):
+        progress.setProgress(0.0)
+
+        path2Geodata = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['SPATIALFOLDER'])
+        if not os.path.exists(path2Geodata):
+            os.makedirs(path2Geodata)
+            progress.pushInfo(self.tr('Exporting to %s ...') % path2Geodata)
+        else:
+            progress.pushInfo(self.tr('Directory %s already exists and all file will be remove') % path2Geodata)
+            # delete all file
+            fileList = glob.glob(os.path.join(path2Geodata, '*.*'))
+            for f in fileList:
+                os.remove(f)
+
+        progress.setProgress(25.0)
+
+        # get elevation layer
+        dtmLay = ''
+        try:
+            dtmLay = self.SIMDIC['ELEVMAP']['elevation']
+        except:
+            progress.reportError(self.tr('Elevation is not set'), False)
+
+        aRaster = QgsRasterLayer(dtmLay,'elevation','gdal')
+        if not aRaster:
+            progress.reportError(self.tr('Unable to load elevation layer from %s')%dtmLay,False)
+            dtmLay = ''
+
+        # get water table maps
+        wtLayDic = self.SIMDIC['WATERTABLEMAP']
+
+        progress.setProgress(50.0)
+
+
+        ext = returnExtent(self.SIMDIC['EXTENT'])
+        exportGeodata(self.DBM, path2Geodata, ext, self.SIMDIC['CELLSIZE'], dtmLay,
+                      wtLayDic, [self.SIMDIC['ZEVALAY'],self.SIMDIC['ZTRANSLAY']],
+                      list(range(int(self.SIMDIC['STARTYEAR']),int(self.SIMDIC['ENDYEAR'])+1)),
+                      feedback=progress, tr=self.tr)
+
+        # export control points
+        cellListFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'cells.txt')
+        controlPointMap = self.DBM.DBName + '|layername=idr_control_points'
+
+        processing.run("idragratools:IdragraExportControlPoints",
+                       {'VECTOR_LAY': controlPointMap,
+                        'RASTER_EXT': ext,
+                        'CELL_DIM': self.SIMDIC['CELLSIZE'], 'DEST_FILE': cellListFile},
+                       context=None, feedback=progress, is_child_algorithm=False)
+
+        progress.setProgress(100.0)
+
+    def runSimulation(self, progress=None):
+        import sys
+        from subprocess import PIPE, Popen
+        from threading import Thread, stack_size
+        import os
+
+        try:
+            from Queue import Queue, Empty
+        except ImportError:
+            from queue import Queue, Empty  # python 3.x
+
+        def enqueue_output(out, err, queue):
+            for line in iter(out.readline, b''):
+                queue.put(line)
+            out.close()
+
+            for e in iter(err.readline, b''):
+                queue.put(e)
+            err.close()
+
+        if progress: progress.setPercentage(0.0)
+
+        # delete existing simulation
+        outputPath = os.path.join(self.SIMDIC['OUTPUTPATH'],self.SIMDIC['OUTPUTFOLDER'])
+        if os.path.exists(outputPath):
+            if progress: progress.reportError(
+                self.tr('WARNING! output folder %s already exists and will be removed!')%outputPath,False)
+            shutil.rmtree(outputPath)
+
+        s = QSettings()
+        execPath = os.path.join(self.SIMDIC['OUTPUTPATH'], 'run_idragra.bat')
+        # print execPath,arg1,arg2
+        if progress: progress.setText('%s' % (execPath))
+
+        s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+        # C:/Program Files/MATLAB/R2020b/runtime/win64
+        MCRpath = s.value('MCRpath', '')
+        # C:/MinGW/bin
+        MinGWPath = s.value('MinGWPath', '')
+
+        toks = os.environ['PATH'].split(';')
+        if not MCRpath in toks:
+            os.environ['PATH'] = os.environ['PATH'] + ';' + MCRpath
+
+        if not MinGWPath in toks:
+            os.environ['PATH'] = os.environ['PATH'] + ';' + MinGWPath
+
+        try:
+            # progress.setText('%s'%os.environ['PATH'])
+            proc = Popen(([execPath]), shell=True, stdout=PIPE, stderr=PIPE)
+
+            q = Queue()
+            # ~ print('stacksize',stack_size())
+            # ~ stack_size(200 * 1024 * 1024)
+            # ~ print('stacksize2',stack_size())
+
+            t = Thread(target=enqueue_output, args=(proc.stdout, proc.stderr, q))
+
+            t.daemon = True  # thread dies with the program
+            t.start()
+            # t.join()
+
+            perc = 0.0
+            currentYear = -1
+            year = -1
+            while t.isAlive():
+                try:
+                    line = q.get(timeout=.1)  # q.get_nowait() # or #TODO_check performance
+                    line = line.decode('utf-8')
+                    line = line.strip()
+                except Empty:
+                    # do nothing
+                    pass
+                else:  # got line
+                    # ... do something with line
+                    if line.startswith('print'):
+                        line = ''
+                    elif line.startswith('Simulation day'):
+                        toks = line.split()
+                        try:
+                            perc = float(toks[2]) / 366
+                            year = int(toks[4])
+                        except:
+                            pass
+                        line = ''
+                    elif line.startswith('progress'):
+                        toks = line.split()
+                        try:
+                            perc = float(toks[1]) / 100
+                        except:
+                            pass
+                        line = ''
+                    else:
+                        line = line
+
+                    if progress:
+                        # print('perc',perc)
+                        progress.setPercentage(100 * perc)
+                        if line != '':
+                            # print('line',line)
+                            progress.setText(line)
+
+                        if year != currentYear:
+                            currentYear = year
+                            progress.setText(self.tr('Current year: %s')%currentYear)
+
+
+        except Exception as e:
+            progress.setInfo('Processing error: %s' % (str(e)), True)
+
+        #if progress: progress.setText(self.tr('Process concluded'))
+
+    def readCropCoefReasults(self,varId, wsId,yearList = []):
+        import pandas as pd
+        msg = ''
+        df = None
+        if len(yearList) == 0:
+            yearList = self.SIMDIC['YEARS']
+
+        fileName = os.path.join(self.SIMDIC['OUTPUTPATH'],
+                                self.SIMDIC['PHENOFOLDER'],
+                                'Pheno_%s' % wsId, '%s.dat' % varId)
+
+        # get date list
+        dateList = pd.date_range(datetime.strptime('%s0101' % yearList[0], '%Y%m%d'),
+                                 datetime.strptime('%s1231' % yearList[-1], '%Y%m%d'),
+                                 freq='d').tolist()
+
+        try:
+            soiluseNames = self.DBM.getColumnValues(fieldName ='("[" || id || "] " || name) AS label' ,
+                                                    tableName='idr_soiluses')
+
+            df = pd.read_csv(fileName, sep='\t', names = soiluseNames+['timestamp'],
+                             engine='python', skiprows=1)
+
+            df['timestamp']=dateList
+        except Exception as e:
+            msg += str(e) + '\n'
+
+        return df, msg
+
+    def readControlPointsParams(self, r, c, yearList=[],varList = []):
+        import pandas as pd
+        df=None
+        finalDF = pd.DataFrame(columns=['timestamp']+varList)
+        msg=''
+        if len(yearList)==0:
+            yearList = self.SIMDIC['YEARS']
+
+        for year in yearList:
+
+            csvFile = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['OUTPUTFOLDER'],
+                                   '%s_cellinfo_%s_%s.csv' % (year, r, c))
+            try:
+                # open csv file as dataframe
+                df = pd.read_csv(csvFile, sep='\s*;\s*',names=['pars','value'],
+                                 engine='python',header=0,skiprows=1)
+                res = pd.DataFrame(columns=['timestamp'] + varList)
+                dateList = pd.date_range(datetime.strptime('%s0101' % year, '%Y%m%d'),
+                                         datetime.strptime('%s1231' % year, '%Y%m%d'),
+                                         freq='d').tolist()
+                res['timestamp'] = dateList
+
+                for var in varList:
+                    # find index
+                    idxList = df.index[df['pars'] == var].tolist()
+                    varValue = None
+                    if len(idxList)>0:
+                        varIdx = idxList[0]
+                        varValue = df.iat[varIdx,1]
+
+                    res[var]= [varValue]*len(dateList)
+
+                finalDF = finalDF.append(res, ignore_index=True)
+
+            except Exception as e:
+                 msg += str(e)+'\n'
+
+        return finalDF,msg
+
+    def readControlPointsResults(self,r,c,yearList=None,columList = None):
+        import pandas as pd
+        msg = ''
+        if yearList is None:
+            yearList = self.SIMDIC['YEARS']
+
+        finalDF = None
+        for year in yearList:
+            csvFile = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['OUTPUTFOLDER'],
+                                   '%s_cell_%s_%s.csv' % (year, r, c))
+
+            try:
+                # open csv file as dataframe
+                df = pd.read_csv(csvFile, sep='\s*;\s*',usecols = columList,engine='python')
+                #print('df',year,df)
+                # replace Giulian_date with date
+                df['Giulian_day'] = df['Giulian_day'].apply(lambda x: datetime.strptime(str(year) + str(x), '%Y%j'))
+                if finalDF is None:
+                    finalDF = df
+                else:
+                    finalDF = finalDF.append(df)
+
+            except Exception as e:
+                msg += str(e)+'\n'
+
+        return finalDF,msg
+
+    def getRowCol(self,feature):
+        rasterExt = returnExtent(self.SIMDIC['EXTENT'])
+        c=-1
+        r=-1
+        if rasterExt:
+            cellDim = self.SIMDIC['CELLSIZE']
+            # calculate extension
+            xllcorner = rasterExt.xMinimum()
+            # yllcorner = extension.yMinimum()
+            yurcorner = rasterExt.yMaximum()
+            h = rasterExt.height()
+            w = rasterExt.width()
+
+            nrows = round(h / cellDim)
+            ncols = round(w / cellDim)
+
+            xurcorner = xllcorner + ncols * cellDim
+            # yurcorner = yllcorner+nrows*outputCellSize
+            yllcorner = yurcorner - nrows * cellDim
+
+            newExt = QgsRectangle(xllcorner, yllcorner, xurcorner, yurcorner)
+
+            # make a grid object
+            self.aGrid = GisGrid()
+            self.aGrid.fitToExtent(newExt, cellDim, cellDim)
+            x = feature.geometry().asMultiPoint()[0].x()
+            y = feature.geometry().asMultiPoint()[0].y()
+            c, r = self.aGrid.coordToCell(x, y)
+            # fortran start form 1
+            c+=1
+            r+=1
+
+        return r,c
+
+
+    def importControlPointsResults(self, progress=None):
+        if not progress:
+            from .tools.my_progress import MyProgress
+            progress = MyProgress()
+
+        progress.pushInfo(self.tr('Note that it will refer to current simulation settings'))
+
+
+        rasterExt = returnExtent(self.SIMDIC['EXTENT'])
+        cellDim = self.SIMDIC['CELLSIZE']
+        # calculate extension
+        xllcorner = rasterExt.xMinimum()
+        # yllcorner = extension.yMinimum()
+        yurcorner = rasterExt.yMaximum()
+        h = rasterExt.height()
+        w = rasterExt.width()
+
+        nrows = round(h / cellDim)
+        ncols = round(w / cellDim)
+
+        xurcorner = xllcorner + ncols * cellDim
+        # yurcorner = yllcorner+nrows*outputCellSize
+        yllcorner = yurcorner - nrows * cellDim
+
+        newExt = QgsRectangle(xllcorner, yllcorner, xurcorner, yurcorner)
+
+        # make a grid object
+        self.aGrid = GisGrid()
+        self.aGrid.fitToExtent(newExt, cellDim, cellDim)
+
+        print('aGrid',self.aGrid)
+        # get CO layer
+        self.vectorLay = self.getVectorLayerByName('idr_control_points')
+
+        print('vectorLay', self.vectorLay)
+        varList = list(self.CPVARNAME.keys())
+        print('varList', varList)
+        numYear = len(self.SIMDIC['YEARS'])
+        print('numYear',numYear)
+
+        # use
+        from .algs.idragra_bulk_import_timeserie import IdragraBulkImportTimeserie
+        self.alg = IdragraBulkImportTimeserie()
+        self.alg.DBM = self.DBM
+
+        for feature in self.vectorLay.getFeatures():
+            id = feature['id']
+            progress.pushInfo(self.tr('Processing control point %s - %s')%(id,feature['name']))
+            x = feature.geometry().asMultiPoint()[0].x()
+            y = feature.geometry().asMultiPoint()[0].y()
+            c, r = self.aGrid.coordToCell(x, y)
+            print('c', c,'r',r)
+            c += 1
+            r += 1
+
+            for n, y in enumerate(self.SIMDIC['YEARS']):
+                progress.setPercentage(100.0 * n / numYear)
+                print('y', y)
+
+                # get r and c from
+                filePath = os.path.join(os.path.join(self.SIMDIC['OUTPUTPATH'],
+                                                     self.SIMDIC['OUTPUTFOLDER'],
+                                                     '%s_cell_%s_%s.csv' % (y,r,c)))
+                print('filePath',filePath)
+                if os.path.exists(filePath):
+                    for i, var in enumerate(varList):
+                        # import data from csv using sqlite query
+                        self.alg.importDataFromCSV(filename=filePath, tablename=var, timeFldIdx=0,
+                                               valueFldIdx=i + 1, sensorId=id, skip=1,
+                                               timeFormat='%Y%j', column_sep=';', progress=progress, year=y)
+                else:
+                    progress.reportError(self.tr('Unable to find %s')%filePath,False)
+
+    def importFromIdragra(self, progress=None):
+        numOfTable = len(self.STEPNAME.items())
+        n = 1
+        for tableName, tableAlias in self.STEPNAME.items():
+            if progress:
+                progress.setText(self.tr('Processing %s') % tableAlias)
+                progress.setPercentage(100.0 * n / numOfTable)
+
+            self.importDataFromASCII(tableName)
+            n += 1
+
+    def importDataFromASCII(self, tablename):
+        import glob
+        from .tools.regenerate_idragra_output import readCellIndexFile
+        varName = tablename.replace('stp_', '')
+        concatValues = []
+
+        # get fid from cellindex
+        res = readCellIndexFile(os.path.join(self.OUTPUTPATH, 'geodata', 'validcell.asc'))
+        sensorId = res['data']
+
+        # get all file that ends with varName.asc
+        for f in glob.glob(os.path.join(self.OUTPUTPATH, 'simout', '*%s.asc' % varName)):
+            fname = os.path.basename(f)
+            if ('step' in fname):
+                # get filename and extract datetime
+                timestamp = datetime.strptime(fname, '%Y_step%j_' + varName + '.asc')
+                # get value from file
+                res = readCellIndexFile(os.path.join(self.OUTPUTPATH, 'simout', fname))
+                data = res['data']
+
+                # populate query
+                for i, d in enumerate(data):
+                    concatValues.append("('" + timestamp.strftime('%Y-%m-%d') + "', '" + str(int(sensorId[i])) + "', '" + str(d) + "')")
+
+        # create and submit query
+        concatValues = ', '.join(concatValues)
+
+        sql = 'DROP TABLE IF EXISTS dummy;'
+        sql += 'CREATE TABLE dummy (timestamp2 text, wsid2 integer, recval2 double);'
+        sql += 'BEGIN; '
+        sql += 'REPLACE INTO dummy (timestamp2,wsid2,recval2) VALUES %s; ' % (concatValues)
+        sql += 'COMMIT;'
+        sql += 'UPDATE %s SET recval = (SELECT d.recval2 FROM dummy d WHERE d.timestamp2 = timestamp AND d.wsid2 = wsid)	WHERE EXISTS (SELECT * FROM dummy d WHERE d.timestamp2 = timestamp AND d.wsid2 = wsid);' % (
+            tablename)
+        sql += 'INSERT INTO %s (timestamp,wsid,recval) SELECT timestamp2,wsid2,recval2 FROM dummy d WHERE NOT EXISTS (SELECT * FROM %s WHERE timestamp = d.timestamp2 AND wsid = d.wsid2);' % (
+        tablename, tablename)
+        sql += 'DROP TABLE IF EXISTS dummy;'
+
+        msg = self.DBM.executeSQL(sql)
+
+    def computeNodeDischarge(self, progress=None):
+        destTable = 'node_disc'
+        sourceTable = 'stp_irr'
+        # first clear all record in destination table
+        if progress: progress.setText(self.tr('Clearing data from table...'))
+        sql = 'DELETE FROM %s;' % destTable
+        msg = self.DBM.executeSQL(sql)
+
+        if ((msg != '') and progress):
+            progress.setText(self.tr('Command stopped because the following error: %s') % msg)
+            return
+
+        idragraFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'idragra_parameters.txt')
+        gpkg_layer = self.DBM.DBName + '|layername=' + 'idr_distrmap'
+        gpkg_layer = gpkg_layer.replace('\\', '/')
+
+        # TODO: add district area
+        # 'AGGR_FUN': 2 == mean, 'AGGR_FUN': 1 == sum
+        # calculate irrigation timeserie from district and upload to stp_irr
+        tempFile = QgsProcessingUtils.generateTempFilename('aggrOutput.gpkg')
+        algResults = processing.run("idragratools:IdragraStatserie",
+                       {'IDRAGRA_FILE': idragraFile,
+                        'AGGR_LAY': gpkg_layer,
+                        'AGGR_FLD': 'node','AGGR_VAR': 0, 'AGGR_FUN': 1,
+                        'OUTPUT_TABLE': tempFile},
+                       context=None,
+                       feedback=progress,
+                       is_child_algorithm=False
+                       )
+
+        table = QgsVectorLayer(tempFile, 'temp', 'ogr')
+        # featList = list(table.getFeatures())
+
+        gpkg_layer = self.DBM.DBName + '|layername=' + sourceTable
+
+        dbTable = QgsVectorLayer(gpkg_layer, 'temp', 'ogr')
+        # dbTable.dataProvider().addFeatures(featList)
+
+        toField = dbTable.dataProvider().fields()
+        newFeatList = []
+        for feat in table.getFeatures():
+            newFeat = QgsFeature(toField)
+            newFeat['timestamp']=datetime(feat['timestamp'].year(),
+                                          feat['timestamp'].month(),
+                                          feat['timestamp'].day()).strftime('%Y-%m-%d')
+            newFeat['wsid'] = feat['wsid']
+            # from mm to cubic meters
+            # TODO:check
+            newFeat['recval'] = feat['recval']*self.SIMDIC['CELLSIZE']*self.SIMDIC['CELLSIZE']/1000.0
+            newFeatList.append(newFeat)
+
+        dbTable.startEditing()
+        dbTable.addFeatures(newFeatList)
+        dbTable.commitChanges()
+
+        # calculate water
+        self.waterDemandAtNode(destTable,sourceTable, progress)
+
+        # clear data
+        sql = 'DELETE FROM %s;' % sourceTable
+        msg = self.DBM.executeSQL(sql)
+
+        sql = 'VACUUM;'
+        msg = self.DBM.executeSQL(sql)
+
+        if ((msg != '') and progress):
+            progress.setText(self.tr('Command stopped because the following error: %s') % msg)
+            return
+
+
+    def waterDemandAtNode(self, destTable, sourceTable, progress=None):
+        import copy
+
+        if progress: progress.setText(self.tr('Calculating water demand at nodes...'))
+        # loop in node list and check if there are data
+        nodeList = self.DBM.getUniqueValues(fieldName='id', tableName='idr_nodes')
+        #print('nodeList',nodeList)
+        nodeListCopy = copy.deepcopy(nodeList)
+
+        nOfNode = len(nodeList)
+        loopLimit = nOfNode * 1
+        n = 0
+        while len(nodeList) > 0:
+            n += 1
+            if n > loopLimit:
+                if progress: progress.error(self.tr('Maximum number of iteration, exiting ...'))
+                return
+
+            for nodeId in nodeList:
+                #print('nodeId',nodeId)
+                firstSql = ''
+                fieldSql = ''
+
+                isComplete = True
+                calcField = []
+                tableAliases = []
+                sql = ''
+                # base sql string for nodes
+                sql1 = '(SELECT timestamp,recval as node%s from %s WHERE wsid = %s)'
+                sql2 = 'LEFT JOIN (SELECT timestamp as timestamp%s,recval as node%s from %s where wsid = %s) ON timestamp%s=timestamp'
+                # base sql string for water districts
+                sql3 = '(SELECT timestamp,recval as wd%s from %s WHERE wsid = %s)'
+                sql4 = 'LEFT JOIN (SELECT timestamp as timestamp%s,recval as wd%s from %s where wsid = %s) ON timestamp%s=timestamp'
+
+                # get following links that start with idNode
+                linkList = self.DBM.getRecord(tableName='idr_links', fieldsList=['id', 'outlet_node', 'inf_losses'],
+                                              filterFld='inlet_node', filterValue=nodeId)
+                #print('linkList',linkList)
+                isFirst = True
+                for link in linkList:
+                    # get outletNode
+                    outletNode = link[1]
+                    inf_losses = link[2]
+                    # make the query
+                    calcField.append('node%s*(1+%s)' % (outletNode, inf_losses))
+                    if isFirst:
+                        firstSql = sql1 % (outletNode, destTable, outletNode)
+                        #print('IN LINK LOOP: firstSql',firstSql)
+                        isFirst = False
+                    else:
+                        nodeSql = sql2 % (outletNode, outletNode, destTable, outletNode, outletNode)
+                        tableAliases.append(nodeSql)
+
+                    # check if outletnode has data
+                    recVal = self.DBM.getRecord(tableName=destTable, fieldsList=[], filterFld='wsid',
+                                                filterValue=outletNode)
+                    if len(recVal) == 0:
+                        #print('discharge at node %s is empty'%outletNode)
+                        # discharge at node is empty!
+                        isComplete = False
+
+                # get water volumes from district
+                wdList = self.DBM.getRecord(tableName='idr_distrmap', fieldsList=['node', 'distr_eff'],
+                                               filterFld='node', filterValue=nodeId)
+
+                #print('wdList',wdList)
+                for wd in wdList:
+                    wdDistrEff = wd[1]
+                    calcField.append('wd%s*%s/(24*60*60)' % (nodeId, wdDistrEff))
+                    if isFirst:
+                        firstSql = sql3 % (nodeId, sourceTable, nodeId)
+                        #print('IN WD LOOP: firstSql', firstSql)
+                        isFirst = False
+                    else:
+                        fieldSql = sql4 % (nodeId, nodeId, sourceTable, nodeId, nodeId)
+                        tableAliases.append(fieldSql)
+
+                discFormula = ' + '.join(calcField)
+
+                if len(tableAliases) > 0:
+                    sql += 'INSERT INTO %s (timestamp, wsid, recval) SELECT timestamp, %s as wsid, %s as recval FROM %s %s ORDER BY timestamp ASC;' % (
+                    destTable, nodeId, discFormula, firstSql, '\n'.join(tableAliases))
+                else:
+                    sql += 'INSERT INTO %s (timestamp, wsid, recval) SELECT timestamp, %s as wsid, %s as recval FROM %s ORDER BY timestamp ASC;' % (
+                    destTable, nodeId, discFormula, firstSql)
+
+                if discFormula == '':
+                    # node has no served fields or following links
+                    nodeList.remove(nodeId)
+                    progress.setText(self.tr('Node "%s" has no served fields or following link') % nodeId)
+                else:
+                    if isComplete:
+                        # remove from the list of Node
+                        nodeList.remove(nodeId)
+                        # execute query
+                        msg = self.DBM.executeSQL(sql)
+                        #print('sql',sql)
+
+                        if ((msg != '') and progress):
+                            progress.setText(self.tr('Command stopped because the following error: %s') % msg)
+                            return
+
+
+            if progress: progress.setPercentage(100.0 * (nOfNode - len(nodeList)) / nOfNode)
+
+    def importDataFromCSV(self, filename, tablename, timeFldIdx, valueFldIdx, sensorId, skip, timeFormat, column_sep,
+                          overWrite = True, saveEdit = False, year='',
+                          progress = None):
+
+        self.DBM.resetCounter()
+
+        tsList = []
+        valList = []
+        # open CSV file
+        try:
+            with open(filename, "r") as in_file:
+                i = 0
+                if progress: progress.setText(self.tr('%s loaded' % filename))
+                while 1:
+                    in_line = in_file.readline()
+                    if i >= skip:
+                        if len(in_line) == 0:
+                            break
+
+                        # process the line
+                        in_line = in_line[:-1]
+                        if column_sep != ' ': in_line = in_line.replace(' ', '')
+                        # print 'LN %d: %s'%(i,in_line)
+                        data = in_line.split(column_sep)
+                        timestamp = datetime.strptime(str(year) + data[timeFldIdx], timeFormat)
+                        value = float(data[valueFldIdx])
+                        tsList.append(timestamp)
+                        valList.append(value)
+
+                    i += 1
+
+        except Exception as e:
+            progress.reportError(
+                self.tr('Unable to load %s: %s') %
+                (filename, str(e)), True)
+            return
+
+        nOfRecord = len(tsList)
+
+        if progress: progress.setText(self.tr('n. of imported record: %s') % nOfRecord)
+        #get table layer
+        lyrSourcesList = [layer.source().replace('\\', '/') for layer in QgsProject.instance().mapLayers().values()]
+        gpkg_layer = self.DBM.DBName + '|layername=' + tablename
+        gpkg_layer = gpkg_layer.replace('\\', '/')
+        self.vLayer = None
+        for layer in QgsProject.instance().mapLayers().values():
+            if layer.source() == gpkg_layer:
+                self.vLayer = layer
+
+        if self.vLayer is None:
+            self.vLayer = QgsVectorLayer(gpkg_layer, tablename, "ogr")
+
+
+        # start editing
+        if progress: progress.setText(self.tr('Starting editing %s') % tablename)
+
+        if self.vLayer.isEditable():
+            pass
+        else:
+            flg = self.vLayer.startEditing()
+            if flg == False:
+                progress.reportError(
+                    self.tr('Unable to edit layer %s') %
+                    (gpkg_layer), True)
+                return
+
+
+        pr = self.vLayer.dataProvider()
+        fieldNames = [field.name() for field in pr.fields()]
+        nOfRec = 0
+
+        idxTS = fieldNames.index('timestamp')
+        idxSens = fieldNames.index('wsid')
+        idxVal = fieldNames.index('recval')
+
+        # populate data
+        i = 0
+        newFeatList=[]
+        for t,v in zip(tsList,valList):
+            # check if the record exist
+            # check if attribute already exist
+            expr = QgsExpression(
+                "\"%s\" = '%s' and \"%s\" = '%s'" % ('timestamp', str(t), 'wsid', sensorId))
+            featList = self.vLayer.getFeatures(QgsFeatureRequest(expr))
+            updateFeat = 0
+            for feat in featList:
+                if feat['recval'] != value:
+                    if overWrite:
+                        progress.setText(self.tr('Updating feature %s') % feat.id())
+                        self.vLayer.changeAttributeValues(feat.id(), {idxVal: value}, {idxVal: feat['recval']})
+                updateFeat += 1
+
+            if updateFeat > 1:
+                progress.reportError(
+                    self.tr('Unexpected number of matches (%s) for timestamp "%s" and sensor "%s"') %
+                    (updateFeat, timestamp, sensorId), True)
+                return
+
+
+            # no feature to update --> add it
+            if updateFeat == 0:
+                # add new record to table
+                try:
+                    newFeat = QgsFeature(pr.fields())
+                    newFeat.setAttribute(idxTS, str(t))
+                    newFeat.setAttribute(idxSens, sensorId)
+                    newFeat.setAttribute(idxVal, v)
+                    newFeatList.append(newFeat)
+                    self.vLayer.addFeature(newFeat)
+                except Exception as e:
+                    print('error',str(e))
+            i+=1
+            if progress: progress.setPercentage(100*i/nOfRecord)
+
+        if saveEdit:
+            if progress: progress.setText(self.tr('Save edits ...'))
+            self.vLayer.commitChanges()
+
+    def printMsg(self, text,col = None):
+        self.progressDlg.setText(text,col)
+
+    def updateProgBar(self, val):
+        self.progressDlg.setPercentage(val)
+
+    def closeReportForm(self):
+        self.progressDlg.close()
+
+    def enableOKBtn(self):
+        #print('enableOKBtn')
+        self.thread.quit()
+        self.threadIsConcluded = True  # it's true only in this case
+        if not self.threadIsConcludedWithError:
+            self.progressDlg.setPercentage(100.)
+            self.progressDlg.setText(self.tr('** Process concluded! **'), 'green')
+            self.progressDlg.enableOK()
+
+    def stopThread(self):
+        self.thread.quit()
+        self.thread.wait()
+        self.progressDlg.setText(self.tr('** Process stopped before finished! **'), 'red')
+        self.threadIsConcludedWithError = True
+        if not self.threadIsConcluded:
+            self.showCriticalMessageBox(self.tr('Process stopped before finished'),
+                                        self.tr('Output may not be completed'),
+                                        self.tr('Consider to repeat the process.'))
+
+    def runAsThread(self, function, onFinished=None, *args, **kwargs):
+        from .tools.stoppable_thread import StoppableThread
+
+        from .forms.worker_dialog import WorkerDialog
+        self.progressDlg = WorkerDialog(parent=self.iface.mainWindow())
+        self.progressDlg.show()
+
+        # try:
+        from .tools.worker import Worker
+
+        # clean garbage collector to make space
+        # TODO: needs some more thought
+        before = gc.get_count()
+        #print('gc count',before)
+        removed = gc.collect()
+        after = gc.get_count()
+        # print('removed by gc',removed)
+
+        #print('ok')
+        self.thread = StoppableThread()  # QThread()
+        self.worker = Worker(self.iface.mainWindow(),function, *args, **kwargs)
+        # self.worker.reportProgress.connect(dlg.setPercentage)
+        # self.worker.reportMessage.connect(dlg.setText)
+        self.worker.reportMessage.connect(self.printMsg)
+        self.worker.reportProgress.connect(self.updateProgBar)
+
+        self.worker.finishedBefore.connect(self.stopThread)
+
+        # self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.enableOKBtn)
+        if onFinished: self.worker.finished.connect(onFinished)
+        # self.thread.finished.connect(self.enableOKBtn)
+
+        # self.progressDlg.closed.connect(self.stopThread)
+        # self.progressDlg.closed.connect(self.thread.stop)
+        self.progressDlg.closed.connect(self.worker.stop)
+        self.threadIsConcluded = False
+        self.threadIsConcludedWithError = False
+
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.process)
+        self.thread.start()
+        # print('thread end')
+
+        # except Exception as e:
+        # self.showCriticalMessageBox('mobidiQ',self.tr("An error occurred! See details."),self.tr("Error message: %s")%(str(e)))
+        # finally:
+        # return True
+        return self.worker.getFlag()
+
+    def setValueRelation(self, layer, field_idx, tableName, keyFld='id', valueFld='name'):
+        # https://gisunchained.wordpress.com/2019/09/30/configure-editing-form-widgets-using-pyqgis/
+        fields = layer.fields()
+        # field_idx = fields.indexOf(fieldName)
+        config = {'AllowMulti': False,
+                  'AllowNull': True,
+                  'FilterExpression': '',
+                  'Key': '',
+                  'Layer': '',
+                  'LayerSource': '',
+                  'NofColumns': 1,
+                  'OrderByValue': False,
+                  'UseCompleter': False,
+                  'Value': ''}
+        target_layers = QgsProject.instance().mapLayersByName(self.LYRNAME[tableName])
+        flag = False
+        if len(target_layers) > 0:
+            target_layer = target_layers[0]
+            config['Layer'] = target_layer.id()
+            config['Key'] = keyFld
+            config['Value'] = valueFld
+            widget_setup = QgsEditorWidgetSetup('ValueRelation', config)
+            layer.setEditorWidgetSetup(field_idx, widget_setup)
+            flag = True
+
+        return flag
+
+    def setFieldAlias(self, layer, origName, aliasName):
+        fields = layer.fields()
+        field_idx = fields.indexOf(origName)
+        layer.setFieldAlias(field_idx, aliasName)
+        return field_idx
+
+    def setFieldCheckable(self, layer, fldName):
+        fields = layer.fields()
+        field_idx = fields.indexOf(fldName)
+        config = {'CheckedState': 1,
+                  'UncheckedState': 0}
+
+        widget_setup = QgsEditorWidgetSetup('CheckBox', config)
+        layer.setEditorWidgetSetup(field_idx, widget_setup)
+
+        return field_idx
+
+    def setCustomForm(self, layer, formNameRoot):
+        EFC = QgsEditFormConfig()
+        EFC.setUiForm(self.plugin_dir + '/layerforms/' + formNameRoot + '.ui')
+        EFC.setInitCodeSource(QgsEditFormConfig.PythonInitCodeSource.CodeSourceFile)
+        EFC.setInitFilePath(self.plugin_dir + '/layerforms/' + formNameRoot + '.py')
+        EFC.setInitFunction('formOpen')
+        layer.setEditFormConfig(EFC)
+
+    def getIdNameDict(self, tableName,idFld = 'id',nameFld = 'name'):
+        # get the layer
+        vLayer = self.DBM.getTableAsLayer(tableName)
+        # get field name list
+        fieldList = self.DBM.getFieldsList(tableName)
+        # check if fid, id, name exist
+        idNameDict = {self.tr('Not selected or not available'): ''}
+
+        if idFld not in fieldList:
+            return idNameDict
+
+        if nameFld not in fieldList:
+            return idNameDict
+
+        for feat in vLayer.getFeatures():
+            idNameDict['[' + str(feat[idFld]) + '] ' + feat[nameFld]] = feat[idFld]
+
+        return idNameDict
+
+    def getIdNameDictXY(self, tableName, x, y):
+        # get the layer
+        vLayer = self.DBM.getTableAsLayer(tableName)
+        # get field name list
+        fieldList = self.DBM.getFieldsList(tableName)
+        # check if fid, id, name exist
+        idFld = 'id'
+        # if 'fid' in fieldList:
+        #     idFld = 'fid'
+
+        nameFld = 'name'
+
+        data = []
+
+        for feat in vLayer.getFeatures():
+            # calculate distance
+            geom = feat.geometry()
+            dist = geom.distance(QgsGeometry().fromWkt('Point(%s %s)' % (x, y)))
+            data.append((dist, feat[idFld], feat[nameFld]))
+
+        # sort data by dist
+        data = sorted(data)
+
+        # populate dictionary
+        idNameDict = {self.tr('Not selected'): ''}
+        for r in range(len(data)):
+            idNameDict[data[r][2] + ' [' + str(data[r][0]) + ']'] = data[r][1]
+
+        return idNameDict
+
+    def getData(self, tList, sensorId,startDate=None, endDate=None):
+        # set results dictionary
+        res = {}
+
+        res['startDate'] = []
+        res['endDate'] = []
+        res['nOfExpDays'] = []
+        res['nOfFilled'] = []
+        res['fullness'] = []
+        res['minVal'] = []
+
+        res['minVal'] = []
+        res['maxVal'] = []
+        res['meanVal'] = []
+        res['cumVal'] = []
+        res['perc25'] = []
+        res['perc50'] = []
+        res['perc75'] = []
+
+        res['varName'] = []
+
+        for i, table in enumerate(tList):
+            tableAlias = ''
+            if table in list(self.METEONAME.keys()):
+                tableAlias = self.METEONAME[table]
+            if table in list(self.WATERSOURCENAME.keys()):
+                tableAlias = self.WATERSOURCENAME[table]
+            if table in list(self.STEPNAME.keys()):
+                tableAlias = self.STEPNAME[table]
+
+            data = self.DBM.makeStatistics(table, sensorId,startDate, endDate)
+
+            res['varName'].append(tableAlias)
+
+            res['startDate'].append(data['startDate'])
+            res['endDate'].append(data['endDate'])
+            res['nOfExpDays'].append(data['nOfExpDays'])
+            res['nOfFilled'].append(data['nOfFilled'])
+            if data['fullness']: res['fullness'].append(int(100.0*data['fullness']))
+            else: res['fullness'].append(None)
+
+            res['minVal'].append(data['minVal'])
+            res['maxVal'].append(data['maxVal'])
+            if data['meanVal']: res['meanVal'].append(qgsRound(data['meanVal'],2))
+            else: res['meanVal'].append(None)
+
+            if data['cumVal']: res['cumVal'].append(qgsRound(data['cumVal'],2))
+            else: res['cumVal'].append(None)
+
+            res['perc25'].append(data['perc25'])
+            res['perc50'].append(data['perc50'])
+            res['perc75'].append(data['perc75'])
+
+        return res
+
+    def checkData(self,statTable):
+        msg = ''
+
+        for varName,startDate, endDate, fullness in zip(statTable['varName'],statTable['startDate'],statTable['endDate'],statTable['fullness']):
+            if not (startDate and endDate): msg += '<li>'+self.tr('%s have no valid data\n') % (varName)+'</li>'
+            else:
+                if fullness < 100:
+                    msg += '<li>'+self.tr('%s is not complete\n') % (varName)+'</li>'
+
+        if msg == '':
+            msg = self.tr('<p style="color:green">No error message</p>')
+        else:
+            msg = self.tr('<p style="color:red">Please check the following error messages:</p>')+'<ul>'+msg+'</ul>'
+
+        return msg
+
+    def checkDataOLD(self, tList, sensorId,startDate=None, endDate=None):
+        firstDay = None
+        lastDay = None
+        errs = []
+        warns = []
+        res = 'varName\tstartDate\tendDate\tnOfExpDays\tnOfFilled\tfullness\tminVal\tmaxVal\tmeanVal\tcumVal\tperc25\tperc50\tperc75\n'
+
+        for i, table in enumerate(tList):
+            tableAlias = ''
+            if table in list(self.METEONAME.keys()):
+                tableAlias = self.METEONAME[table]
+            if table in list(self.WATERSOURCENAME.keys()):
+                tableAlias = self.WATERSOURCENAME[table]
+            if table in list(self.STEPNAME.keys()):
+                tableAlias = self.STEPNAME[table]
+
+            data = self.DBM.makeStatistics(table, sensorId,startDate, endDate)
+            res += '\t'.join([tableAlias]+[str(x) for x in data.values()])+'\n'
+
+            if i == 0:
+                firstDay = data['startDate']
+                lastDay = data['endDate']
+            else:
+                if firstDay != data['startDate']:
+                    errs.append(self.tr('Different start date for variable %s' % tableAlias))
+                if lastDay != data['endDate']:
+                    errs.append(self.tr('Different start date for variable %s' % tableAlias))
+
+        res += self.tr('No error message. Data are available from %s to %s' % (firstDay, lastDay))
+        if (firstDay is None) and (lastDay is None):
+            res = self.tr('Data are not available for this feature')
+
+        if len(errs) > 0:
+            res = '\n'.join(errs)
+
+        return res
+
+    def updateVector(self, vLayer=None, dataList=None):
+        with edit(vLayer):
+            i = 0
+            for feat in vLayer.getFeatures():
+                feat["tempValue"] = dataList[i]
+                vLayer.updateFeature(feat)
+                i += 1
+
+    def runTimeUpdate(self):
+        from .tools.make_color_ramp import replaceColorRamp
+        from .time_manager.time_manager import TimeManager
+
+        # make a temporary layer
+        crs = QgsProject.instance().crs().authid()
+        layName = self.tr('Time layer')
+        newLayer = QgsVectorLayer("Polygon?crs=%s" % crs, layName, "memory")
+        fldDict = {'fid': QVariant.Int, 'name': QVariant.String, 'value': QVariant.Double}
+
+        pr = newLayer.dataProvider()
+        attrList = []
+        for n, t in fldDict.items():
+            attrList.append(QgsField(n, t))
+
+        pr.addAttributes(attrList)
+        newLayer.updateFields()
+
+        # populate newLayer with geometry from source
+        sourceLayer = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_crop_fields'])
+        if len(sourceLayer)>0:
+            sourceLayer = sourceLayer[0]
+        else:
+            gpkg_layer = self.DBM.DBName + '|layername=' + 'idr_crop_fields'
+            sourceLayer = QgsVectorLayer(gpkg_layer, 'idr_crop_fields', "ogr")
+
+        with edit(newLayer):
+            if sourceLayer.selectedFeatureCount() > 0:
+                featList = sourceLayer.getSelectedFeatures()
+            else:
+                featList = sourceLayer.getFeatures()
+
+            for sourceFeat in featList:
+                geom = sourceFeat.geometry()
+                fid = sourceFeat['fid']
+                name = sourceFeat['name']
+                feat = QgsFeature()
+                feat.setGeometry(geom)
+                feat.setAttributes([fid, name, None])
+                newLayer.addFeature(feat)
+
+        # add to map
+        groupIndex, mygroup = self.getGroupIndex(self.tr('Analysis'), True)
+        QgsProject.instance().addMapLayer(newLayer, False)  # False is the key
+        mygroup.insertChildNode(groupIndex, QgsLayerTreeLayer(newLayer))
+
+        # make a function to update temporary layer
+        def updateTemporaryLayer(tableName, selDay, minmax=None):
+            print('updateTemporaryLayer:', tableName, ' - ', selDay)
+            # make a query
+            sql = "SELECT wsid ,recval FROM %s WHERE date(timestamp) = date('%s') ORDER BY wsid ASC;" % (
+            tableName, selDay)
+            msg = ''
+            try:
+                self.DBM.startConnection()
+                self.DBM.cur.execute(sql)
+                data = self.DBM.cur.fetchall()
+            except Exception as e:
+                msg = str(e)
+            finally:
+                self.DBM.stopConnection()
+
+            if msg != '':
+                self.showCriticalMessageBox(text=self.tr('Critical error'),
+                                            infoText=self.tr('Cannot performe function'), detailText=msg)
+                return
+            # update tempLayer
+            newLayer.startEditing()
+            for d in data:
+                featIter = newLayer.getFeatures(QgsFeatureRequest(QgsExpression("\"fid\" = %s" % d[0])))
+                for feat in featIter:
+                    newid = feat.id()
+                    flg = newLayer.changeAttributeValue(newid, 2, float(d[1]))
+                    break
+
+            newLayer.commitChanges()
+            # set style
+            replaceColorRamp(vLayer=newLayer, varToPlot='', fieldName='value', minmax=minmax)
+
+        # make a list of days
+        tNameList = list(self.STEPNAME.keys())
+        startDate, endDate = self.DBM.getMultiMinMax(tNameList, 'timestamp')
+
+        # init year selector
+        startDate = datetime.strptime(startDate, '%Y-%m-%d')
+        endDate = datetime.strptime(endDate, '%Y-%m-%d')
+        dateList = []
+        for n in range(int((endDate - startDate).days) + 1):
+            dateList.append((startDate + timedelta(n)).strftime("%Y-%m-%d"))
+
+        dlg = TimeManager(self.iface.mainWindow(), 'Timer', self.STEPNAME, updateTemporaryLayer, dateList)
+        dlg.show()
+
+    def updateMe(self):
+        print("hey", self.count)
+        self.count += 1
+        if self.count > 1000: self.timer.stop()
+
+    def updateVectorOLD(self, vLayer=None, dataList=None):
+        print('update', self.count)
+        self.count += 1
+        if self.count > 1000: self.timer.stop()
+
+        if not vLayer: vLayer = self.VECTORLAYER
+
+        if not dataList:
+            numOfFeat = vLayer.featureCount()
+            dataList = random.sample(range(0, 100), numOfFeat)
+
+        if vLayer:
+            i = 0
+            with edit(vLayer):
+                for feat in vLayer.getFeatures():
+                    feat["tempValue"] = dataList[i]
+                    vLayer.updateFeature(feat)
+                    i += 1
+
+    def getGroupIndex(self, group, onTop = False):
+        # Get the layer tree object
+        root = QgsProject.instance().layerTreeRoot()
+        # Find the desired group by name
+        mygroup = root.findGroup(group)
+        if mygroup is None:
+            # create a new group
+            if onTop: root.insertGroup(0,group)
+            else: root.addGroup(group)
+            mygroup = root.findGroup(group)
+
+        # Get the group index
+        groupIndex = len(mygroup.children())
+        return groupIndex, mygroup
+
+    def makeGroupedStats(self):
+        # TODO: fix UI
+        from .forms.groupstats_dialog import GroupstatsDialog
+        from .forms.worker_dialog import WorkerDialog
+        from .tools.worker import Worker
+
+
+        dlg = GroupstatsDialog(self.iface.mainWindow(), self.STEPNAME, self.AGGRFUNCTIONS)
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        if result == 1:
+            res = dlg.getData()
+            # TODO: fix dlg update problem
+
+            #self.progressDlg = WorkerDialog(parent=self.iface.mainWindow())
+            #self.progressDlg.show()
+            #feedback = Worker(None)
+            #feedback.reportMessage.connect(self.progressDlg.setText)
+            self.data = None
+
+            def processOutput(progress):
+                idragraFile = os.path.join(self.SIMDIC['OUTPUTPATH'],'idragra_parameters.txt')
+
+                self.data = processing.run("idragratools:IdragraGroupStats",
+                               {'IDRAGRA_FILE': idragraFile,
+                                'AGGR_LAY': res['selGroupLay'],'AGGR_FLD': res['selGroupField'],
+                                'AGGR_VAR': res['selVarIdx'], 'AGGR_FUN': res['selFunIdx'],
+                                'OUTPUT_TABLE': 'TEMPORARY_OUTPUT'},
+                               context=None,
+                               feedback=progress,
+                               is_child_algorithm=False
+                               )
+            def loadResults():
+                # load data in table view ...
+                if self.data:
+                    self.progressDlg.close()
+                    # add to
+                    groupIndex, mygroup = self.getGroupIndex(self.tr('Analysis'),True)
+                    #mygroup.insertChildNode(groupIndex, QgsLayerTreeLayer(data['OUTPUT_TABLE']))
+                    baseName = '%s %s by %s and %s' % (list(self.STEPNAME.values())[res['selVarIdx']],
+                                                          list(self.AGGRFUNCTIONS.values())[res['selFunIdx']],
+                                                          res['selGroupName'],res['selGroupField']
+                                                          )
+                    self.data['OUTPUT_TABLE'].setName(baseName)
+                    QgsProject.instance().addMapLayer(self.data['OUTPUT_TABLE'], False)  # False is the key
+                    mygroup.insertChildNode(groupIndex, QgsLayerTreeLayer(self.data['OUTPUT_TABLE']))
+
+            #print('data:',data)
+            self.runAsThread(function=processOutput, onFinished=loadResults,progress=None)
+
+
+    def loadFromProject(self):
+        proj = QgsProject.instance()
+        try:
+            dbpath = proj.readEntry('IdrAgraTools', 'dbname')[0]
+            tempDic = eval(proj.readEntry('IdrAgraTools', 'simsettings')[0])
+            usedKeys = list(self.SIMDIC.keys())
+            for k,v in tempDic.items():
+                if k in usedKeys: # to prevent bugs
+                    self.SIMDIC[k]=v
+
+        except Exception as e:
+            print('error loading settings: %s'%str(e))
+
+
+        if os.path.isfile(dbpath):
+            #if (value is not None):
+            self.openDB(dbpath=dbpath)
+
+    def setRaster(self,tableName,layName, layGroup, assignTime=False):
+
+        from .forms.import_raster_dialog import ImportRasterDialog
+        dlg = ImportRasterDialog(self.iface,assignTime)
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        if result == 1:
+            res = dlg.getData()
+            filePath = res['rasterFile']
+            outputExt = res['extent']
+            importRasterFlag = res['importRaster']
+            startDate = res['date']
+            if assignTime:
+                tableName += '_' + startDate
+
+            if layName is None:
+                layName = tableName
+
+            gpkgFile = None
+            if importRasterFlag:
+                gpkgFile = self.DBM.DBName
+
+            self.runAsThread(self.importRaster,
+                             gpkgFile=gpkgFile,
+                            rasterFileName=filePath, tableName=tableName,
+                            crs=QgsProject.instance().crs(),
+                            extension=outputExt,
+                            layName = layName, layGroup = layGroup,
+                            onFinished=lambda: self.loadRaster(self.SIMDIC['RASTERMAP'][tableName],layName,layGroup),
+                            progress=None)
+
+    def setElevation(self):
+        dlg = ManageRastersDialog(iface=self.iface, assignTime=False,
+                               rasterDict=self.SIMDIC['ELEVMAP'],
+                               tableName='elevation', DBM=self.DBM)
+        dlg.rasterAdded.connect(lambda source,name: self.loadRaster(source, name, self.tr('Elevation')))
+        dlg.rasterDeleted.connect(lambda source, name: self.unloadRaster(source, name))
+
+        def updatePar():
+            self.SIMDIC['ELEVMAP'] = dlg.getData()
+            self.updatePars()
+
+        dlg.closed.connect(updatePar)
+        dlg.show()
+
+    def setWaterTable(self):
+        dlg = ManageRastersDialog(iface= self.iface, assignTime = True,
+                                  rasterDict = self.SIMDIC['WATERTABLEMAP'],
+                                  tableName='watertable',DBM = self.DBM)
+        dlg.rasterAdded.connect(lambda source, name: self.loadRaster(source, name, self.tr('Ground water')))
+        dlg.rasterDeleted.connect(lambda source, name: self.unloadRaster(source, name))
+
+        def updatePar():
+            self.SIMDIC['WATERTABLEMAP'] = dlg.getData()
+            self.updatePars()
+
+        dlg.closed.connect(updatePar)
+        dlg.show()
+
+    def loadRaster(self,rasterPath, rasterName, layGroup):
+
+        # load in project if not in the list
+        #print('outDtmFile',outDtmFile)
+        #rlayer =  self.getRasterLayerBySource(outDtmFile)
+        proj = QgsProject.instance()
+        oldlayer = self.getLayerByName(rasterName)
+        rlayer = QgsRasterLayer(rasterPath, rasterName, 'gdal')
+
+        if rlayer.isValid():
+            if oldlayer:
+                # rlayer.setCacheImage(None)
+                # proj.removeMapLayers([rlayer.id()])
+                self.setDataSource(oldlayer, 'gdal', rasterPath, rlayer.extent())
+            else:
+                groupIndex, mygroup = self.getGroupIndex(layGroup)
+                # rlayer.loadNamedStyle(os.path.join(self.plugin_dir, 'styles', n + '.qml'))
+                proj.addMapLayer(rlayer, False)
+                mygroup.insertChildNode(groupIndex, QgsLayerTreeLayer(rlayer))
+        else:
+            self.showCriticalMessageBox(self.tr('Loading error'),
+                                        self.tr('Unable to load %s')%rasterPath,
+                                        self.tr('The selected layer seems broken or not exist'))
+
+    def unloadRaster(self,rasterPath, rasterName):
+        # loop in project
+        proj = QgsProject.instance()
+        for layer in proj.mapLayers().values():
+            if ((layer.source().replace('\\', '/') == rasterPath) and (layer.name()==rasterName)) :
+                proj.removeMapLayer(layer.id())
+
+    def setDataSource(self, layer, newProvider, newDatasource, extent=None):
+        # modified from https://github.com/enricofer/changeDataSource/blob/master/setdatasource.py
+
+        XMLDocument = QDomDocument("style")
+        XMLMapLayers = XMLDocument.createElement("maplayers")
+        XMLMapLayer = XMLDocument.createElement("maplayer")
+        context = QgsReadWriteContext()
+        layer.writeLayerXml(XMLMapLayer, XMLDocument, context)
+        # apply layer definition
+        XMLMapLayer.firstChildElement("datasource").firstChild().setNodeValue(newDatasource)
+        XMLMapLayer.firstChildElement("provider").firstChild().setNodeValue(newProvider)
+        if extent:  # if a new extent (for raster) is provided it is applied to the layer
+            XMLMapLayerExtent = XMLMapLayer.firstChildElement("extent")
+            XMLMapLayerExtent.firstChildElement("xmin").firstChild().setNodeValue(str(extent.xMinimum()))
+            XMLMapLayerExtent.firstChildElement("xmax").firstChild().setNodeValue(str(extent.xMaximum()))
+            XMLMapLayerExtent.firstChildElement("ymin").firstChild().setNodeValue(str(extent.yMinimum()))
+            XMLMapLayerExtent.firstChildElement("ymax").firstChild().setNodeValue(str(extent.yMaximum()))
+
+        XMLMapLayers.appendChild(XMLMapLayer)
+        XMLDocument.appendChild(XMLMapLayers)
+        layer.readLayerXml(XMLMapLayer, context)
+        layer.reload()
+
+        self.iface.actionDraw().trigger()
+        self.iface.mapCanvas().refresh()
+        self.iface.layerTreeView().refreshLayerSymbology(layer.id())
+
+    def makeDistroPlot(self,cropIds,w,h):
+        cropData = []
+        for id in cropIds:
+            # get crop name and parameter
+            res = self.DBM.getRecord(tableName='idr_crop_types',
+                               fieldsList=['name','sowingdate_min','sowingdelay_max','harvestdate_max'],
+                               filterFld = 'id', filterValue=id)
+            if len(res)>0:
+                cropData.append(res[0])
+
+        print('cropData\n',cropData)
+
+        cw = ChartWidget(None, '', False, False,(w,h))
+        cw.setAxis(pos=111, secondAxis=False, label=['test'])
+        tempFile = QgsProcessingUtils.generateTempFilename('plot.png')
+        ylabs = []
+        for i,crop in enumerate(cropData):
+            #('autumn-sown grains', 288, 14, 200)
+            sowingDay = crop[1]
+            maxDelay = crop[2]
+            harvestDay = crop[3]
+            if harvestDay<sowingDay:
+                sowingDay = sowingDay-365
+
+            cw.drawRectangle(sowingDay,harvestDay,i-0.5,i+0.5,'#71c83780',None)
+            cw.drawRectangle(sowingDay+maxDelay, harvestDay, i - 0.5, i + 0.5, '#71c83780', None)
+            ylabs.append(crop[0])
+
+        cw.setTitles( xlabs=None, ylabs=None, xTitle=self.tr('day of the year'), yTitle=None, y2Title=None, mainTitle=None)
+        cw.setYAxis(ylabs)
+        #cw.plot()
+        cw.saveToFile(tempFile,w,h)
+        pmap = QPixmap(tempFile)
+        return pmap
+
+        #plot parameters
+        import matplotlib.pyplot as plt
+
+        plt.figure()
+        plt.plot(cropIds)
+        plt.title('')
+
+        # im = Image.open(buf)
+        # im.show()
+        # buf.close()
+
+    def tempLoop(self):
+        #res = self.DBM.getAllSourceNode(3)
+        tempDict = {'1': [100, 70, 90, 10, 300, 20],
+                    '2': [200, 75, 100, 20, 310, 30]}
+        print('tempDict',tempDict)
+        dList, aList = makeDischSerie(tempDict, 2000, 2001)
+        print('dList',dList)
+        print('aList',aList)
+
+    def callAlg(self):
+        # from processing import execAlgorithmDialog
+        #
+        # params = {}  # A dictionary to load some default value in the dialog
+        # execAlgorithmDialog('idragratools:IdragraGetFromDtm', params)
+        from .forms.import_raster_dialog import ImportRasterDialog
+        dlg = ImportRasterDialog(self.iface)
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        if result == 1:
+            res = dlg.getData()
+            filePath = res['dtmfile']
+            ext = res['extent']
+            print('extention',ext)
+            self.runAsThread(self.importRaster,gpkgFile = self.DBM.DBName,
+                             rasterFileName =filePath, tableName='sss',crs=QgsCoordinateReferenceSystem('EPSG:32632'),
+                             extension=QgsRectangle(),progress=None)
+            #msg = importRaster('c:/test_landriano/xxx.gpkg',filePath,'dtm2')
+            #print('res',msg)
+
+    def callTableForm(self):
+        print('Simulation options')
+        print(self.SIMDIC)
+
+    def test(self):
+        pass
+
+    def test2(self):
+        from .tools.get_timeseries_consistency import getTimeSeriesConsistency
+        progress = MyProgress()
+        weatStatList = self.DBM.getUniqueValues('fid','idr_weather_stations')
+        watSourceWithData = self.DBM.getUniqueValues('wsid','node_act_disc')
+        watSourceList = []
+        if self.SIMDIC['MODE'] ==1:
+            tempList = self.DBM.getUniqueValues('node','idr_distrmap')
+
+            for watSource in tempList:
+                if watSource in watSourceWithData:
+                    if watSource not in watSourceList: watSourceList.append(watSource)
+                else:
+                    # get upper nodes
+                    res= self.DBM.getAllSourceNode(watSource)
+                    print('nodeList', res['nodeList'])
+                    for node in res['nodeList']:
+                        if node in watSourceWithData:
+                            if node not in watSourceList: watSourceList.append(node)
+
+
+        print('weatStatList',weatStatList)
+        print('watSourceList',watSourceList)
+
+        res = getTimeSeriesConsistency(dbname = self.DBM.DBName, fromTime='1998-01-01', toTime='2002-12-31',
+                                       weatStatList=weatStatList, watSourceList=watSourceList,
+                                       feedback=progress,tr=self.tr)
+        print(res)
+
+    def createHeatMap(self):
+        pass
+
+        #outPath = os.path.join(self.SIMDIC['OUTPUTPATH'],self.SIMDIC['SPATIALFOLDER'])
+
+        # self.layer = self.iface.activeLayer()
+        # self.editor = AttributesTableView(self.layer, self.iface.mapCanvas(),None)
+        # self.editor.show()
+
+        # self.editor = QgsAttributeTableView()
+        # self.editor.show()
+
+        # self.editor = QgsDualView(None)
+        # self.layer = self.iface.activeLayer()
+        # self.editor.init(self.layer, self.iface.mapCanvas())
+        # self.editor.setView(QgsDualView.AttributeEditor)
+        # self.editor.show()
+
+        # self.layer = self.iface.activeLayer()
+        # #self.editor = QgsAttributeForm (self.layer)
+        # self.editor =  	QgsAttributeTableView ()
+        # self.editor.show()
+
+        # layer = self.iface.activeLayer()
+        # canvas = self.iface.mapCanvas()
+        # vector_layer_cache = QgsVectorLayerCache(layer, 10000)
+        # self.attribute_table_model = QgsAttributeTableModel(vector_layer_cache)
+        # self.attribute_table_model.loadLayer()
+        #
+        # self.attribute_table_filter_model = QgsAttributeTableFilterModel(
+        #     canvas,
+        #     self.attribute_table_model
+        # )
+        # self.attribute_table_view = QgsAttributeTableView()
+        # self.attribute_table_view.setModel(self.attribute_table_filter_model)
+        #
+        # self.attribute_table_view.show()

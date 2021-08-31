@@ -1,0 +1,384 @@
+# -*- coding: utf-8 -*-
+
+"""
+/***************************************************************************
+ IdrAgraTools
+ A QGIS plugin to manage water demand simulation with IdrAgra model
+ The plugin shares user interfaces and tools to manage water in irrigation districts
+-------------------
+		begin				: 2020-12-01
+		copyright			: (C) 2020 by Enrico A. Chiaradia
+		email				    : enrico.chiaradia@unimi.it
+ ***************************************************************************/
+
+/***************************************************************************
+ *																		   *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or	   *
+ *   (at your option) any later version.								   *
+ *																		   *
+ ***************************************************************************/
+"""
+__author__ = 'Enrico A. Chiaradia'
+__date__ = '2020-12-01'
+__copyright__ = '(C) 2020 by Enrico A. Chiaradia'
+
+# This will get replaced with a git SHA1 when you do a git archive
+
+__revision__ = '$Format:%H$'
+
+from PyQt5.QtWidgets import QPushButton, QLineEdit, QDialog, QMainWindow
+
+from data_manager.chart_widget import ChartWidget
+
+
+def formOpen(dialog,layerid,featureid):
+	global myDialog
+	myDialog = dialog
+	global layer
+	layer = layerid
+	global feature
+	feature = featureid
+
+	PLOT_EVA_WC = myDialog.findChild(QPushButton,'PLOT_EVA_WC')
+	# for some reason, forms are initialized twice ...
+	if PLOT_EVA_WC.receivers(PLOT_EVA_WC.clicked)==0:
+		PLOT_EVA_WC.clicked.connect(lambda: plotEvaWC(
+			int(myDialog.findChild(QLineEdit,'id').text()),
+			myDialog.findChild(QLineEdit,'name').text()))
+
+	PLOT_TRANS_WC = myDialog.findChild(QPushButton, 'PLOT_TRANS_WC')
+	# for some reason, forms are initialized twice ...
+	if PLOT_TRANS_WC.receivers(PLOT_TRANS_WC.clicked) == 0:
+		PLOT_TRANS_WC.clicked.connect(lambda: plotTransWC(
+			int(myDialog.findChild(QLineEdit, 'id').text()),
+			myDialog.findChild(QLineEdit, 'name').text()))
+
+	PLOT_EVA_VARS = myDialog.findChild(QPushButton, 'PLOT_EVA_VARS')
+	# for some reason, forms are initialized twice ...
+	if PLOT_EVA_VARS.receivers(PLOT_EVA_VARS.clicked) == 0:
+		PLOT_EVA_VARS.clicked.connect(lambda: plotEvaVars(
+			int(myDialog.findChild(QLineEdit, 'id').text()),
+			myDialog.findChild(QLineEdit, 'name').text()))
+
+
+	PLOT_TRANS_VARS = myDialog.findChild(QPushButton, 'PLOT_TRANS_VARS')
+	# for some reason, forms are initialized twice ...
+	if PLOT_TRANS_VARS.receivers(PLOT_TRANS_VARS.clicked) == 0:
+		PLOT_TRANS_VARS.clicked.connect(lambda: plotTransVars(
+			int(myDialog.findChild(QLineEdit, 'id').text()),
+			myDialog.findChild(QLineEdit, 'name').text()))
+
+
+	PLOT_CROP_VARS = myDialog.findChild(QPushButton, 'PLOT_CROP_VARS')
+	# for some reason, forms are initialized twice ...
+	if PLOT_CROP_VARS.receivers(PLOT_CROP_VARS.clicked) == 0:
+		PLOT_CROP_VARS.clicked.connect(lambda: plotCropVars(
+			int(myDialog.findChild(QLineEdit, 'id').text()),
+			myDialog.findChild(QLineEdit, 'name').text()))
+
+def plotEvaWC(wsId,name):
+	tr = qgis.utils.plugins['IdragraTools'].tr
+
+	# get data
+	simdic = qgis.utils.plugins['IdragraTools'].SIMDIC
+	r,c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
+	df, msg =  qgis.utils.plugins['IdragraTools'].readControlPointsResults(r,c,None,['Giulian_day','theta1_mm'])
+
+	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
+	if df is None:
+		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		return
+
+	pars, msgPars =  qgis.utils.plugins['IdragraTools'].readControlPointsParams(r, c, [],['ThetaI_fc','ThetaI_wp'])
+
+	cw = ChartWidget(myDialog, '', False, False)
+	cw.setAxis(pos=111, secondAxis=False, label=['main plot'])
+
+	if df is not None:
+		df['theta1_mm'] = df['theta1_mm']/(simdic['ZEVALAY'] * 1000)
+		#dlg = ChartDialog(myDialog, tr('Water content from %s' % name))
+		cw.addTimeSerie(df['Giulian_day'], df['theta1_mm'],
+						 lineType='-', color='#4A7EBB', name=tr('Soil water content (-)'),
+						 yaxis=1,
+						 shadow=False)
+	if pars is not None:
+		cw.addTimeSerie(pars['timestamp'], pars['ThetaI_wp'], lineType='-', color='#BE4B48',
+						 name=tr('Wilting point (-)'), yaxis=1, shadow=False)
+		cw.addTimeSerie(pars['timestamp'], pars['ThetaI_fc'],lineType='-',color='#98B954',
+						name = tr('Field capacity (-)'), yaxis = 1,shadow= False)
+
+	dlg = QMainWindow(myDialog)
+	dlg.setCentralWidget(cw)
+	dlg.show()
+
+
+def plotTransWC(wsId,name):
+	tr = qgis.utils.plugins['IdragraTools'].tr
+
+	# get data
+	simdic = qgis.utils.plugins['IdragraTools'].SIMDIC
+	r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
+	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c, None, ['Giulian_day', 'theta2_mm'])
+	pars, msgPars = qgis.utils.plugins['IdragraTools'].readControlPointsParams(r, c, [], ['ThetaII_fc', 'ThetaII_wp'])
+
+	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
+	if df is None:
+		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		return
+
+	cw = ChartWidget(myDialog, '', False, False)
+	cw.setAxis(pos=111, secondAxis=False, label=['main plot'])
+
+	if df is not None:
+		df['theta2_mm'] = df['theta2_mm'] / (simdic['ZTRANSLAY'] * 1000)
+		# dlg = ChartDialog(myDialog, tr('Water content from %s' % name))
+		cw.addTimeSerie(df['Giulian_day'], df['theta2_mm'],
+						lineType='-', color='#4A7EBB', name=tr('Soil water content (-)'),
+						yaxis=1,
+						shadow=False)
+	if pars is not None:
+		cw.addTimeSerie(pars['timestamp'], pars['ThetaII_wp'], lineType='-', color='#BE4B48',
+						name=tr('Wilting point (-)'), yaxis=1, shadow=False)
+		cw.addTimeSerie(pars['timestamp'], pars['ThetaII_fc'], lineType='-', color='#98B954',
+						name=tr('Field capacity (-)'), yaxis=1, shadow=False)
+
+	dlg = QMainWindow(myDialog)
+	dlg.setCentralWidget(cw)
+	dlg.show()
+
+
+def plotEvaVars(wsId,name):
+	tr = qgis.utils.plugins['IdragraTools'].tr
+
+	r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
+	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
+																		  None, ['Giulian_day', 'rain_mm','irrig_mm','theta1_mm','interception_mm',
+																				 'runoff_mm','eva_mm','perc1_mm'])
+
+	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
+	if df is None:
+		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		return
+
+	# make a dialog
+	tr = qgis.utils.plugins['IdragraTools'].tr
+	cw = ChartWidget(myDialog, '', False, False)
+	cw.setAxis(pos=211, secondAxis=False,label = ['External vars'])
+
+	# add timeseries
+	plotList =  [
+						{'name':qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_rain_mm'],'plot':'True','color':'#416FA6','style': '-','axes':'y','table':'rain_mm','id':wsId},
+						{'name':qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_irrig_mm'],'plot':'True','color':'#A8423F','style': '-','axes':'y','table':'irrig_mm','id':wsId},
+						]
+
+	y1Title = []
+	if df is not None:
+		for p in plotList:
+			shadow = False
+			if p['table']=='theta1_mm':
+				shadow = p['color']+'29'
+				p['color'] = p['color']+'00'
+			# get data
+			dateTimeList = df['Giulian_day']
+			values = df[p['table']]
+			cw.addTimeSerie(dateTimeList,values,lineType='-',color=p['color'],name = p['name'],yaxis = p['axes'],shadow= shadow)
+			if p['axes']=='y': y1Title.append(p['name'])
+
+	# set title
+	cw.setTitles(xlabs = None, ylabs = None, xTitle = None, yTitle = ',\n'.join(y1Title), y2Title = None, mainTitle = None)
+
+	# flip y axes
+	cw.flipAxes(x1 = None, y1 = True, x2 = None, y2 = None)
+
+	cw.setAxis(pos=212, secondAxis=False,label = ['Internal vars'])
+
+	# add timeseries
+	plotList = [
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_theta1_mm'], 'plot': 'True', 'color': '#4198AF',
+		 'style': '-', 'axes': 'y', 'table': 'theta1_mm', 'id': wsId},
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_interception_mm'], 'plot': 'True', 'color': '#86A44A',
+		 'style': '-', 'axes': 'y', 'table': 'interception_mm', 'id': wsId},
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_runoff_mm'], 'plot': 'True', 'color': '#6E548D',
+		 'style': '-', 'axes': 'y', 'table': 'runoff_mm', 'id': wsId},
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_eva_mm'], 'plot': 'True', 'color': '#DA8137',
+		 'style': '-', 'axes': 'y', 'table': 'eva_mm', 'id': wsId},
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_perc1_mm'], 'plot': 'True', 'color': '#8EA5CB',
+		 'style': '-', 'axes': 'y', 'table': 'perc1_mm', 'id': wsId}
+	]
+
+	y1Title = []
+	if df is not None:
+		for p in plotList:
+			shadow = False
+			if p['table'] == 'theta1_mm':
+				shadow = p['color'] + '29'
+				p['color'] = p['color'] + '00'
+			# get data
+			dateTimeList = df['Giulian_day']
+			values = df[p['table']]
+			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
+							shadow=shadow)
+			if p['axes'] == 'y': y1Title.append(p['name'])
+
+	# set title
+	cw.setTitles(xlabs=None, ylabs=None, xTitle=None, yTitle=',\n'.join(y1Title), y2Title=None,
+				 mainTitle=None)
+
+	# add chart to dialog
+	dlg = QMainWindow(myDialog)
+	dlg.setCentralWidget(cw)
+	dlg.show()
+
+def plotTransVars(wsId,name):
+	tr = qgis.utils.plugins['IdragraTools'].tr
+
+	r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
+	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
+																		  None, ['Giulian_day', 'perc1_mm', 'capflux_mm',
+																				 'theta2_mm', 'trasp_act_mm',
+																				 'perc2_mm'])
+	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
+	if df is None:
+		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		return
+
+	# make a dialog
+	tr = qgis.utils.plugins['IdragraTools'].tr
+	cw = ChartWidget(myDialog, '', False, False)
+	cw.setAxis(pos=211, secondAxis=False, label=['External vars'])
+
+	# add timeseries
+	plotList = [
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_perc1_mm'], 'plot': 'True', 'color': '#416FA6',
+		 'style': '-', 'axes': 'y', 'table': 'perc1_mm', 'id': wsId},
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_capflux_mm'], 'plot': 'True', 'color': '#A8423F',
+		 'style': '-', 'axes': 'y', 'table': 'capflux_mm', 'id': wsId},
+	]
+
+	y1Title = []
+	if df is not None:
+		for p in plotList:
+			shadow = False
+			if p['table'] == 'theta1_mm':
+				shadow = p['color'] + '29'
+				p['color'] = p['color'] + '00'
+			# get data
+			dateTimeList = df['Giulian_day']
+			values = df[p['table']]
+			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
+							shadow=shadow)
+			if p['axes'] == 'y': y1Title.append(p['name'])
+
+	# set title
+	cw.setTitles(xlabs=None, ylabs=None, xTitle=None, yTitle=',\n'.join(y1Title), y2Title=None, mainTitle=None)
+
+	# flip y axes
+	cw.flipAxes(x1=None, y1=True, x2=None, y2=None)
+
+	cw.setAxis(pos=212, secondAxis=False, label=['Internal vars'])
+
+	# add timeseries
+	plotList = [
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_theta2_mm'], 'plot': 'True', 'color': '#4198AF',
+		 'style': '-', 'axes': 'y', 'table': 'theta2_mm', 'id': wsId},
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_trasp_act_mm'], 'plot': 'True', 'color': '#86A44A',
+		 'style': '-', 'axes': 'y', 'table': 'trasp_act_mm', 'id': wsId},
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_perc2_mm'], 'plot': 'True', 'color': '#6E548D',
+		 'style': '-', 'axes': 'y', 'table': 'perc2_mm', 'id': wsId}
+	]
+
+	y1Title = []
+	if df is not None:
+		for p in plotList:
+			shadow = False
+			if p['table'] == 'theta2_mm':
+				shadow = p['color'] + '29'
+				p['color'] = p['color'] + '00'
+			# get data
+			dateTimeList = df['Giulian_day']
+			values = df[p['table']]
+			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
+							shadow=shadow)
+			if p['axes'] == 'y': y1Title.append(p['name'])
+
+	# set title
+	cw.setTitles(xlabs=None, ylabs=None, xTitle=None, yTitle=',\n'.join(y1Title), y2Title=None,
+				 mainTitle=None)
+
+	# add chart to dialog
+	dlg = QMainWindow(myDialog)
+	dlg.setCentralWidget(cw)
+	dlg.show()
+
+
+def plotCropVars(wsId,name):
+	tr = qgis.utils.plugins['IdragraTools'].tr
+
+	r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
+	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
+																		  None, ['Giulian_day', 'kcb', 'lai'])
+	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
+	if df is None:
+		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		return
+
+	# make a dialog
+	tr = qgis.utils.plugins['IdragraTools'].tr
+	cw = ChartWidget(myDialog, '', False, False)
+	cw.setAxis(pos=211, secondAxis=False, label=['External vars'])
+
+	# add timeseries
+	plotList = [
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_kcb'], 'plot': 'True', 'color': '#c87137ff',
+		 'style': '-', 'axes': 'y', 'table': 'kcb', 'id': wsId},
+	]
+
+	y1Title = []
+	if df is not None:
+		for p in plotList:
+			shadow = False
+			if p['table'] == 'theta1_mm':
+				shadow = p['color'] + '29'
+				p['color'] = p['color'] + '00'
+			# get data
+			dateTimeList = df['Giulian_day']
+			values = df[p['table']]
+			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
+							shadow=shadow)
+			if p['axes'] == 'y': y1Title.append(p['name'])
+
+	# set title
+	cw.setTitles(xlabs=None, ylabs=None, xTitle=None, yTitle=',\n'.join(y1Title), y2Title=None, mainTitle=None)
+
+	cw.setAxis(pos=212, secondAxis=False, label=['Internal vars'])
+
+	# add timeseries
+	plotList = [
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_lai'], 'plot': 'True', 'color': '#71c837ff',
+		 'style': '-', 'axes': 'y', 'table': 'lai', 'id': wsId}
+	]
+
+	y1Title = []
+	if df is not None:
+		for p in plotList:
+			shadow = False
+			if p['table'] == 'theta2_mm':
+				shadow = p['color'] + '29'
+				p['color'] = p['color'] + '00'
+			# get data
+			dateTimeList = df['Giulian_day']
+			values = df[p['table']]
+			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
+							shadow=shadow)
+			if p['axes'] == 'y': y1Title.append(p['name'])
+
+	# set title
+	cw.setTitles(xlabs=None, ylabs=None, xTitle=None, yTitle=',\n'.join(y1Title), y2Title=None,
+				 mainTitle=None)
+
+	# add chart to dialog
+	dlg = QMainWindow(myDialog)
+	dlg.setCentralWidget(cw)
+	dlg.show()
