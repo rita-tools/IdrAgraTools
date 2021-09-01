@@ -1,7 +1,8 @@
 # IdragraTools
 
-IdragraTools is developed and tested under MS Windows and QGIS 3.16.
-At the moment, only manual installation is available. Please follow the steps below. 
+IdragraTools is developed and tested under MS Windows and QGIS 3.16.  
+At the moment, only manual installation is available.  
+Please follow the steps below. 
 
 ## Installation notes
 
@@ -15,4 +16,4 @@ At the moment, only manual installation is available. Please follow the steps be
 9. Under Plugins --> Manage and Install Plugins... select "Installed"
 10. Set "Idragra Tools" Flagged
 
-Please, double-check folder names, otherwise the plugin will not work properly.
+**Please, double-check folder names, otherwise the plugin will not work properly.**
