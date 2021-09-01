@@ -433,13 +433,13 @@ class IdrAgraTools():
 
         self.soilMenu = self._addmenu(self.mainMenu, 'Soil', self.tr('Soil'), False)
         self._addmenuitem(self.soilMenu, 'ImportSoilMap', self.tr('Import soil map'), self.importSoilMap, False)
-        self._addmenuitem(self.soilMenu, 'EditSoilType', self.tr('Edit soil type'), self.printSome, False)
+        #self._addmenuitem(self.soilMenu, 'EditSoilType', self.tr('Edit soil type'), self.printSome, False)
 
         self.mainMenu.addMenu(self.soilMenu)
 
         self.landuseMenu = self._addmenu(self.mainMenu, 'LandUse', self.tr('Land use'), False)
         self._addmenuitem(self.landuseMenu, 'ImportLandUseMap', self.tr('Import land use map'), self.importLandUseMap, False)
-        self._addmenuitem(self.landuseMenu, 'EditLandUseType', self.tr('Edit land use type'), self.printSome, False)
+        #self._addmenuitem(self.landuseMenu, 'EditLandUseType', self.tr('Edit land use type'), self.printSome, False)
         self.mainMenu.addMenu(self.landuseMenu)
 
         self.irrigationMenu = self._addmenu(self.mainMenu, 'Irrigation', self.tr('Irrigation'), False)
