@@ -1,7 +1,7 @@
 # IdragraTools
 
 IdragraTools is developed and tested under MS Windows and QGIS 3.16.
-The ready-to-use installation package is available [here](https://github.com/rita-tools/releases/tree/main/IdragraTools_releases).
+The ready-to-use installation package is available [here](https://github.com/rita-tools/releases/tree/main/IdragraTools_releases).  
 Otherwise, if you want to use the latest code, you need to perform the manual installation following the steps below. 
 
 ## Manual installation notes
