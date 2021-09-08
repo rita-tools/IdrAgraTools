@@ -201,18 +201,20 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 		lry = sExtent.yMinimum()
 		feedback.pushInfo(self.tr('Source extension: %s %s %s %s') % (ulx, uly, lrx, lry))
 
-		print('selected extension', outputExt)
+		# print('selected extension', outputExt)
 		ulx = outputExt.xMinimum()
 		uly = outputExt.yMaximum()
 		lrx = outputExt.xMaximum()
 		lry = outputExt.yMinimum()
 		feedback.pushInfo(self.tr('Selected extension: %s %s %s %s') % (ulx, uly, lrx, lry))
 
-		extension = sExtent.intersect(outputExt)
-		ulx = extension.xMinimum()
-		uly = extension.yMaximum()
-		lrx = extension.xMaximum()
-		lry = extension.yMinimum()
+		# TODO: check if it couses errors
+		extension = outputExt
+		# extension = sExtent.intersect(outputExt)
+		# ulx = extension.xMinimum()
+		# uly = extension.yMaximum()
+		# lrx = extension.xMaximum()
+		# lry = extension.yMinimum()
 		feedback.pushInfo(self.tr('intersected extension: %s %s %s %s') % (ulx, uly, lrx, lry))
 
 		if extension.area() == 0:
