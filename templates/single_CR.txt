@@ -1,7 +1,7 @@
-# WellAcronym: public well name, that links the well to its subdistrict(s)
-WellAcronym = [%WELLNAME%]
-# WellId: public well code
-WellId = [%WELLID%]
+# SourceAcronym: source name, that links the source to its subdistrict(s)
+SourceAcronym = [%WELLNAME%]
+# SourceId: source code (actually not used!)
+SourceId = [%WELLID%]
 # Qmax: maximum flow rate
 Qmax = [%QMAX%]
 # Qnom: nominal flow rate
