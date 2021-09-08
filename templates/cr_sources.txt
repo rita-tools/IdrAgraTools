@@ -1,5 +1,5 @@
 # SourceWellTotNum: number of public wells
-SourceWellTotNum = [%NUMOFWELL%]
+CRS_TotNum = [%NUMOFWELL%]
 # List: Wells parameters' files
 # List starts with the label "List =" and ends with the label "EndList ="
 List =
