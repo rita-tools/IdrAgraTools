@@ -46,7 +46,7 @@ def exportGeodata(DBM,outPath, extent, cellSize, dtm, watertableDict, depthList,
 	# DISTRICT SOURCE
 	feedback.pushInfo(tr('Exporting districts data'))
 	feedback.setProgress(10.0)
-	fileName = os.path.join(outPath, 'irr_distr' + '.asc')
+	fileName = os.path.join(outPath, 'irr_units' + '.asc')
 	laySource = DBM.DBName+ '|layername=idr_distrmap'
 	fieldName = 'node'
 
@@ -220,6 +220,17 @@ def exportGeodata(DBM,outPath, extent, cellSize, dtm, watertableDict, depthList,
 	# WATER TABLE DEPTHS
 	nOfWTdepths = 0
 	for var,waterTable in watertableDict.items():
+		if nOfWTdepths==0:
+			# make a general water table for the first year
+			feedback.pushInfo(tr('A base waterdepth map was set for the simulation period'))
+			wtdepthName = os.path.join(outPath, 'waterdepth.asc')  # remove month and day
+			processing.run("idragratools:IdragraCalcWaterDepth", {'DTM': dtm,
+																  'WATERTABLE': waterTable,
+																  'EXTENT': extent,
+																  'CELLSIZE': cellSize,
+																  'OUTPUT': wtdepthName},
+						   context=None, feedback=feedback, is_child_algorithm=False
+						   )
 		nOfWTdepths+=1
 		wtdepthName = os.path.join(outPath,'waterdepth'+var[10:-4]+'.asc') # remove month and day
 		processing.run("idragratools:IdragraCalcWaterDepth", {'DTM': dtm,

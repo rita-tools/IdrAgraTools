@@ -39,13 +39,11 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 	# get node layers
 	nodeLay = DBM.getTableAsLayer(name = 'idr_nodes')
 	linkLay = DBM.getTableAsLayer(name='idr_links')
+	irrunitLay = DBM.getTableAsLayer(name='idr_distrmap')
 
 	# set time
 	fromTime = '%s-01-01' % startY
 	toTime = '%s-12-31' % endY
-
-	# build water source files: "XXX_diversion.txt", "publicwells.txt", "well_XX.txt"
-	# [case 2: it has summer/winter discharges and start/end days --> create a simulated time serie --> use as diversion]
 
 	# 1: [1] Generic water source
 	# 11: [11] Monitored water source
@@ -95,7 +93,7 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 				# save to file
 				writeParsToTemplate(outfile=os.path.join(outPath, '%s.txt' % nodeId),
 									parsDict=pubWellDict,
-									templateName='single_publicwell.txt')
+									templateName='single_CR.txt')
 
 				publicWellList.append(nodeId)
 			else:
@@ -140,7 +138,7 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 			# save to file
 			writeParsToTemplate(outfile=os.path.join(outPath, '%s.txt' % nodeId),
 								parsDict=pubWellDict,
-								templateName='single_publicwell.txt')
+								templateName='single_CR.txt')
 
 			publicWellList.append(nodeId)
 		elif feat['node_type'] == 14:
@@ -150,7 +148,7 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 			pass
 
 
-	# save publicwells.txt
+	# save cr_sources.txt
 	# #SourceWellTotNum: number of public wells
 	# SourceWellTotNum = 2
 	# # List: Wells parameters' files
@@ -163,9 +161,9 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 	nOfFile = len(publicWellList)
 	fileList = '\n'.join(['%s.txt' % x for x in publicWellList])
 
-	writeParsToTemplate(outfile=os.path.join(outPath, 'publicwells.txt'),
+	writeParsToTemplate(outfile=os.path.join(outPath, 'cr_sources.txt'),
 						parsDict={'NUMOFWELL': nOfFile, 'WELLLIST': fileList},
-						templateName='publicwells.txt')
+						templateName='cr_sources.txt')
 
 	# Make the diversion file "XXX_diversion.txt"
 	# c_cal	  c_maroc	  c_vac --> SOURCE_CODE
@@ -178,9 +176,10 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 
 	sourceList = '\t'.join(str(x) for x in divList)
 	dischList = '\t'.join(str(x) for x in divDischList)
-
+	#print('divList:',divList)
 	# make a big discharge query
 	sql = createDischQuery(sDate = fromTime, eDate= toTime, wsIdList = divList)
+	#print('sql',sql)
 
 	msg = ''
 	data = None
@@ -214,10 +213,10 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 		dischTable += ''.join(format(x, "9.3f") for x in valList) + '\n'
 
 	# Right date format is dd/mm/yyyy
-	writeParsToTemplate(outfile=os.path.join(outPath, 'surfwat_diversions.txt'),
+	writeParsToTemplate(outfile=os.path.join(outPath, 'monit_sources_i.txt'),
 						parsDict={'SOURCELIST': sourceList, 'DISCHLIST': dischList,
 								  'FROMDATE':'01/01/%s'%startY,'TODATE':'31/12/%s'%endY, 'DISCHTABLE': dischTable},
-						templateName='surfwat_diversions.txt')
+						templateName='monit_sources_i.txt')
 
 	# Save two stage discharges
 	twoStageList = list(twoStageFlow.keys())
@@ -231,46 +230,44 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 	np.savetxt(s, twoStageDischTable, '%.3f','\t')
 	twoStageDischTable = s.getvalue().decode()
 
-	writeParsToTemplate(outfile=os.path.join(outPath, 'tailwater_diversions.txt'),
+	writeParsToTemplate(outfile=os.path.join(outPath, 'int_reuse.txt'),
 						parsDict={'SOURCELIST': twoStageListString, 'DISCHLIST': twoStageDischList,
 								  'FROMDATE': '01/01/%s' % startY, 'TODATE': '31/12/%s' % endY,
 								  'DISCHTABLE': twoStageDischTable},
-						templateName='tailwater_diversions.txt')
+						templateName='int_reuse.txt')
 
 	# add empty file
-	writeParsToTemplate(outfile=os.path.join(outPath, 'flowwell_diversions.txt'),
+	writeParsToTemplate(outfile=os.path.join(outPath, 'monit_sources_ii.txt'),
 						parsDict={},
-						templateName='flowwell_diversions.txt')
+						templateName='monit_sources_ii.txt')
 
 	# build water district tables "irrdistricts.txt", "watsources.txt"
 	# need loop to the upstream node
 	irrDistr = []
 	watSources = []
-	for feat in nodeLay.getFeatures():
-		if feat['node_type'] == 3:
-			# it is a distribution node
-			distrId = feat['id']
-			expFact = feat['expl_factor']
-			watShift = feat['wat_shift']
-			# use to build water district table
-			# search all upstream water source
-			res = DBM.getAllSourceNode(feat['id'])
-			#print('res from getAllSourceNode',res)
 
-			isPrivateWell = 0
-			for i,f in zip(res['nodeList'],res['ratioList']):
-				if i in privWellList:
-					# check if it is a private wells
-					isPrivateWell = 1
-				else:
-					# check is there are private wells
-					sourceType = 1 # all water sources with discharge time series
-					if i in twoStageList: sourceType = 3
-					if i in publicWellList: sourceType = 4 # all water sources with automatic delivery
+	for feat in irrunitLay.getFeatures():
+		distrId = feat['id']
+		nodeId = feat['node']
+		expFact = feat['expl_factor']
+		watShift = feat['wat_shift']
 
-					watSources.append([distrId,i,sourceType,f])
+		res = DBM.getAllSourceNode(nodeId)
 
-			irrDistr.append([distrId,expFact,isPrivateWell,watShift])
+		isPrivateWell = 0
+		for i, f in zip(res['nodeList'], res['ratioList']):
+			if i in privWellList:
+				# check if it is a private wells
+				isPrivateWell = 1
+			else:
+				# check is there are private wells
+				sourceType = 1  # all water sources with discharge time series
+				if i in twoStageList: sourceType = 3
+				if i in publicWellList: sourceType = 4  # all water sources with automatic delivery
+
+				watSources.append([distrId, i, sourceType, f])
+
+		irrDistr.append([distrId, expFact, isPrivateWell, watShift])
 
 	# save water sources file
 	table = []
@@ -318,7 +315,7 @@ def createDischQuery(sDate, eDate, wsIdList):
 				 SELECT x+1 FROM cnt
 				  LIMIT (SELECT ((julianday('%s') - julianday('%s'))) + 1)
 			)
-			SELECT %s FROM (SELECT datetime(julianday('%s'), '+' || x || ' days') AS timestamp FROM cnt) as consday
+			SELECT %s FROM (SELECT date(julianday('%s'), '+' || x || ' days') AS timestamp FROM cnt) as consday
 			%s
 			""" % (eDate, sDate, fieldSQL, sDate, joinSQL)
 
