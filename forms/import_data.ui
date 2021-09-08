@@ -134,7 +134,7 @@
         </item>
         <item>
          <property name="text">
-          <string>%d/%m/%Y </string>
+          <string>%d/%m/%Y</string>
          </property>
         </item>
         <item>

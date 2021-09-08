@@ -133,6 +133,7 @@ class ImportData(QDialog):
                     value = '?!#'
                     try:
                         timestamp = datetime.strptime(data[timeFldIdx], timeFormat)
+                        timestamp = timestamp.strftime('%Y-%m-%d')
                     except Exception as e:
                         self.previewError = True
                         if len(data) > timeFldIdx:
@@ -145,7 +146,7 @@ class ImportData(QDialog):
                             value += data[valueFldIdx]
                     # add to table
                     self.TABLE_PREVIEW.insertRow(self.TABLE_PREVIEW.rowCount())
-                    self.TABLE_PREVIEW.setItem(self.TABLE_PREVIEW.rowCount() - 1, 0, QTableWidgetItem(timestamp.strftime('%Y-%m-%d')))
+                    self.TABLE_PREVIEW.setItem(self.TABLE_PREVIEW.rowCount() - 1, 0, QTableWidgetItem(timestamp))
                     self.TABLE_PREVIEW.setItem(self.TABLE_PREVIEW.rowCount() - 1, 1, QTableWidgetItem(str(value)))
                     v += 1
 
