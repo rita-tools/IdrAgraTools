@@ -205,8 +205,9 @@ class IdragraSaveAscii(QgsProcessingAlgorithm):
 		xurcorner = geoDict['xllcorner'] + ncols * geoDict['dx']
 		yurcorner = geoDict['yllcorner'] - nrows * geoDict['dy']
 
+		# TODO: check if the link to the QGSProject instance resolves the memory issues
 		self.aGrid = GisGrid(ncols=ncols, nrows=nrows, xcell=xllcorner, ycell=yllcorner, dx=dx, dy=-dy, nodata=-9,
-						EPSGid=inputLay.crs().postgisSrid(), progress=self.FEEDBACK,parent = self.FEEDBACK)
+						EPSGid=inputLay.crs().postgisSrid(), progress=self.FEEDBACK,parent = QgsProject.instance())
 		self.aGrid.data = inputArray  # maxDepthArray#
 
 		# save to file
