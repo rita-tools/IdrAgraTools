@@ -71,6 +71,7 @@ from datetime import datetime
 
 import os
 
+from ..tools.write_pars_to_template import writeParsToTemplate
 from ..tools.gis_grid import GisGrid
 
 
@@ -215,7 +216,7 @@ class IdragraExportControlPoints(QgsProcessingAlgorithm):
 
 		# loop in layer and get point coordinates
 		nOfCP = 0
-		txt = ''
+		recs = ['ID\tX\tY']
 		nFeats = vectorLay.featureCount()
 		n = 0
 		for feature in vectorLay.getFeatures():
@@ -230,24 +231,19 @@ class IdragraExportControlPoints(QgsProcessingAlgorithm):
 					self.tr('Control point named %s is outside the extension') %
 					(feature['name']))
 			else:
-				txt += '%-5s%-5s\n'%(r,c) #flipped
+				recs.append('%s\t%s\t%s'%(n+1,r,c)) #flipped
 				nOfCP += 1
 
 			n+=1
 			self.FEEDBACK.setProgress(100. * n / nFeats)
 
-		txt = '%s\n%s'%(nOfCP,txt)
+		tableTxt = '\n'.join(recs)
+		cpDict = {'NUMCELL':nOfCP, 'CELLTABLE':tableTxt}
 
-		# save to file
-		f = open(filename, 'w')
-		try:
-			f.write(txt)
-		except IOError:
-			# print 'Cannot save file: %s' %filename
-			self.FEEDBACK.reportError(self.tr('Cannot save to %s because %s') %
-									  (filename, str(IOError)))
-		finally:
-			f.close()
+		writeParsToTemplate(outfile=filename,
+							parsDict=cpDict,
+							templateName='cells.txt')
 
-		return {'OUTPUT':txt}
+
+		return {'OUTPUT':cpDict}
 		
