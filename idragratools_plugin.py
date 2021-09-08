@@ -46,6 +46,7 @@ from PyQt5 import QtSql
 from PyQt5.QtXml import QDomDocument
 from qgis import processing
 
+from tools.check_matlab_installed import checkMatlabInstalled
 from .data_manager.chart_widget import ChartWidget
 from .tools.gis_grid import GisGrid
 from .tools.iface_progress import IfaceProgress
@@ -153,6 +154,8 @@ class IdrAgraTools():
         self.s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
         if self.s.value('idragraPath','')=='': self.s.setValue('idragraPath', os.path.join(self.plugin_dir,'bin','idragra_20210907ASC.exe'))
         if self.s.value('cropcoeffPath','')=='': self.s.setValue('cropcoeffPath', os.path.join(self.plugin_dir,'bin','CropCoef_v4.exe'))
+        if self.s.value('MCRpath', '') == '': self.s.setValue('MCRpath',checkMatlabInstalled(version= '9.9'))
+        #if self.s.value('MinGWPath', '') == '': self.s.setValue('MinGWPath', checkMatlabInstalled(version='9.9'))
 
         self.STATFUN = {'SUM': self.tr('Sum'), 'AVG': self.tr('Mean'), 'MAX': self.tr('Max'), 'MIN': self.tr('Min')}
 
