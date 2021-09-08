@@ -175,12 +175,10 @@ class IdragraSoilParams(QgsProcessingAlgorithm):
 						Theta R: the field with residual soil moisture (-) [TR_FLD]
 						Theta S: the field with residual soil moisture (-) [TS_FLD]
 						Aggregation depths: the calculation depth. Multiple depths are separated by space. Unit must be the same of maximum soil layer depth [DEPTHS]
-						Function: aggregation function to use [AGGR_FUN]
 						Output table: the file path to the output table [OUT_TABLE]<sup>1</sup>
 						
 						<b>Notes</b>
-						(1) Additional to K_sat, Theta FC, Theta WP. Theta R and Theta S, the following fields
-						will be calculated:
+						(1) Additional to K_sat, Theta FC, Theta WP. Theta R and Theta S, the following fields will be calculated:
 						n: the field with the first parameter
 						REW: the field with the second parameter
 						
