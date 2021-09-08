@@ -58,7 +58,6 @@ from .forms.attribute_table_view import AttributesTableView
 from .forms.new_db_dialog import NewDbDialog
 from .tools.utils import returnExtent
 from .tools.export_bat import exportBat
-from .tools.export_cell_list import exportCellList
 from .tools.export_land_use import exportLandUse
 from .tools.export_water_sources import makeDischSerie, exportWaterSources
 from .tools.write_pars_to_template import writeParsToTemplate
@@ -150,7 +149,10 @@ class IdrAgraTools():
         # add processing provider
         self.provider = IdrAgraToolsProvider()
 
+        # TODO: check the latest version of idragra and cropcoef
         self.s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+        if self.s.value('idragraPath','')=='': self.s.setValue('idragraPath', os.path.join(self.plugin_dir,'bin','idragra_20210907ASC.exe'))
+        if self.s.value('cropcoeffPath','')=='': self.s.setValue('cropcoeffPath', os.path.join(self.plugin_dir,'bin','CropCoef_v4.exe'))
 
         self.STATFUN = {'SUM': self.tr('Sum'), 'AVG': self.tr('Mean'), 'MAX': self.tr('Max'), 'MIN': self.tr('Min')}
 
@@ -444,6 +446,8 @@ class IdrAgraTools():
 
         self.irrigationMenu = self._addmenu(self.mainMenu, 'Irrigation', self.tr('Irrigation'), False)
         self._addmenuitem(self.irrigationMenu, 'ImportWaterDistrictMap', self.tr('Import irrigation units map'), self.importWaterDistrictMap, False)
+        self._addmenuitem(self.irrigationMenu, 'importIrrMethMap', self.tr('Import irrigation methods map'),
+                          self.importIrrMethMap, False)
         self._addmenuitem(self.irrigationMenu, 'ImportNodeMap', self.tr('Import node map'),  self.importNodes, False)
         self._addmenuitem(self.irrigationMenu, 'ImportLinkMap', self.tr('Import link map'), self.importLinks, False)
         #self._addmenuitem(self.irrigationMenu, 'CheckNetwork', self.tr('Check network'), self.printSome, False)
@@ -500,7 +504,7 @@ class IdrAgraTools():
         menuBar.insertMenu(self.iface.firstRightStandardMenu().menuAction(), self.mainMenu)
 
         # Init settings
-        self.setSettings()
+        # self.setSettings()
 
         # Init procesing provider
         QgsApplication.processingRegistry().addProvider(self.provider)
@@ -897,7 +901,6 @@ class IdrAgraTools():
         self.importData(sensorsDict, self.WATERSOURCENAME)
 
     def importData(self,sensorsDict = {},varDict={}):
-
         from .forms.import_data import ImportData
         dlg = ImportData(self.iface.mainWindow(),varDict,sensorsDict,self.s)
         dlg.show()
@@ -907,6 +910,7 @@ class IdrAgraTools():
         if result == 1:
             res = dlg.getData()
             progress = IfaceProgress(self.iface)
+            print('res',res)
             self.importDataFromCSV(
                              filename=res['selFile'], tablename=res['selVar'],
                              timeFldIdx=res['timeFldIdx'],valueFldIdx=res['valueFldIdx'],
@@ -1078,6 +1082,25 @@ class IdrAgraTools():
                              fromLay=res['lay'], toLay=wsLay, fieldDict=res['fieldDict'], assignDate=None,
                              saveEdit=res['saveEdit'],
                              progress=progress)
+
+    def importIrrMethMap(self):
+        wsLay = self.getVectorLayerByName('idr_irrmap')
+        layList = self.getLayerList(geomTypeList=[QgsWkbTypes.PolygonGeometry])
+        from .forms.import_vector_dialog import ImportVectorDialog
+        dlg = ImportVectorDialog(self.iface.mainWindow(), layList=layList, fields=wsLay.fields(),
+                                 skipFields=['fid'], dateFld=[], settings=self.s,
+                                 title=self.tr('Import irrigation methods map'))
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            progress = IfaceProgress(self.iface)
+            self.importVector(
+                fromLay=res['lay'], toLay=wsLay, fieldDict=res['fieldDict'], assignDate=None,
+                saveEdit=res['saveEdit'],
+                progress=progress)
 
 
     def getVectorLayerByName(self, tablename):
@@ -2160,7 +2183,7 @@ class IdrAgraTools():
                         data = in_line.split(column_sep)
                         timestamp = datetime.strptime(str(year) + data[timeFldIdx], timeFormat)
                         value = float(data[valueFldIdx])
-                        tsList.append(timestamp)
+                        tsList.append(timestamp.strftime('%Y-%m-%d'))
                         valList.append(value)
 
                     i += 1
