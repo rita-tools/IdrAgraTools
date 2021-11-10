@@ -141,6 +141,15 @@ class ManageRastersDialog(QMainWindow):
 			rowCount = aModel.rowCount()
 			for row in range(rowCount):
 				index = aModel.index(row, 0)
+				if aModel.data(index)== '':
+					# TODO: fix with a better management of new empy table
+					# replace empty row with tablename and source
+					aModel.setData(index, tableName)
+					index = aModel.index(row, 1)
+					aModel.setData(index, filePath)
+					notReplaced = False
+					break
+
 				if aModel.data(index)== tableName:
 					index = aModel.index(row, 1)
 					# update source

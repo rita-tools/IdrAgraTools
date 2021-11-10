@@ -157,6 +157,11 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 						<b>Parameters:</b>
 						DTM raster map: the source of the altimetric information [DTM_LAY]
 						Output Slope map: the slope map expressed as ratio (m/m) [OUTDTM_LAY]
+						
+						Notes:
+						First at all, the slope map is calculated with the same resolution of the clipped elevation map
+						and then the slope map is resampled to the output resolution using a mode-based filter (assign the
+						most frequent value in the pixels subset). Finally, the map is converted in percent value. 
 						"""
 		
 		return self.tr(helpStr)
@@ -208,7 +213,7 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 		lry = outputExt.yMinimum()
 		feedback.pushInfo(self.tr('Selected extension: %s %s %s %s') % (ulx, uly, lrx, lry))
 
-		# TODO: check if it couses errors
+		# TODO: check if it causes errors
 		extension = outputExt
 		# extension = sExtent.intersect(outputExt)
 		# ulx = extension.xMinimum()
@@ -246,7 +251,6 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 									feedback=feedback,
 									is_child_algorithm=True)
 
-		slopeLay = QgsRasterLayer(algresult['OUTPUT'],'slope')
 
 		# fit extension
 		xllcorner = outputExt.xMinimum()
@@ -263,6 +267,24 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 		yllcorner = yurcorner - nrows * outputCellSize
 
 		newExt = QgsRectangle(xllcorner, yllcorner, xurcorner, yurcorner)
+
+		feedback.pushInfo(self.tr('Resampling slope map with mode filter (i.e. use most frequent value)'))
+		algresult = processing.run("gdal:warpreproject",
+								   {'INPUT': algresult['OUTPUT'],
+								  'SOURCE_CRS': crs,
+								  'TARGET_CRS': crs,
+								  'RESAMPLING': 6,
+								  'NODATA': None, 'TARGET_RESOLUTION': outputCellSize, 'OPTIONS': '', 'DATA_TYPE': 6,
+								  'TARGET_EXTENT': None,
+								  'TARGET_EXTENT_CRS': None,
+								  'MULTITHREADING': False, 'EXTRA': '', 'OUTPUT': 'TEMPORARY_OUTPUT'},
+								   context=context,
+								   feedback=feedback,
+								   is_child_algorithm=True
+								   )
+
+		slopeLay = QgsRasterLayer(algresult['OUTPUT'], 'slope')
+
 		# make slope as ratio
 
 		entries = []
@@ -275,7 +297,8 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 
 		driverName = GdalUtils.GdalUtils.getFormatShortNameFromFilename(outSlpMap)
 		# Process calculation with input extent and resolution
-		calc = QgsRasterCalculator('tan("slope@1"*%s/180)'%math.pi, outSlpMap, driverName,
+		# slope must be in percent
+		calc = QgsRasterCalculator('100*tan("slope@1"*%s/180)'%math.pi, outSlpMap, driverName,
 								   newExt, ncols, nrows, entries)
 		calc.processCalculation(self.FEEDBACK)
 

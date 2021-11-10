@@ -211,9 +211,7 @@ class ChartWidget(QWidget):
 			# self.ax.legend(self.h, self.l)
 			# plt.legend(self.h, self.l)
 			# plt.legend(handles = self.h, labels = self.l, loc='upper center', bbox_to_anchor=(0.5, -0.1),fancybox=True, shadow=True, ncol=len(self.h))
-			plt.legend(handles=self.h, labels=self.l, loc='upper center',
-					   bbox_to_anchor=(0.5, 1.15), fancybox=True, shadow=True,
-					   ncol=len(self.h))
+			plt.legend(handles=self.h, labels=self.l)#, loc='upper center', bbox_to_anchor=(0.5, 1.15), fancybox=True, shadow=True, ncol=len(self.h))
 
 	def addFluxChart(self,flows=[25, 0, 60, -10, -20, -5, -15, -10, -40],
 				   labels=['', '', '', 'First', 'Second', 'Third', 'Fourth',

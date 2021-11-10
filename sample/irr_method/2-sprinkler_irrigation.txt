@@ -5,7 +5,7 @@
 #################################################################################################################
 
 id = 2
-name = Sprinckler irrigation
+name = Sprinkler irrigation
 
 qadaq = 50 # Qadaq: irrigation water depth [mm]
 k_stress = 0.7 # K_stress: water stress coefficient for the activation of irrigation from water diversions

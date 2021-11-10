@@ -36,8 +36,11 @@ class ArrayTableModel(QAbstractTableModel):
 	def __init__(self, parent=None, data = [], header = []): 
 		super(ArrayTableModel, self).__init__()
 		# list of tuple, each tuple is a record of the table
-		self.datatable = data
+
 		self.dataheader = header
+		if len(data) == 0: self.datatable = [['']*len(header)]  # add empty row
+		else: self.datatable = data
+
 		self.editableColumnList = list(range(0,len(header)))
 		
 	def update(self, dataIn,headerIn = None):

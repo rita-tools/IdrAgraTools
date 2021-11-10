@@ -28,7 +28,7 @@ __copyright__ = '(C) 2020 by Enrico A. Chiaradia'
 
 __revision__ = '$Format:%H$'
 
-from PyQt5.QtWidgets import QPushButton, QLineEdit, QDialog, QMainWindow
+from PyQt5.QtWidgets import QPushButton, QLineEdit, QDialog, QMainWindow, QLabel
 
 from data_manager.chart_widget import ChartWidget
 
@@ -78,6 +78,8 @@ def formOpen(dialog,layerid,featureid):
 			int(myDialog.findChild(QLineEdit, 'id').text()),
 			myDialog.findChild(QLineEdit, 'name').text()))
 
+	setInfoLabel()
+
 def plotEvaWC(wsId,name):
 	tr = qgis.utils.plugins['IdragraTools'].tr
 
@@ -110,6 +112,7 @@ def plotEvaWC(wsId,name):
 						name = tr('Field capacity (-)'), yaxis = 1,shadow= False)
 
 	dlg = QMainWindow(myDialog)
+	dlg.setWindowTitle(tr('1st layer WC'))
 	dlg.setCentralWidget(cw)
 	dlg.show()
 
@@ -120,7 +123,7 @@ def plotTransWC(wsId,name):
 	# get data
 	simdic = qgis.utils.plugins['IdragraTools'].SIMDIC
 	r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
-	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c, None, ['Giulian_day', 'theta2_mm'])
+	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c, None, ['Giulian_day', 'theta2_mm','thickness_II_m'])
 	pars, msgPars = qgis.utils.plugins['IdragraTools'].readControlPointsParams(r, c, [], ['ThetaII_fc', 'ThetaII_wp'])
 
 	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
@@ -132,9 +135,9 @@ def plotTransWC(wsId,name):
 	cw.setAxis(pos=111, secondAxis=False, label=['main plot'])
 
 	if df is not None:
-		df['theta2_mm'] = df['theta2_mm'] / (simdic['ZTRANSLAY'] * 1000)
+		df['theta2'] = df['theta2_mm'] / (df['thickness_II_m'] * 1000)
 		# dlg = ChartDialog(myDialog, tr('Water content from %s' % name))
-		cw.addTimeSerie(df['Giulian_day'], df['theta2_mm'],
+		cw.addTimeSerie(df['Giulian_day'], df['theta2'],
 						lineType='-', color='#4A7EBB', name=tr('Soil water content (-)'),
 						yaxis=1,
 						shadow=False)
@@ -145,6 +148,7 @@ def plotTransWC(wsId,name):
 						name=tr('Field capacity (-)'), yaxis=1, shadow=False)
 
 	dlg = QMainWindow(myDialog)
+	dlg.setWindowTitle(tr('2nd layer WC'))
 	dlg.setCentralWidget(cw)
 	dlg.show()
 
@@ -228,6 +232,7 @@ def plotEvaVars(wsId,name):
 
 	# add chart to dialog
 	dlg = QMainWindow(myDialog)
+	dlg.setWindowTitle(tr('1st layer vars.'))
 	dlg.setCentralWidget(cw)
 	dlg.show()
 
@@ -309,6 +314,7 @@ def plotTransVars(wsId,name):
 
 	# add chart to dialog
 	dlg = QMainWindow(myDialog)
+	dlg.setWindowTitle(tr('2nd layer vars.'))
 	dlg.setCentralWidget(cw)
 	dlg.show()
 
@@ -380,5 +386,16 @@ def plotCropVars(wsId,name):
 
 	# add chart to dialog
 	dlg = QMainWindow(myDialog)
+	dlg.setWindowTitle(tr('Crop vars.'))
 	dlg.setCentralWidget(cw)
 	dlg.show()
+
+def setInfoLabel():
+	tr = qgis.utils.plugins['IdragraTools'].tr
+	INFO_LBL = myDialog.findChild(QLabel, 'INFO_LBL')
+	# get data
+	if feature.geometry():
+		r,c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
+		INFO_LBL.setText(tr('Cell coordinates (row,column): %s,%s')%(r,c))
+	else:
+		INFO_LBL.setText('')

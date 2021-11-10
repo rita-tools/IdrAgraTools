@@ -50,7 +50,8 @@ def formOpen(dialog,layerid,featureid):
 	global objToBeEnabledList
 	objToBeEnabledList = []
 	
-	setupCombo('node',getIdNameDict('idr_nodes'))
+	setupCombo('inlet_node',getIdNameDict('idr_nodes',filterName='node_type',filterValues=[3,'3']))
+	setupCombo('outlet_node', getIdNameDict('idr_nodes',filterName='node_type',filterValues=[12,'12']))
 
 	# enable/disable edit mode
 	setEditMode(layer.isEditable())

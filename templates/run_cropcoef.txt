@@ -1,0 +1,4 @@
+REM change dir
+cd [%SIMPATH%]
+REM run cropcoeff
+[%PATHTOCROPCOEFF%] "[%CROPCOEFFPAR%]"

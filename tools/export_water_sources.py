@@ -111,9 +111,15 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 			else:
 				feedback.reportError(tr('Source has no time-discharge data. Node %s will be skipped.' % nodeId), False)
 		elif feat['node_type'] == 12:
-			# winter/summer discharges
-			# add to the dictionary
-			twoStageFlow[nodeId]=[feat['q_sum'],feat['sum_start'],feat['sum_end'],feat['q_win'],feat['win_start'],feat['win_end']]
+			# runoff collector
+			nodeDisch = feat['q_sum']
+			res = DBM.getRecord('node_act_disc', '', 'wsid', nodeId)
+			# if it has a time serie of discharge --> use as diversion
+			if len(res) > 0:
+				divList.append(nodeId)
+				divDischList.append(nodeDisch)
+			else:
+				feedback.reportError(tr('Source has no time-discharge data. Node %s will be skipped.' % nodeId), False)
 		elif feat['node_type'] == 13:
 			# public well
 			table = []
@@ -144,6 +150,13 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 		elif feat['node_type'] == 14:
 			# private well
 			privWellList.append(nodeId)
+		elif feat['node_type'] == 15:
+			# TODO: not tested yet
+			# winter/summer discharges
+			# add to the dictionary
+			# twoStageFlow[nodeId] = [feat['q_sum'], feat['sum_start'], feat['sum_end'], feat['q_win'], feat['win_start'],
+			# 						feat['win_end']]
+			pass
 		else:
 			pass
 
@@ -159,7 +172,10 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 	# EndList =
 
 	nOfFile = len(publicWellList)
-	fileList = '\n'.join(['%s.txt' % x for x in publicWellList])
+	fileList = ''
+	if nOfFile>0:
+		# add newline symbols as caps
+		fileList ='\n'+ '\n'.join(['%s.txt' % x for x in publicWellList])
 
 	writeParsToTemplate(outfile=os.path.join(outPath, 'cr_sources.txt'),
 						parsDict={'NUMOFWELL': nOfFile, 'WELLLIST': fileList},
@@ -224,22 +240,23 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 	twoStageListString = '\t'.join([str(x) for x in twoStageList])
 
 	twoStageDischList,twoStageDischTable = makeDischSerie(twoStageFlow,startY, endY)
-	twoStageDischList = '\t'.join([str(x) for x in twoStageDischList])
+	if len(twoStageDischList)>0:
+		twoStageDischList = '\t'.join([str(x) for x in twoStageDischList])
 
-	s = io.BytesIO()
-	np.savetxt(s, twoStageDischTable, '%.3f','\t')
-	twoStageDischTable = s.getvalue().decode()
+		s = io.BytesIO()
+		np.savetxt(s, twoStageDischTable, '%.3f','\t')
+		twoStageDischTable = s.getvalue().decode()
 
-	writeParsToTemplate(outfile=os.path.join(outPath, 'int_reuse.txt'),
-						parsDict={'SOURCELIST': twoStageListString, 'DISCHLIST': twoStageDischList,
-								  'FROMDATE': '01/01/%s' % startY, 'TODATE': '31/12/%s' % endY,
-								  'DISCHTABLE': twoStageDischTable},
-						templateName='int_reuse.txt')
+		writeParsToTemplate(outfile=os.path.join(outPath, 'int_reuse.txt'),
+							parsDict={'SOURCELIST': twoStageListString, 'DISCHLIST': twoStageDischList,
+									  'FROMDATE': '01/01/%s' % startY, 'TODATE': '31/12/%s' % endY,
+									  'DISCHTABLE': twoStageDischTable},
+							templateName='int_reuse.txt')
 
 	# add empty file
-	writeParsToTemplate(outfile=os.path.join(outPath, 'monit_sources_ii.txt'),
-						parsDict={},
-						templateName='monit_sources_ii.txt')
+	# writeParsToTemplate(outfile=os.path.join(outPath, 'monit_sources_ii.txt'),
+	# 					parsDict={},
+	# 					templateName='monit_sources_ii.txt')
 
 	# build water district tables "irrdistricts.txt", "watsources.txt"
 	# need loop to the upstream node
@@ -248,7 +265,7 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 
 	for feat in irrunitLay.getFeatures():
 		distrId = feat['id']
-		nodeId = feat['node']
+		nodeId = feat['inlet_node']
 		expFact = feat['expl_factor']
 		watShift = feat['wat_shift']
 
@@ -267,7 +284,7 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 
 				watSources.append([distrId, i, sourceType, f])
 
-		irrDistr.append([distrId, expFact, isPrivateWell, watShift])
+		irrDistr.append([distrId, expFact, isPrivateWell])
 
 	# save water sources file
 	table = []

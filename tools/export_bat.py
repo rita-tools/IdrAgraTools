@@ -43,12 +43,19 @@ def exportBat(outPath, feedback = None,tr=None):
 	path2idragra = s.value('idragraPath', '')
 
 	# save to file
-	writeParsToTemplate(outfile=os.path.join(outPath,'run_idragra.bat'),
+	writeParsToTemplate(outfile=os.path.join(outPath,'run_cropcoef.bat'),
 									parsDict =  {
 									'SIMPATH':outPath,
 									'PATHTOCROPCOEFF':path2cropcoeff.replace('/','\\'),
-									'PATHTOIDRAGRA':path2idragra.replace('/','\\'),
 									'CROPCOEFFPAR':'cropcoef.txt',
+									},
+									templateName='run_cropcoef.txt')
+
+	# save to file
+	writeParsToTemplate(outfile=os.path.join(outPath,'run_idragra.bat'),
+									parsDict =  {
+									'SIMPATH':outPath,
+									'PATHTOIDRAGRA':path2idragra.replace('/','\\'),
 									'IDRAGRAPAR':'idragra_parameters.txt'
 									},
 									templateName='run_idragra.txt')

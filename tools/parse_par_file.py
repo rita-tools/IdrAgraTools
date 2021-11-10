@@ -42,6 +42,8 @@ def parseParFile(filename,parSep = '=', colSep=' ', feedback = None,tr=None):
 	for l in lines:
 		# replace TAB
 		l = l.replace('\t',' ')
+		# remove consecutive with spaces
+		l = ' '.join([x for x in l.split()])
 		# remove EOL
 		l = l.rstrip('\r\n')
 		# remove all comments
@@ -52,12 +54,14 @@ def parseParFile(filename,parSep = '=', colSep=' ', feedback = None,tr=None):
 			subStr = l[0:comIdx]
 			
 		if len(subStr)>0:
+			subStr = subStr.strip() #remove leading and trailing spaces
 			toks = subStr.split(parSep)
 			if len(toks)==2:
 				# k,v pair
 				parDict[toks[0].strip()]=toks[1].strip()
 			else:
 				# is not a inline par, probably is a table
+				# print('Is a table record', subStr)
 				tableList.append(subStr)
 				
 	#process tableList
@@ -68,7 +72,7 @@ def parseParFile(filename,parSep = '=', colSep=' ', feedback = None,tr=None):
 	for r in  tableList:
 		if isFirst:
 			isFirst = False
-			colNames = r.split(colSep)
+			colNames = [x for x in r.split(colSep) if x]
 			nCol = len(colNames)
 			for c in range(0,nCol):
 				tableDict[colNames[c]]=[]
@@ -77,7 +81,9 @@ def parseParFile(filename,parSep = '=', colSep=' ', feedback = None,tr=None):
 			if len(vals)==nCol:
 				for c in range(0,nCol):
 					tableDict[colNames[c]].append(vals[c])
-	
+			# else:
+			# 	print(len(vals),'!=',nCol)
+
 	if not isFirst:
 		parDict['table']=tableDict
 			

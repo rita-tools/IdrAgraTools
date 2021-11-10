@@ -70,7 +70,7 @@ def formOpen(dialog, layerid, featureid):
     # populate combo
     nodeTypes = {tr('[1] Generic water source'): 1,
                  tr('[11] Monitored water source'): 11,
-                 tr('[12] Constant water source'): 12,
+                 tr('[12] Runoff collactor'): 12,
                  tr('[13] Threshold rule water source'): 13,
                  tr('[14] On demand unlimited water source'): 14,
                  tr('[2] Junctions'): 2,
@@ -114,9 +114,9 @@ def hideShowElem(txt, allItems, LE):
     if txt == 1:
         visList = [True, True, True, True, True, True, True,True]
     elif txt == 11:
-        visList = [False, False, False, False, False, False, False,True]
+        visList = [True, False, False, False, False, False, False,True]
     elif txt == 12:
-        visList = [True, True, True, True, True, True, False,False]
+        visList = [False, False, False, False, False, False, False,False]
     elif txt == 13:
         visList = [True, False, False, False, False, False, True,False]
     elif txt == 14:
@@ -156,6 +156,7 @@ def showEditDialog():
 
     data = list(zip(t, v))
     data = list(map(list, data))
+
     header = [tr('Activation thresholds'), tr('Flow rate ratio')]
     # make a dialog
     from IdragraTools.layerforms.table_dialog import TableDialog
@@ -181,7 +182,7 @@ def showEditDialog():
 def updateTableValues():
     if layer.isEditable():
         myDialog.changeAttribute('act_trshold', ' '.join(list(map(toSpecialFloat, aModel.getColumnValue(0)))))
-        myDialog.changeAttribute('act_ratio', ' '.join(list(map(toSpecialFloat, aModel.getColumnValue(0)))))
+        myDialog.changeAttribute('act_ratio', ' '.join(list(map(toSpecialFloat, aModel.getColumnValue(1)))))
 
 def plotActualDischarge(wsId,name):
     # make a dialog

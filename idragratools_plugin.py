@@ -46,7 +46,8 @@ from PyQt5 import QtSql
 from PyQt5.QtXml import QDomDocument
 from qgis import processing
 
-from tools.check_matlab_installed import checkMatlabInstalled
+from .tools.network_analyst import NetworkAnalyst
+from .tools.check_matlab_installed import checkMatlabInstalled
 from .data_manager.chart_widget import ChartWidget
 from .tools.gis_grid import GisGrid
 from .tools.iface_progress import IfaceProgress
@@ -86,13 +87,15 @@ from .tools.get_raster_geoinfo import getRasterGeoinfo
 from .tools.get_vector_geoinfo import getVectorGeoinfo
 from .tools.raster_extractor import rasterExtractor
 from .tools.vector_extractor import vectorExtractor
-from .tools.export_geodata import exportGeodata
+from .tools.export_geodata import Exporter
 
 from .tools.sqlite_driver import SQLiteDriver
 from .tools.parse_par_file import parseParFile
 from .tools.add_features_from_csv import addFeaturesFromCSV
 
 from .tools.export_meteodata import exportMeteodataFromDB
+
+import pandas as pd
 
 
 # TODO:
@@ -199,6 +202,21 @@ class IdrAgraTools():
                             'idr_irrmap': self.tr('Land use'),
                             'idr_weather_stations': self.tr('Weather'),
                             'idr_gw_wells': self.tr('Ground water'),
+
+                            'stp_irr': self.tr('Network'),
+                            'stp_irr_distr': self.tr('Network'),
+                            'stp_irr_loss': self.tr('Network'),
+                            'stp_irr_privw': self.tr('Network'),
+                            'stp_prec': self.tr('Network'),
+                            'stp_runoff': self.tr('Network'),
+                            'stp_trasp_act': self.tr('Network'),
+                            'stp_trasp_pot': self.tr('Network'),
+                            'stp_et_act': self.tr('Network'),
+                            'stp_et_pot': self.tr('Network'),
+                            'stp_caprise': self.tr('Network'),
+                            'stp_flux2': self.tr('Network'),
+
+
                            'node_act_disc': self.tr('Network'),
                            'node_disc': self.tr('Network'),
                             'idr_nodes': self.tr('Network'), 'idr_links': self.tr('Network'),
@@ -271,10 +289,12 @@ class IdrAgraTools():
             'stp_trasp_pot': self.tr('Potential transpiration (mm)'),
             'stp_et_act': self.tr('Actual evapotranspiration (mm)'),
             'stp_et_pot': self.tr('Potential evapotranspiration (mm)'),
-            'stp_caprise': self.tr('Capillary rise from groundwater to the transpirative layer (mm)'),
+            'stp_caprise': self.tr('Capillary rise from groundwater (mm)'),
             'stp_flux2': self.tr(
-                'Net flux from the transpirative layer to groundwater, i.e. percolation – capillary rise (mm)')
+                'Net flux to groundwater (mm)')
         }
+        # add stepname to lyrname
+        self.LYRNAME.update(self.STEPNAME)
 
         self.AGGRFUNCTIONS = {
             '_count':self.tr('Count'),
@@ -469,33 +489,37 @@ class IdrAgraTools():
         self.simulationMenu = self._addmenu(self.mainMenu, 'Simulation', self.tr('IdrAgra'), False)
         self._addmenuitem(self.simulationMenu, 'RunAll', self.tr('Run all'), self.runAll, False)
         self.simulationMenu.addSeparator()
-        self._addmenuitem(self.simulationMenu, 'SetSimulation', self.tr('Set simulation'), self.setSimulation, False)
-        self._addmenuitem(self.simulationMenu, 'ExportMeteoData', self.tr('Export meteo data'), self.exportMeteoData, False)
-        self._addmenuitem(self.simulationMenu, 'ExportSpatialData', self.tr('Export spatial data'), self.exportSpatialData, False)
-        self._addmenuitem(self.simulationMenu, 'ExportIrrigationMethods', self.tr('Export irrigation methods'),
+        self._addmenuitem(self.simulationMenu, 'Step1', self.tr('Set simulation'), self.setSimulation, False)
+        self._addmenuitem(self.simulationMenu, 'Step2', self.tr('Export meteo data'), self.exportMeteoData, False)
+        self._addmenuitem(self.simulationMenu, 'Step3', self.tr('Export spatial data'), self.exportSpatialData, False)
+        self._addmenuitem(self.simulationMenu, 'Step4', self.tr('Export irrigation methods'),
                           self.exportIrrigationMethods, False)
 
-        self._addmenuitem(self.simulationMenu, 'ExportWaterSourcesData', self.tr('Export water sources data'), self.exportWaterSourcesData, False)
-        self._addmenuitem(self.simulationMenu, 'ExportSimProj', self.tr('Export simulation project'), self.exportSimProj, False)
+        self._addmenuitem(self.simulationMenu, 'Step5', self.tr('Export water sources data'), self.exportWaterSourcesData, False)
+        self._addmenuitem(self.simulationMenu, 'Step6', self.tr('Export simulation project'), self.exportSimProj, False)
+        self._addmenuitem(self.simulationMenu, 'Step7', self.tr('Run CropCoef module'),
+                          lambda: self.runAsThread(self.execBatFile, batFile ='run_cropcoef.bat'), False)
 
-        self._addmenuitem(self.simulationMenu, 'RunSimulation', self.tr('Run simulation'),
-                          lambda: self.runAsThread(self.runSimulation), False)
+        self._addmenuitem(self.simulationMenu, 'Step8', self.tr('Run IdrAgra'),
+                          lambda: self.runAsThread(self.execBatFile, batFile ='run_idragra.bat'), False)
 
         self.mainMenu.addMenu(self.simulationMenu)
 
         self.analysisMenu = self._addmenu(self.mainMenu, 'Analysis', self.tr('Analysis'), False)
         #self._addmenuitem(self.analysisMenu, 'ImportControlPointsResults', self.tr('Import control points results'),
         #                  lambda: self.runAsThread(self.importControlPointsResults), False)
+        self._addmenuitem(self.analysisMenu, 'ImportDistrictData', self.tr('Import irrigation units results'),
+                          lambda: self.runAsThread(self.importWaterDistrictData), False)
         self._addmenuitem(self.analysisMenu, 'DischargeToNode', self.tr('Node water demand'),
                           lambda: self.runAsThread(self.computeNodeDischarge), False)
         self._addmenuitem(self.analysisMenu, 'GroupedStats', self.tr('Grouped statistics'),
                           self.makeGroupedStats, False)
+        self._addmenuitem(self.analysisMenu, 'ManageTimeSerie', self.tr('Explore time serie'), self.manageTimeSerie,
+                          False)
 
         self.mainMenu.addMenu(self.analysisMenu)
 
         self.advancedMenu = self._addmenu(self.mainMenu, 'Advanced', self.tr('Advanced'), False)
-        self._addmenuitem(self.advancedMenu, 'ManageTimeSerie', self.tr('Manage time serie'), self.manageTimeSerie,
-                          False)
         #self._addmenuitem(self.advancedMenu, 'Options', self.tr('Options'), self.setOptions,True)
         #self._addmenuitem(self.advancedMenu, 'Test', self.tr('test'), self.test,
         #                  False)
@@ -686,7 +710,7 @@ class IdrAgraTools():
                 self.runAsThread(self.newDBTH,self.updateProj)
 
     def updateProj(self):
-        self.DBM = SQLiteDriver(self.SIMDIC['DBFILE'], False)
+        self.DBM = SQLiteDriver(self.SIMDIC['DBFILE'], False,None,None,self.tr, QgsProject.instance())
         # activate other actions
         self.setMenuItemState()
         # load layers
@@ -728,7 +752,7 @@ class IdrAgraTools():
                                                  self.tr('Geopackage file (*.gpkg)'))
             dbpath = dbpath[0]
 
-        self.DBM = SQLiteDriver(dbpath, False)
+        self.DBM = SQLiteDriver(dbpath, False,None,None,self.tr, QgsProject.instance())
         # activate other actions
         self.setMenuItemState()
         # load layers
@@ -1296,6 +1320,34 @@ class IdrAgraTools():
                      'table': 'node_act_disc', 'id': -1}
                 ]
 
+            if lyrTable == 'idr_distrmap':
+                baseList = [
+                    {'name': self.STEPNAME['stp_irr'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_irr', 'id': -1},
+                    {'name': self.STEPNAME['stp_irr_distr'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_irr_distr', 'id': -1},
+                    {'name': self.STEPNAME['stp_irr_loss'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_irr_loss', 'id': -1},
+                    {'name': self.STEPNAME['stp_irr_privw'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_irr_privw', 'id': -1},
+                    {'name': self.STEPNAME['stp_prec'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_prec', 'id': -1},
+                    {'name': self.STEPNAME['stp_runoff'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_runoff', 'id': -1},
+                    {'name': self.STEPNAME['stp_trasp_act'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_trasp_act', 'id': -1},
+                    {'name': self.STEPNAME['stp_trasp_pot'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_trasp_pot', 'id': -1},
+                    {'name': self.STEPNAME['stp_et_act'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_et_act', 'id': -1},
+                    {'name': self.STEPNAME['stp_et_pot'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_et_pot', 'id': -1},
+                    {'name': self.STEPNAME['stp_caprise'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_caprise', 'id': -1},
+                    {'name': self.STEPNAME['stp_flux2'], 'plot': 'False', 'color': '', 'style': '-', 'axes': 'y',
+                     'table': 'stp_flux2', 'id': -1},
+                ]
+
             if len(baseList) > 0:
                 # open layer
                 # ~ gpkg_layer = self.DBM.DBName + '|layername='+lyrTable
@@ -1357,7 +1409,8 @@ class IdrAgraTools():
         self.exportWaterSourcesDataTH(progress)
         self.updatePars()
         self.exportSimProjTH(progress)
-        self.runSimulation(progress)
+        self.execBatFile('run_cropcoef.bat',progress)
+        self.execBatFile('run_idragra.bat',progress)
 
     def setSimulation(self, callback = None):
         tNameList = list(self.METEONAME.keys()) + list(self.WATERSOURCENAME.keys())
@@ -1602,10 +1655,11 @@ class IdrAgraTools():
 
 
         ext = returnExtent(self.SIMDIC['EXTENT'])
-        exportGeodata(self.DBM, path2Geodata, ext, self.SIMDIC['CELLSIZE'], dtmLay,
+        EXP = Exporter(parent = QgsProject.instance(), feedback=progress, tr=self.tr)
+        EXP.exportGeodata(self.DBM, path2Geodata, ext, self.SIMDIC['CELLSIZE'], dtmLay,
                       wtLayDic, [self.SIMDIC['ZEVALAY'],self.SIMDIC['ZTRANSLAY']],
-                      list(range(int(self.SIMDIC['STARTYEAR']),int(self.SIMDIC['ENDYEAR'])+1)),
-                      feedback=progress, tr=self.tr)
+                      list(range(int(self.SIMDIC['STARTYEAR']),int(self.SIMDIC['ENDYEAR'])+1))
+                      )
 
         # export control points
         cellListFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'cells.txt')
@@ -1619,7 +1673,7 @@ class IdrAgraTools():
 
         progress.setProgress(100.0)
 
-    def runSimulation(self, progress=None):
+    def execBatFile(self, batFile, progress=None):
         import sys
         from subprocess import PIPE, Popen
         from threading import Thread, stack_size
@@ -1641,15 +1695,16 @@ class IdrAgraTools():
 
         if progress: progress.setPercentage(0.0)
 
-        # delete existing simulation
-        outputPath = os.path.join(self.SIMDIC['OUTPUTPATH'],self.SIMDIC['OUTPUTFOLDER'])
-        if os.path.exists(outputPath):
-            if progress: progress.reportError(
-                self.tr('WARNING! output folder %s already exists and will be removed!')%outputPath,False)
-            shutil.rmtree(outputPath)
+        # delete existing simulation TODO better fix
+        if batFile == 'run_idragra.bat':
+            outputPath = os.path.join(self.SIMDIC['OUTPUTPATH'],self.SIMDIC['OUTPUTFOLDER'])
+            if os.path.exists(outputPath):
+                if progress: progress.reportError(
+                    self.tr('WARNING! output folder %s already exists and will be removed!')%outputPath,False)
+                shutil.rmtree(outputPath)
 
         s = QSettings()
-        execPath = os.path.join(self.SIMDIC['OUTPUTPATH'], 'run_idragra.bat')
+        execPath = os.path.join(self.SIMDIC['OUTPUTPATH'], batFile)
         # print execPath,arg1,arg2
         if progress: progress.setText('%s' % (execPath))
 
@@ -1687,6 +1742,7 @@ class IdrAgraTools():
             while t.isAlive():
                 try:
                     line = q.get(timeout=.1)  # q.get_nowait() # or #TODO_check performance
+                    #line = q.get_nowait()
                     line = line.decode('utf-8')
                     line = line.strip()
                 except Empty:
@@ -1851,12 +1907,13 @@ class IdrAgraTools():
             # make a grid object
             self.aGrid = GisGrid()
             self.aGrid.fitToExtent(newExt, cellDim, cellDim)
-            x = feature.geometry().asMultiPoint()[0].x()
-            y = feature.geometry().asMultiPoint()[0].y()
-            c, r = self.aGrid.coordToCell(x, y)
-            # fortran start form 1
-            c+=1
-            r+=1
+            if feature.geometry():
+                x = feature.geometry().asMultiPoint()[0].x()
+                y = feature.geometry().asMultiPoint()[0].y()
+                c, r = self.aGrid.coordToCell(x, y)
+                # fortran start form 1
+                c+=1
+                r+=1
 
         return r,c
 
@@ -1891,15 +1948,15 @@ class IdrAgraTools():
         self.aGrid = GisGrid()
         self.aGrid.fitToExtent(newExt, cellDim, cellDim)
 
-        print('aGrid',self.aGrid)
+        #print('aGrid',self.aGrid)
         # get CO layer
         self.vectorLay = self.getVectorLayerByName('idr_control_points')
 
-        print('vectorLay', self.vectorLay)
+        #print('vectorLay', self.vectorLay)
         varList = list(self.CPVARNAME.keys())
-        print('varList', varList)
+        #print('varList', varList)
         numYear = len(self.SIMDIC['YEARS'])
-        print('numYear',numYear)
+        #print('numYear',numYear)
 
         # use
         from .algs.idragra_bulk_import_timeserie import IdragraBulkImportTimeserie
@@ -1912,19 +1969,19 @@ class IdrAgraTools():
             x = feature.geometry().asMultiPoint()[0].x()
             y = feature.geometry().asMultiPoint()[0].y()
             c, r = self.aGrid.coordToCell(x, y)
-            print('c', c,'r',r)
+            #print('c', c,'r',r)
             c += 1
             r += 1
 
             for n, y in enumerate(self.SIMDIC['YEARS']):
                 progress.setPercentage(100.0 * n / numYear)
-                print('y', y)
+                #print('y', y)
 
                 # get r and c from
                 filePath = os.path.join(os.path.join(self.SIMDIC['OUTPUTPATH'],
                                                      self.SIMDIC['OUTPUTFOLDER'],
                                                      '%s_cell_%s_%s.csv' % (y,r,c)))
-                print('filePath',filePath)
+                #print('filePath',filePath)
                 if os.path.exists(filePath):
                     for i, var in enumerate(varList):
                         # import data from csv using sqlite query
@@ -1985,9 +2042,15 @@ class IdrAgraTools():
 
         msg = self.DBM.executeSQL(sql)
 
+    def importWaterDistrictData(self,progress=None):
+        for v in list(self.STEPNAME.values()):
+            i = list(self.STEPNAME.values()).index(v)
+            k = list(self.STEPNAME.keys())[i]
+            if progress: progress.setText(self.tr('Processing %s ...'%v))
+            self.importDistrictData(i,k,progress)
+
     def computeNodeDischarge(self, progress=None):
         destTable = 'node_disc'
-        sourceTable = 'stp_irr'
         # first clear all record in destination table
         if progress: progress.setText(self.tr('Clearing data from table...'))
         sql = 'DELETE FROM %s;' % destTable
@@ -1997,18 +2060,206 @@ class IdrAgraTools():
             progress.setText(self.tr('Command stopped because the following error: %s') % msg)
             return
 
+        self.computeDischarge(destTable,progress)
+
+    def computeDischarge(self,destTable,progress):
+        # read discharge tables from output file
+        yearList = self.SIMDIC['YEARS']
+        irrFromDiversionDF = None
+        irrFromPrivateDF = None
+        irrFromCrsDF = None
+        surplusDF = None
+
+        # get irrigation district table
+        irrdistrDF = self.DBM.getTableAsDF('SELECT * FROM idr_distrmap')
+        irrdistrDF.fillna(value=0, inplace=True)
+        irrdistrDF['id'] = irrdistrDF['id'].astype(int, errors='ignore')
+        irrdistrDF['inlet_node'] = irrdistrDF['inlet_node'].astype(int, errors='ignore')
+        irrdistrDF['outlet_node'] = irrdistrDF['outlet_node'].astype(int, errors='ignore')
+
+        # get nodes table
+        nodesDF = self.DBM.getTableAsDF('SELECT * FROM idr_nodes')
+        nodesDF.fillna(value=0, inplace=True)
+        nodesDF['id'] = nodesDF['id'].astype(int, errors='ignore')
+        nodesDF['node_type'] = nodesDF['node_type'].astype(int, errors='ignore')
+
+        # get links table
+        linksDF = self.DBM.getTableAsDF('SELECT * FROM idr_links')
+        linksDF.fillna(value=0, inplace=True)
+        linksDF['inlet_node'] = linksDF['inlet_node'].astype(int, errors='ignore')
+        linksDF['outlet_node'] = linksDF['outlet_node'].astype(int, errors='ignore')
+
+        replaceFieldTableIN = {}
+        replaceFieldTableOUT = {}
+        effTable = {}
+        for i, irrDistr in irrdistrDF.iterrows():
+            replaceFieldTableIN['SubDistr_'+str(irrDistr['id'])]='Source_'+str(irrDistr['inlet_node'])
+            effTable[str(irrDistr['inlet_node'])]=irrDistr['distr_eff']
+            effTable[str(irrDistr['outlet_node'])] = 1. #/ irrDistr['distr_eff']
+            replaceFieldTableOUT['SubDistr_' + str(irrDistr['id'])] = 'Source_' + str(irrDistr['outlet_node'])
+
+        # calculate irrigation district areas
+        areaTable = self.calculateDistrictArea(progress)
+
+        if self.SIMDIC['MODE'] == 1:
+            # get consume table
+            irrFromDiversionDF = self.getDischargeFromCSV(yearList, '%s_Qirr.csv',progress,replaceFieldTableIN)
+            irrFromPrivateDF = self.getDischargeFromCSV(yearList, '%s_Qprivate.csv', progress,replaceFieldTableIN)
+            #surplusDF = self.getDischargeFromCSV(yearList, '%s_Qsurplus.csv', progress)
+            replaceFieldTable = {}
+            for i, node in nodesDF.iterrows():
+                if node['node_type'] in [13]: replaceFieldTable[str(node['id'])] = 'Source_' + str(node['id'])
+
+            irrFromCrsDF = self.getDischargeFromCSV(yearList, '%s_Qcrs.csv', progress, replaceFieldTable)
+            surplusDF = self.getDischargeFromCSV(yearList, '%s_Qsurplus.csv', progress, replaceFieldTableOUT)
+        else:
+            irrFromDiversionDF = self.getDischargeFromMaps(watDistrAreas = areaTable, tableName ='stp_irr',
+                                                           progress= progress, colMapper = replaceFieldTableIN)
+            surplusDF = self.getDischargeFromMaps(watDistrAreas = areaTable, tableName ='stp_runoff',
+                                                           progress= progress, colMapper = replaceFieldTableOUT)
+
+        #print(irrFromDiversionDF)
+
+        # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        #     print('nodesDF\n', nodesDF)
+        #     print('linksDF\n', linksDF)
+        #     print('irrdistrDF\n',irrdistrDF)
+        #     print('irrFromDiversionDF\n',irrFromDiversionDF)
+        #     print('irrFromPrivateDF\n', irrFromPrivateDF)
+        #     print('irrFromCrsDF\n', irrFromCrsDF)
+        #     print('surplusDF\n',surplusDF)
+
+        #print(linksDF['inlet_node'])
+        #print(linksDF['outlet_node'])
+
+        # loop in irrigation district
+        # get the code of the connected inlet node
+
+        NA = NetworkAnalyst()
+        NA.buildNetwork(nodesDF, linksDF, len(irrFromDiversionDF.index),effTable)
+        NA.assignDischarge(irrFromDiversionDF, irrFromPrivateDF, irrFromCrsDF,surplusDF)
+        NA.calculateFlowAtNodes()
+        res = NA.getFlowAtNodes(irrFromDiversionDF['DoY'].values.tolist())
+
+        irrSum= res['Qirr'] + res['Qcrs'] + res['Qprivate']+res['Qcoll']
+        res['recval'] = irrSum
+        # delete Qirr, Qcrs Qprivate
+        res = res.drop('Qirr', 1)
+        res = res.drop('Qcrs', 1)
+        res = res.drop('Qprivate', 1)
+        res = res.drop('Qcoll', 1)
+        res = res.drop('QprivMaxAll', 1)
+        res = res.drop('QirrMaxAll', 1)
+        res = res.drop('QcrsMaxAll', 1)
+
+        res.rename(columns={'DoY':'timestamp'},inplace=True)
+
+        print(res)
+
+        # add res to the database
+        self.DBM.popTableFromDF(res,destTable)
+
+    def getDischargeFromCSV(self,yearList, template,progress,colMapper=None):
+        finalDF = None
+        nOfYear = len(yearList)
+        for i,year in enumerate(yearList):
+            csvFile = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['OUTPUTFOLDER'],
+                                   template % year)
+
+            if progress:
+                progress.setPercentage(100.0 * i / nOfYear)
+                progress.setText(self.tr('Reading %s') % csvFile)
+
+            try:
+                # open csv file as dataframe
+                df = pd.read_csv(csvFile, sep='\s*;\s*', usecols=None, engine='python')
+                if colMapper: df.rename(columns=colMapper,inplace=True)
+                # print('df\n',df)
+                # print('DoY\n', df['DoY'])
+                # replace day_of_year with date
+                df['DoY'] = df['DoY'].apply(lambda x: datetime.strptime(str(year) + str(x), '%Y%j').strftime('%Y-%m-%d'))
+
+                #print('df types', df.dtypes)
+
+                if finalDF is None:
+                    finalDF = df
+                else:
+                    finalDF = finalDF.append(df,ignore_index=True)
+
+            except Exception as e:
+                progress.reportError(str(e),False)
+
+        return finalDF
+
+    def getDischargeFromMaps(self,watDistrAreas = {'11834':24000000,'9999':0}, tableName ='stp_irr', progress= None, colMapper = None):
+        # get/update irrigation, runoff volumes (mm) from maps
+        i = list(self.STEPNAME.values()).index(self.STEPNAME[tableName])
+        self.importDistrictData(i, tableName, progress)
+        #select table1.timestamp,SubDistr_11834, SudDistr_999 from (select timestamp, recval as 'SudDistr_11834' from stp_irr where wsid = 11834) as table1
+        #left join (select timestamp,recval as 'SudDistr_999' from stp_irr where wsid = 999) as 'table_xxx' on table_xxx.timestamp = table1.timestamp
+        # get table of discharge (not only volumes!) as DF
+        subDistrList = []
+        subDistrSqlList = []
+        firstTimeStamp = ''
+        for k,v in watDistrAreas.items():
+            subDistrList.append('SubDistr_%s'%k)
+            if not firstTimeStamp:
+                firstTimeStamp = 'table_%s'%k
+                subDistrSqlList.append(
+                    "(select timestamp, recval*%s/(24*60*60*1000) as 'SubDistr_%s' from %s where wsid = %s) as 'table_%s'" % (v,k,tableName, k, k))
+            else:
+                subDistrSqlList.append(
+                    "left join (select timestamp, recval*%s/(24*60*60*1000) as 'SubDistr_%s' from %s where wsid = %s) as 'table_%s' on table_%s.timestamp = %s.timestamp" % (
+                    v,k,tableName, k, k, k,firstTimeStamp))
+
+        # make a big query
+        #print('watDistrAreas',watDistrAreas)
+
+        sql = 'select %s.timestamp as DoY, %s from %s'%(firstTimeStamp, ', '.join(subDistrList),' '.join(subDistrSqlList))
+
+        #print('sql',sql)
+
+        tableDF = self.DBM.getTableAsDF(sql)
+        if colMapper: tableDF.rename(columns=colMapper, inplace=True)
+        return tableDF
+
+    def calculateDistrictArea(self,progress):
+        resDict = {}
+        domainFile = os.path.join(self.SIMDIC['OUTPUTPATH'],self.SIMDIC['SPATIALFOLDER'], 'domain.asc')
+        gpkg_layer = self.DBM.DBName + '|layername=' + 'idr_distrmap'
+        gpkg_layer = gpkg_layer.replace('\\', '/')
+        tempFile = QgsProcessingUtils.generateTempFilename('aggrOutput.gpkg')
+
+        res = processing.run("native:zonalstatisticsfb", {'INPUT': gpkg_layer,
+                                                          'INPUT_RASTER': domainFile,
+                                                          'RASTER_BAND': 1, 'COLUMN_PREFIX': '_',
+                                                          'STATISTICS': [0],
+                                                          'OUTPUT': tempFile},
+                             context=None,
+                             feedback=progress,
+                             is_child_algorithm=True)
+
+        # append results
+        statLay = QgsVectorLayer(res['OUTPUT'], 'temp', 'ogr')
+        for k in statLay.getFeatures():
+            resDict[str(k['id'])] = k['_count']*self.SIMDIC['CELLSIZE']*self.SIMDIC['CELLSIZE']
+
+
+        return resDict
+
+    def importDistrictData(self,varIndex,sourceTable,progress):
         idragraFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'idragra_parameters.txt')
         gpkg_layer = self.DBM.DBName + '|layername=' + 'idr_distrmap'
         gpkg_layer = gpkg_layer.replace('\\', '/')
 
         # TODO: add district area
-        # 'AGGR_FUN': 2 == mean, 'AGGR_FUN': 1 == sum
+        # 'AGGR_FUN': 2 == mean [OK], 'AGGR_FUN': 1 == sum
         # calculate irrigation timeserie from district and upload to stp_irr
         tempFile = QgsProcessingUtils.generateTempFilename('aggrOutput.gpkg')
         algResults = processing.run("idragratools:IdragraStatserie",
                        {'IDRAGRA_FILE': idragraFile,
                         'AGGR_LAY': gpkg_layer,
-                        'AGGR_FLD': 'node','AGGR_VAR': 0, 'AGGR_FUN': 1,
+                        'AGGR_FLD': 'id','AGGR_VAR': varIndex, 'AGGR_FUN': 2,
                         'OUTPUT_TABLE': tempFile},
                        context=None,
                        feedback=progress,
@@ -2017,6 +2268,17 @@ class IdrAgraTools():
 
         table = QgsVectorLayer(tempFile, 'temp', 'ogr')
         # featList = list(table.getFeatures())
+
+        # clear data
+        sql = 'DELETE FROM %s;' % sourceTable
+        msg = self.DBM.executeSQL(sql)
+
+        sql = 'VACUUM;'
+        msg = self.DBM.executeSQL(sql)
+
+        if ((msg != '') and progress):
+            progress.setText(self.tr('Command stopped because the following error: %s') % msg)
+            return
 
         gpkg_layer = self.DBM.DBName + '|layername=' + sourceTable
 
@@ -2031,38 +2293,29 @@ class IdrAgraTools():
                                           feat['timestamp'].month(),
                                           feat['timestamp'].day()).strftime('%Y-%m-%d')
             newFeat['wsid'] = feat['wsid']
+            #print('wsid',feat['wsid'])
+            #print('vals', distrDict[feat['wsid']])
             # from mm to cubic meters
-            # TODO:check
-            newFeat['recval'] = feat['recval']*self.SIMDIC['CELLSIZE']*self.SIMDIC['CELLSIZE']/1000.0
+            newFeat['recval'] = feat['recval']#*self.SIMDIC['CELLSIZE']*self.SIMDIC['CELLSIZE']/1000.0
             newFeatList.append(newFeat)
 
         dbTable.startEditing()
         dbTable.addFeatures(newFeatList)
         dbTable.commitChanges()
 
-        # calculate water
-        self.waterDemandAtNode(destTable,sourceTable, progress)
 
-        # clear data
-        sql = 'DELETE FROM %s;' % sourceTable
-        msg = self.DBM.executeSQL(sql)
-
-        sql = 'VACUUM;'
-        msg = self.DBM.executeSQL(sql)
-
-        if ((msg != '') and progress):
-            progress.setText(self.tr('Command stopped because the following error: %s') % msg)
-            return
-
-
-    def waterDemandAtNode(self, destTable, sourceTable, progress=None):
+    def waterDemandAtNode(self, destTable, sourceTable, progress=None,mode = 1,exclNodeType = [13,14]):
         import copy
 
         if progress: progress.setText(self.tr('Calculating water demand at nodes...'))
         # loop in node list and check if there are data
-        nodeList = self.DBM.getUniqueValues(fieldName='id', tableName='idr_nodes')
+        #nodeList = self.DBM.getUniqueValues(fieldName='id', tableName='idr_nodes')
+        nodeTable = self.DBM.getRecord(tableName='idr_nodes', fieldsList=['id', 'node_type'])
         #print('nodeList',nodeList)
-        nodeListCopy = copy.deepcopy(nodeList)
+        nodeList = []
+        for row in nodeTable:
+            if row[1] not in exclNodeType:
+                nodeList.append(row[0])
 
         nOfNode = len(nodeList)
         loopLimit = nOfNode * 1
@@ -2099,7 +2352,7 @@ class IdrAgraTools():
                     outletNode = link[1]
                     inf_losses = link[2]
                     # make the query
-                    calcField.append('node%s*(1+%s)' % (outletNode, inf_losses))
+                    calcField.append('node%s/(1-%s)' % (outletNode, inf_losses)) # old: node%s*(1+%s)
                     if isFirst:
                         firstSql = sql1 % (outletNode, destTable, outletNode)
                         #print('IN LINK LOOP: firstSql',firstSql)
@@ -2117,13 +2370,16 @@ class IdrAgraTools():
                         isComplete = False
 
                 # get water volumes from district
-                wdList = self.DBM.getRecord(tableName='idr_distrmap', fieldsList=['node', 'distr_eff'],
-                                               filterFld='node', filterValue=nodeId)
+                wdList = self.DBM.getRecord(tableName='idr_distrmap', fieldsList=['inlet_node', 'distr_eff'],
+                                               filterFld='inlet_node', filterValue=nodeId)
 
                 #print('wdList',wdList)
                 for wd in wdList:
                     wdDistrEff = wd[1]
-                    calcField.append('wd%s*%s/(24*60*60)' % (nodeId, wdDistrEff))
+
+                    if mode: calcField.append('wd%s' % (nodeId)) # get discharges from csv
+                    else: calcField.append('wd%s*%s/(24*60*60)' % (nodeId, 1/wdDistrEff)) # get volume from maps
+
                     if isFirst:
                         firstSql = sql3 % (nodeId, sourceTable, nodeId)
                         #print('IN WD LOOP: firstSql', firstSql)
@@ -2409,7 +2665,7 @@ class IdrAgraTools():
         EFC.setInitFunction('formOpen')
         layer.setEditFormConfig(EFC)
 
-    def getIdNameDict(self, tableName,idFld = 'id',nameFld = 'name'):
+    def getIdNameDict(self, tableName,idFld = 'id',nameFld = 'name',filterName='',filterValues=[]):
         # get the layer
         vLayer = self.DBM.getTableAsLayer(tableName)
         # get field name list
@@ -2423,8 +2679,13 @@ class IdrAgraTools():
         if nameFld not in fieldList:
             return idNameDict
 
-        for feat in vLayer.getFeatures():
-            idNameDict['[' + str(feat[idFld]) + '] ' + feat[nameFld]] = feat[idFld]
+        if len(filterValues)==0:
+            for feat in vLayer.getFeatures():
+                idNameDict['[' + str(feat[idFld]) + '] ' + feat[nameFld]] = feat[idFld]
+        else:
+            for feat in vLayer.getFeatures():
+                if feat[filterName] in filterValues:
+                    idNameDict['[' + str(feat[idFld]) + '] ' + feat[nameFld]] = feat[idFld]
 
         return idNameDict
 
@@ -2760,6 +3021,7 @@ class IdrAgraTools():
 
     def loadFromProject(self):
         proj = QgsProject.instance()
+        dbpath = ''
         try:
             dbpath = proj.readEntry('IdrAgraTools', 'dbname')[0]
             tempDic = eval(proj.readEntry('IdrAgraTools', 'simsettings')[0])
@@ -2775,6 +3037,12 @@ class IdrAgraTools():
         if os.path.isfile(dbpath):
             #if (value is not None):
             self.openDB(dbpath=dbpath)
+        else:
+            # ask for new dbpath
+            dbpath = QFileDialog.getOpenFileName(None, self.tr('Open idragra database'), self.s.value('lastPath'),
+                                                 self.tr('Geopackage file (*.gpkg)'))
+            dbpath = dbpath[0]
+            if os.path.isfile(dbpath): self.openDB(dbpath=dbpath)
 
     def setRaster(self,tableName,layName, layGroup, assignTime=False):
 
@@ -2984,7 +3252,7 @@ class IdrAgraTools():
         watSourceWithData = self.DBM.getUniqueValues('wsid','node_act_disc')
         watSourceList = []
         if self.SIMDIC['MODE'] ==1:
-            tempList = self.DBM.getUniqueValues('node','idr_distrmap')
+            tempList = self.DBM.getUniqueValues('inlet_node','idr_distrmap')
 
             for watSource in tempList:
                 if watSource in watSourceWithData:

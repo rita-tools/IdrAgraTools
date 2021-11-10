@@ -118,7 +118,7 @@ class TableDialog(QDialog):
 			indexList.append(sel.row())
 
 		if len(indexList)>0: index = min(indexList)
-		else: index =0
+		else: index = 0
 
 		aModel = self.TV.model()
 		if index ==0: nRecs=1
@@ -126,7 +126,8 @@ class TableDialog(QDialog):
 		self.TV.clearSelection()
 
 		for j in range(nRecs):
-			aModel.addEmptyRow(index)
+			print('add row at',index)
+			aModel.addEmptyRow(index) # TODO check addRow
 			#self.TV.selectRow(index)
 			index+=1
 

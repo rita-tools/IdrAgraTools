@@ -422,73 +422,70 @@ class GisGrid(QObject):
 		useCellSize	 : if True, write cellsize parameter instead of dx and dy
 		"""
 		if self.progress: self.progress.setProgress(0)
-		f = open(filename,'w')
 		try:
-			f.write('ncols ' + str(self.ncols) + '\n')
-			f.write('nrows ' + str(self.nrows) + '\n')
-			f.write('xllcorner ' + str(self.xcell) + '\n')
-			f.write('yllcorner ' + str(self.ycell) + '\n')
-			if useCellSize:
-				f.write('cellsize ' + str(self.dx) + '\n')
-			else:
-				f.write('dx ' + str(self.dx) + '\n')
-				f.write('dy ' + str(self.dy) + '\n')
+			# use of with to automatically close the file
+			with open(filename,'w') as f:
+				f.write('ncols ' + str(self.ncols) + '\n')
+				f.write('nrows ' + str(self.nrows) + '\n')
+				f.write('xllcorner ' + str(self.xcell) + '\n')
+				f.write('yllcorner ' + str(self.ycell) + '\n')
+				if useCellSize:
+					f.write('cellsize ' + str(self.dx) + '\n')
+				else:
+					f.write('dx ' + str(self.dx) + '\n')
+					f.write('dy ' + str(self.dy) + '\n')
 
-			if d == 0:
-				f.write('nodata_value ' + str(int(self.nodata))+ '\n')
-			else:
-				f.write('nodata_value ' + str(round(self.nodata,d))+ '\n')
+				if d == 0:
+					f.write('nodata_value ' + str(int(self.nodata))+ '\n')
+				else:
+					f.write('nodata_value ' + str(round(self.nodata,d))+ '\n')
 
-			s = ''
-			c = 0
-			
-			i=0
-			# repalce nan with nodata
-			idx = np.where(np.isnan(self.data))
-			dataToPrint = self.data
-			dataToPrint[idx] = self.nodata
+				s = ''
+				c = 0
 
-			if d ==0:
-				for row in dataToPrint:
-					i += 1
-					if self.progress: self.progress.setProgress(100 * float(i) / self.nrows)
-					for el in row:
-						# print len(el)
-						s = s + str(int(round(el, d)))
-						c = c + 1
-						# add space if not EOF
-						if c % self.ncols != 0:
-							s = s + ' '
-						else:
-							s = s + '\n'
-			#				s = s + '\n'
+				i=0
+				# repalce nan with nodata
+				idx = np.where(np.isnan(self.data))
+				dataToPrint = self.data
+				dataToPrint[idx] = self.nodata
 
-			else:
-				for row in dataToPrint:
-					i +=1
-					if self.progress: self.progress.setProgress(100*float(i)/self.nrows)
-					for el in row:
-						#print len(el)
-						s = s + str(round(el,d))
-						c = c+1
-						#add space if not EOF
-						if c%self.ncols != 0:
-							s = s + ' '
-						else:
-							s = s + '\n'
-		#				s = s + '\n'
+				if d ==0:
+					for row in dataToPrint:
+						i += 1
+						if self.progress: self.progress.setProgress(100 * float(i) / self.nrows)
+						for el in row:
+							# print len(el)
+							s = s + str(int(round(el, d)))
+							c = c + 1
+							# add space if not EOF
+							if c % self.ncols != 0:
+								s = s + ' '
+							else:
+								s = s + '\n'
 
-			f.write(s)
-			#f.write('projection ' + str(self.hd.prj) + '\n')
-			#f.write('notes ' + str(self.hd.note))
-			# TODO: this line causes memory issue, probably because self.progress is lost
-			#if self.progress: self.progress.pushInfo(self.tr('Grid exported to %s')%(filename))
-		except IOError:
+				else:
+					for row in dataToPrint:
+						i +=1
+						if self.progress: self.progress.setProgress(100*float(i)/self.nrows)
+						for el in row:
+							#print len(el)
+							s = s + str(round(el,d))
+							c = c+1
+							#add space if not EOF
+							if c%self.ncols != 0:
+								s = s + ' '
+							else:
+								s = s + '\n'
+
+				f.write(s)
+				#f.write('projection ' + str(self.hd.prj) + '\n')
+				#f.write('notes ' + str(self.hd.note))
+				# TODO: this line causes memory issue, probably because self.progress is lost
+				#if self.progress: self.progress.pushInfo(self.tr('Grid exported to %s')%(filename))
+		except Exception as e:
 			#print 'Cannot save file: %s' %filename
-			if self.progress: self.progress.error(self.tr('Cannot save to %s because %s') %(filename,str(IOError)))
-		finally:
-			f.close()
-			
+			if self.progress: self.progress.error(self.tr('Cannot save to %s because %s') %(filename,str(e)))
+
 	def openFromMAT(self,filename,name,nodata = -3.4028234663852886e+038, EPSGid = 32632, progress = None):
 		# open mat file
 		data = sio.loadmat(filename)

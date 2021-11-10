@@ -213,7 +213,7 @@ class IdragraBulkImportTimeserie(QgsProcessingAlgorithm):
 		sep = self.parameterAsString(parameters, self.SEP, context)
 		timeFormat = self.parameterAsString(parameters, self.TIMEFORMAT, context)
 
-		self.DBM = SQLiteDriver(dbFilename, False, None,self.FEEDBACK,self.tr)
+		self.DBM = SQLiteDriver(dbFilename, False, None,self.FEEDBACK,self.tr, QgsProject.instance())
 
 		# get list of table
 

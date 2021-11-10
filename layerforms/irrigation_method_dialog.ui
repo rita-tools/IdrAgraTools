@@ -20,7 +20,7 @@
    <item>
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
-      <number>0</number>
+      <number>2</number>
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
@@ -238,6 +238,14 @@
        <string>Irrigation losses model</string>
       </attribute>
       <layout class="QFormLayout" name="formLayout">
+       <item row="0" column="0" colspan="2">
+        <widget class="QLabel" name="label">
+         <property name="text">
+          <string>Irrigation losses model is described by the equation:
+# Irrigation_losse = a + b * wind_speed + c * average_temperature</string>
+         </property>
+        </widget>
+       </item>
        <item row="1" column="0">
         <widget class="QLabel" name="losses_a_LBL">
          <property name="toolTip">
@@ -292,11 +300,10 @@
          </property>
         </widget>
        </item>
-       <item row="0" column="0" colspan="2">
-        <widget class="QLabel" name="label">
+       <item row="4" column="0">
+        <widget class="QCheckBox" name="f_interception">
          <property name="text">
-          <string>Irrigation losses model is described by the equation:
-# Irrigation_losse = a + b * wind_speed + c * average_temperature</string>
+          <string>Irrigation water is intercepted by foliage</string>
          </property>
         </widget>
        </item>

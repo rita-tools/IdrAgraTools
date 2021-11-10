@@ -314,13 +314,14 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 					pass
 			else:
 				# 2000_step1_caprise.asc
-				y = int(fname[0:4])
-				tokStart = fname.index('_step')+len('_step')
-				tokEnd = fname.index('_',tokStart)
-				s = int(fname[tokStart:tokEnd])
-				# step to date
-				parsedDate = self.stepToDate(year=y,step = s,periodStart =startDate,periodDelta = deltaDate)
-
+				if '_step' in fname:
+					#self.FEEDBACK.pushInfo(self.tr('last file %s') % fname)
+					y = int(fname[0:4])
+					tokStart = fname.index('_step')+len('_step')
+					tokEnd = fname.index('_',tokStart)
+					s = int(fname[tokStart:tokEnd])
+					# step to date
+					parsedDate = self.stepToDate(year=y,step = s,periodStart =startDate, periodDelta = deltaDate)
 
 			self.FEEDBACK.pushInfo(self.tr('Processing %s --> %s'%(f,parsedDate)))
 			if parsedDate:
@@ -355,7 +356,10 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 
 	def stepToDate(self, year, step, periodStart, periodDelta):
 		# calculate the day of the year for the selected periodù
-		selDate = datetime(year, 1, 1)+timedelta(periodStart+step*periodDelta)
+		selDate = datetime(year, 1, 1)+timedelta(periodStart-1+step*periodDelta-1)# added -1 to clear starting point
+		lastDate = datetime(year, 12, 31)
+		#print('lastDate:',lastDate)
+		if selDate>lastDate: selDate =lastDate #limit to selected period
 		return selDate.strftime('%Y-%m-%d')
 
 	def monthToDate(self, year, month):

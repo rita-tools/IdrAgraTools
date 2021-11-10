@@ -141,7 +141,7 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 							templateName='crop_par.txt')
 
 
-	soiluseList = DBM.getRecord(tableName = 'idr_soiluses',fieldsList='',filterFld='', filterValue=None)
+	soiluseList = DBM.getRecord(tableName = 'idr_soiluses',fieldsList='',filterFld='', filterValue=None, orderBy='id')
 
 	#recTemplate = '%-8s %-24s %-24s # %s'
 	recTemplate = '%s\t%s\t%s\t# %s'

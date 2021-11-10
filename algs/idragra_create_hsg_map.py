@@ -397,27 +397,103 @@ class IdragraCreateHSGMap(QgsProcessingAlgorithm):
 		feedback.setProgress(90)
 		geoDict = getRasterInfos(soilmap.source())
 		#feedback.pushInfo(self.tr('Georeference parameters: %s') % str(geoDict))
-		dx = geoDict['dx']
-		dy = geoDict['dy']
-		ncols = geoDict['ncols']
-		nrows = geoDict['nrows']
-		xllcorner = geoDict['xllcorner']
-		yllcorner = geoDict['yllcorner']
-		xurcorner = geoDict['xllcorner'] + ncols * geoDict['dx']
-		yurcorner = geoDict['yllcorner'] - nrows * geoDict['dy']
+		self.dx = geoDict['dx']
+		self.dy = geoDict['dy']
+		self.ncols = geoDict['ncols']
+		self.nrows = geoDict['nrows']
+		self.xllcorner = geoDict['xllcorner']
+		self.yllcorner = geoDict['yllcorner']
+		self.nodata = -9
+		self.data = hsgArray
+		# xurcorner = geoDict['xllcorner'] + ncols * geoDict['dx']
+		# yurcorner = geoDict['yllcorner'] - nrows * geoDict['dy']
 
-		aGrid = GisGrid(ncols=ncols, nrows=nrows, xcell=xllcorner, ycell=yllcorner, dx=dx, dy=-dy, nodata=-9,
-						EPSGid=soilmap.crs().postgisSrid () , progress=self.FEEDBACK)
-		aGrid.data = hsgArray#maxDepthArray#
+		# aGrid = GisGrid(ncols=ncols, nrows=nrows, xcell=xllcorner, ycell=yllcorner, dx=dx, dy=-dy, nodata=-9,
+		# 				EPSGid=soilmap.crs().postgisSrid () , progress=self.FEEDBACK)
+		# aGrid.data = hsgArray#maxDepthArray#
 
 		#feedback.pushInfo(self.tr('Array Data shape: %s') % str(hsgArray.shape))
 		if hsgMap.endswith('.asc'):
-			aGrid.saveAsASC(hsgMap, d=0, useCellSize=True)
+			self.saveAsASCII(hsgMap, d=0, useCellSize=True)
 		else:
-			aGrid.saveAsGDAL(hsgMap)
+			pass
+			#aGrid.saveAsGDAL(hsgMap)
 
 		feedback.setProgress(100)
 		return {self.OUTPUT: hsgMap}
+
+	def saveAsASCII(self,filename, d, useCellSize):
+		"""
+		savegrid		: save current grid in a Esri-like ASCII grid file.
+		Arguments:
+		filename		: the complete name of the new file (path + filename)
+		d				 : decimal digit
+		useCellSize	 : if True, write cellsize parameter instead of dx and dy
+		"""
+		try:
+			# use of with to automatically close the file
+			with open(filename, 'w') as f:
+				f.write('ncols ' + str(self.ncols) + '\n')
+				f.write('nrows ' + str(self.nrows) + '\n')
+				f.write('xllcorner ' + str(self.xllcorner) + '\n')
+				f.write('yllcorner ' + str(self.yllcorner) + '\n')
+				if useCellSize:
+					f.write('cellsize ' + str(self.dx) + '\n')
+				else:
+					f.write('dx ' + str(self.dx) + '\n')
+					f.write('dy ' + str(self.dy) + '\n')
+
+				if d == 0:
+					f.write('nodata_value ' + str(int(self.nodata)) + '\n')
+				else:
+					f.write('nodata_value ' + str(round(self.nodata, d)) + '\n')
+
+				s = ''
+				c = 0
+
+				i = 0
+				# replace nan with nodata
+				idx = np.where(np.isnan(self.data))
+				dataToPrint = self.data
+				dataToPrint[idx] = self.nodata
+
+				if d == 0:
+					for row in dataToPrint:
+						i += 1
+						self.FEEDBACK.setProgress(100 * float(i) / self.nrows)
+						for el in row:
+							# print len(el)
+							s = s + str(int(round(el, d)))
+							c = c + 1
+							# add space if not EOF
+							if c % self.ncols != 0:
+								s = s + ' '
+							else:
+								s = s + '\n'
+
+				else:
+					for row in dataToPrint:
+						i += 1
+						self.FEEDBACK.setProgress(100 * float(i) / self.nrows)
+						for el in row:
+							# print len(el)
+							s = s + str(round(el, d))
+							c = c + 1
+							# add space if not EOF
+							if c % self.ncols != 0:
+								s = s + ' '
+							else:
+								s = s + '\n'
+
+				f.write(s)
+
+			# f.write('projection ' + str(self.hd.prj) + '\n')
+			# f.write('notes ' + str(self.hd.note))
+			# TODO: this line causes memory issue, probably because self.progress is lost
+			self.FEEDBACK.pushInfo(self.tr('Grid exported to %s')%(filename))
+		except Exception as e:
+			# print 'Cannot save file: %s' %filename
+			self.FEEDBACK.error(self.tr('Cannot save to %s because %s') % (filename, str(e)))
 
 
 	def convertRasterToNumpyArray(self,lyrFile):  # Input: QgsRasterLayer

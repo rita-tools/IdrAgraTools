@@ -163,7 +163,7 @@ class IdragraCreateCapriseTable(QgsProcessingAlgorithm):
 						Output table: the file path to the output table [OUT_TABLE]
 						
 						<b>Notes</b>
-						(1) Texture codes from USDA textural Soil Classification - Module 3 - Study Guide: 1:sand, 2:Loamy sand, 3:sandy loam, 4:loam, 5:silty loam, 6:silt, 7:sandy clay loam, 8: clay loam, 9: silty clay loam, 10: sandy clay, 11: silty clay, 12:clay
+						(1) Texture codes from USDA textural Soil Classification - Module 3 - Study Guide: 1:sand, 2:Loamy sand, 3:sandy loam, 4:loam, 5:silt loam, 6:silt, 7:sandy clay loam, 8: clay loam, 9: silty clay loam, 10: sandy clay, 11: silty clay, 12:clay
 						"""
 		
 		return self.tr(helpStr)
@@ -261,7 +261,8 @@ class IdragraCreateCapriseTable(QgsProcessingAlgorithm):
 
 		# convert texture code in classes useful for the model of Liu et al. (2006)
 		# USDA texture codes
-		# 1:sand, 2:Loamy sand, 3:sandy loam, 4:loam, 5:silty loam, 6:silt,
+		# 1:sand, 2:Loamy sand, 3:sandy loam,
+		# 4:loam, 5:silt loam, 6:silt,
 		# 7:sandy clay loam, 8: clay loam, 9: silty clay loam, 10: sandy clay, 11: silty clay, 12:clay
 		# Liu classes VS USDA
 		# 101: Sandy loam soil -> 1,2,3,

@@ -34,10 +34,11 @@ import numpy as np
 import sqlite3 as sqlite
 import io
 from datetime import datetime,date
+import pandas as pd
 
 from qgis._core import QgsFeatureRequest
 from qgis.core import QgsVectorLayer,QgsField,QgsVectorFileWriter
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QVariant, QObject
 
 
 def adapt_array(arr):
@@ -76,9 +77,10 @@ class MyProgress():
 		else: print('error: %s'%txt)
 
 
-class SQLiteDriver():
+class SQLiteDriver(QObject):
 	
-	def __init__(self, filename, overwrite = True, crs = None, progress = None,tr = None):
+	def __init__(self, filename, overwrite = True, crs = None, progress = None,tr = None, parent = None):
+		QObject.__init__(self, parent)
 		self.conn = None
 		self.cur = None
 		self.DBName = filename
@@ -148,8 +150,8 @@ class SQLiteDriver():
 							'fldTypes': [QVariant.Int, QVariant.String,QVariant.Int, QVariant.Date]},
 						{'type': 'MultiPolygon',
 							'name': 'idr_distrmap',
-							'fldNames': ['id', 'name','node','distr_eff','expl_factor','wat_shift'],
-							'fldTypes': [QVariant.Int,QVariant.String,QVariant.Int,QVariant.Double,QVariant.Int,QVariant.Int]}
+							'fldNames': ['id', 'name','inlet_node','outlet_node','distr_eff','expl_factor','wat_shift'],
+							'fldTypes': [QVariant.Int,QVariant.String,QVariant.Int,QVariant.Int,QVariant.Double,QVariant.Int,QVariant.Int]}
 					 ]
 		
 		firstt = True
@@ -422,7 +424,35 @@ class SQLiteDriver():
 			self.stopConnection()
 			
 		return msg
-	
+
+	def getTableAsDF(self,sql):
+		df = None
+		try:
+			self.startConnection()
+			df = pd.read_sql_query(sql, self.conn)
+		except Exception as e:
+			msg = str(e)
+			self.progress.reportError(self.tr('SQL error at %s: %s') %(sql,msg),True)
+		finally:
+			self.stopConnection()
+
+		return df
+
+	def popTableFromDF(self,df,tableName):
+		res = 0
+
+		try:
+			self.startConnection()
+			df.to_sql(tableName,self.conn,if_exists='append', index = True, index_label = 'fid')
+			res=1
+		except Exception as e:
+			msg = str(e)
+			self.progress.reportError(self.tr('Unable to import table %s because %s') %(tableName,msg),True)
+		finally:
+			self.stopConnection()
+
+		return res
+
 	def getTableAsLayer(self,name,displayName = None):
 		if displayName is None: displayName = name
 		# something like 'D:\\test_smartgreen\\aaaa_DATA\\tables.sqlite|layername=landuses'
@@ -948,7 +978,7 @@ class SQLiteDriver():
 
 		return data
 		
-	def getRecord(self,tableName,fieldsList,filterFld, filterValue):
+	def getRecord(self,tableName,fieldsList,filterFld='', filterValue = None,orderBy = ''):
 		data = []
 		if isinstance(fieldsList,list):
 			fieldsList = ','.join(fieldsList)
@@ -957,8 +987,10 @@ class SQLiteDriver():
 		
 		try:
 			self.startConnection()
-			if filterFld =='': sql = "SELECT %s FROM %s;"%(fieldsList,tableName)
-			else: sql = "SELECT %s FROM %s WHERE %s = '%s';"%(fieldsList,tableName,filterFld,filterValue)
+			if filterFld =='': sql = "SELECT %s FROM %s"%(fieldsList,tableName)
+			else: sql = "SELECT %s FROM %s WHERE %s = '%s'"%(fieldsList,tableName,filterFld,filterValue)
+			if orderBy != '': sql += ' ORDER BY '+orderBy
+			sql+=';' # close query
 			# TODO: check the use of apex in sql formula. It seems to not have effect on type of value filtered
 			#print('sql',sql)
 			res = self.cur.execute(sql)
@@ -1124,6 +1156,7 @@ class SQLiteDriver():
 		return res
 
 	def getAllSourceNode(self, startNodeId):
+		# get all water sources connecte to startNodeId
 
 		nodeList = [startNodeId]
 		flowRatio = [1.0]

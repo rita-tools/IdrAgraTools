@@ -311,11 +311,13 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 
 		# get table and create time series
 		table = QgsVectorLayer(tempFile,'temp','ogr')
+		#print('features count:',table.featureCount()) #ok
 
 		# get list of processed years
 		firstYear = firstDay.year
 		endYear = endDay.year
 		yearList = list(range(firstYear, endYear + 1))
+		#print('n. of year',len(yearList))
 
 		# get the list of unique id
 		attrIndex = table.fields().indexFromName('wsid')
@@ -388,29 +390,35 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 	def arrayOfDays(self,startDate, endDate):
 		return np.arange(startDate, endDate+timedelta(days=1), timedelta(days=1)).astype(datetime)
 
-	def dayValueArray(self,table,sensorId, yearList, startDate, nodata = -999,cellSize = 250.):
+	def dayValueArray(self,table,sensorId, yearList, startDay, nodata = -999,cellSize = 250.):
 		# create an empty time series
-		firstDay = datetime(yearList[0],1,1)
+		firstDate = datetime(yearList[0],1,1)
 		endDay = datetime(yearList[-1],12,31)
-		datesArray = self.arrayOfDays(firstDay, endDay)
+		datesArray = self.arrayOfDays(firstDate, endDay)
 		valueArray = np.zeros(len(datesArray)) + nodata
 
 		nOfYears = len(yearList)
 		for c,y in enumerate(yearList):
 			firstDayOfYear = datetime(y, 1, 1)-timedelta(days=1)
-			if startDate:
-				firstDayOfYear += timedelta(days=startDate)
+			if startDay:
+				firstDayOfYear += timedelta(days=startDay)
 
-			dayList = [firstDayOfYear]
-			valueList = [None]
+			# dayList = [firstDayOfYear]
+			# valueList = [None]
+			dayList = []
+			valueList = []
 			# select a subset
 			query = QgsExpression('"wsid" = %s and "timestamp" like \'%s%s\'' % (sensorId, y, '%'))
 			request = QgsFeatureRequest(query)
 			request.setFlags(QgsFeatureRequest.NoGeometry)
 			selection = table.getFeatures(request)
+			#dummy = 0
 			for s in selection:
 				dayList.append(datetime(s['timestamp'].year(),s['timestamp'].month(),s['timestamp'].day()))
 				valueList.append(s['recval'])#*s['count']*cellSize*cellSize/1000.) # in cubic meters
+				#dummy+=1
+
+			#print('test table request',dummy)
 
 			valueList = [x for _, x in sorted(zip(dayList, valueList))]
 			dayList = sorted(dayList)
@@ -419,7 +427,7 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 			while i < len(dayList):
 				nOfDay = (dayList[i] - dayList[i - 1]).days
 				#print(i,valueList[i],dayList[i - 1], dayList[i], nOfDay)
-				test = np.logical_and(datesArray > dayList[i - 1], datesArray <= dayList[i])
+				test = np.logical_and(datesArray >= dayList[i - 1], datesArray < dayList[i])
 				if valueList[i]: # if it is a valid number
 					valueArray[test] = valueList[i] / nOfDay
 

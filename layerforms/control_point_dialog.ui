@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>542</width>
-    <height>283</height>
+    <width>543</width>
+    <height>331</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -70,14 +70,14 @@
       <item>
        <widget class="QPushButton" name="PLOT_EVA_WC">
         <property name="text">
-         <string>Plot 1th layer WC</string>
+         <string>Plot 1st layer WC</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QPushButton" name="PLOT_EVA_VARS">
         <property name="text">
-         <string>Plot 1th layer vars</string>
+         <string>Plot 1st layer vars</string>
         </property>
        </widget>
       </item>
@@ -103,6 +103,16 @@
        </widget>
       </item>
      </layout>
+    </widget>
+   </item>
+   <item row="4" column="0">
+    <widget class="QLabel" name="INFO_LBL">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>Cell coordinates (row,column)): NA,NA</string>
+     </property>
     </widget>
    </item>
   </layout>
