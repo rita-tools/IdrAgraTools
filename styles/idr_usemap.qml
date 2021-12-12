@@ -1,91 +1,54 @@
 <!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
-<qgis version="3.18.0-Zürich" styleCategories="Forms|Temporal">
-  <temporal durationUnit="min" accumulate="0" fixedDuration="0" startExpression="" enabled="0" startField="" mode="0" endExpression="" endField="" durationField="">
-    <fixedRange>
-      <start></start>
-      <end></end>
-    </fixedRange>
-  </temporal>
-  <fieldConfiguration>
-    <field name="fid">
-      <editWidget type="TextEdit">
-        <config>
-          <Option/>
-        </config>
-      </editWidget>
-    </field>
-    <field name="id">
-      <editWidget type="Range">
-        <config>
-          <Option/>
-        </config>
-      </editWidget>
-    </field>
-    <field name="name">
-      <editWidget type="TextEdit">
-        <config>
+<qgis styleCategories="Symbology" version="3.18.0-Zürich">
+  <renderer-v2 enableorderby="0" symbollevels="0" forceraster="0" type="singleSymbol">
+    <symbols>
+      <symbol name="0" clip_to_extent="1" alpha="1" force_rhr="0" type="fill">
+        <data_defined_properties>
           <Option type="Map">
-            <Option type="bool" value="false" name="IsMultiline"/>
-            <Option type="bool" value="false" name="UseHtml"/>
+            <Option value="" name="name" type="QString"/>
+            <Option name="properties"/>
+            <Option value="collection" name="type" type="QString"/>
           </Option>
-        </config>
-      </editWidget>
-    </field>
-    <field name="extid">
-      <editWidget type="TextEdit">
-        <config>
+        </data_defined_properties>
+        <layer pass="0" locked="0" class="SimpleFill" enabled="1">
           <Option type="Map">
-            <Option type="bool" value="false" name="IsMultiline"/>
-            <Option type="bool" value="false" name="UseHtml"/>
+            <Option value="3x:0,0,0,0,0,0" name="border_width_map_unit_scale" type="QString"/>
+            <Option value="243,166,178,255" name="color" type="QString"/>
+            <Option value="bevel" name="joinstyle" type="QString"/>
+            <Option value="0,0" name="offset" type="QString"/>
+            <Option value="3x:0,0,0,0,0,0" name="offset_map_unit_scale" type="QString"/>
+            <Option value="MM" name="offset_unit" type="QString"/>
+            <Option value="35,35,35,255" name="outline_color" type="QString"/>
+            <Option value="solid" name="outline_style" type="QString"/>
+            <Option value="0.26" name="outline_width" type="QString"/>
+            <Option value="MM" name="outline_width_unit" type="QString"/>
+            <Option value="solid" name="style" type="QString"/>
           </Option>
-        </config>
-      </editWidget>
-    </field>
-    <field name="date">
-      <editWidget type="DateTime">
-        <config>
-          <Option/>
-        </config>
-      </editWidget>
-    </field>
-  </fieldConfiguration>
-  <editform tolerant="1">C:/Users/enrico/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/IdragraTools/layerforms/landuse_dialog.ui</editform>
-  <editforminit>formOpen</editforminit>
-  <editforminitcodesource>1</editforminitcodesource>
-  <editforminitfilepath>C:\Users\enrico\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\IdragraTools\layerforms\landuse_dialog.py</editforminitfilepath>
-  <editforminitcode><![CDATA[# -*- coding: utf-8 -*-
-"""
-I form QGIS possono avere una funzione Python che può essere chiamata quando un form viene aperto.
-
-Usa questa funzione per aggiungere logica extra ai tuoi forms..
-
-Inserisci il nome della funzione nel campo "Funzione Python di avvio".
-
-Segue un esempio:
-"""
-from qgis.PyQt.QtWidgets import QWidget
-
-def my_form_open(dialog, layer, feature):
-	geom = feature.geometry()
-	control = dialog.findChild(QWidget, "MyLineEdit")
-]]></editforminitcode>
-  <featformsuppress>0</featformsuppress>
-  <editorlayout>uifilelayout</editorlayout>
-  <editable>
-    <field name="date" editable="1"/>
-    <field name="extid" editable="1"/>
-    <field name="fid" editable="1"/>
-    <field name="id" editable="1"/>
-    <field name="name" editable="1"/>
-  </editable>
-  <labelOnTop>
-    <field labelOnTop="0" name="date"/>
-    <field labelOnTop="0" name="extid"/>
-    <field labelOnTop="0" name="fid"/>
-    <field labelOnTop="0" name="id"/>
-    <field labelOnTop="0" name="name"/>
-  </labelOnTop>
-  <dataDefinedFieldProperties/>
-  <widgets/>
+          <prop v="3x:0,0,0,0,0,0" k="border_width_map_unit_scale"/>
+          <prop v="243,166,178,255" k="color"/>
+          <prop v="bevel" k="joinstyle"/>
+          <prop v="0,0" k="offset"/>
+          <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+          <prop v="MM" k="offset_unit"/>
+          <prop v="35,35,35,255" k="outline_color"/>
+          <prop v="solid" k="outline_style"/>
+          <prop v="0.26" k="outline_width"/>
+          <prop v="MM" k="outline_width_unit"/>
+          <prop v="solid" k="style"/>
+          <data_defined_properties>
+            <Option type="Map">
+              <Option value="" name="name" type="QString"/>
+              <Option name="properties"/>
+              <Option value="collection" name="type" type="QString"/>
+            </Option>
+          </data_defined_properties>
+        </layer>
+      </symbol>
+    </symbols>
+    <rotation/>
+    <sizescale/>
+  </renderer-v2>
+  <blendMode>0</blendMode>
+  <featureBlendMode>0</featureBlendMode>
   <layerGeometryType>2</layerGeometryType>
 </qgis>
