@@ -52,42 +52,29 @@ from .custom_input import *
 
 class CommonSettings(QDialog):
 	closed = pyqtSignal()
-	
-	FILELIST = {}
-	VARLIST = {}
-	FUNLIST = {}
-	
-	def __init__(self, parent=None, varIds = [],varNames=[]):
-		QDialog.__init__(self, parent)
+
+	def __init__(self, parent=None):
+		QDialog.__init__(self, parent.mainWindow())
 		# Set up the user interface from Designer.
 		uiFilePath = os.path.abspath(os.path.join(os.path.dirname(__file__), 'common_settings.ui'))
 		uic.loadUi(uiFilePath, self)
-		self.setWindowTitle('mobidiQ')
-		
-		self.VARIDS = varIds
-		self.VARNAMES = varNames
-		
-		# set data:
-		s = QSettings('UNIFI-DICEA', 'mobidiQ')
-		self.BUFDIST_LE.setText(s.value('bufDist'))
-		self.NUMSEG_LE.setText(s.value('bufSeg'))
-		
-		# set CRS
-		aCRS = QgsCoordinateReferenceSystem(int(s.value('crsId')))
-		self.CRS_SEL.setCrs(aCRS)
 
-		# populate list of variable
-		plotVarList = s.value('plotVar').split(';')
-		for key, value in zip(self.VARIDS,self.VARNAMES):
-			item = QListWidgetItem(value)
-			item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-			if key in plotVarList:
-				item.setCheckState(Qt.Checked)
-			else:
-				item.setCheckState(Qt.Unchecked)
-				
-			self.PLOTVAR_LB.addItem(item)
-			
+		### set path to executable
+		s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+		path2Idragra = s.value('idragraPath', '')
+		path2CropCoeff = s.value('cropcoeffPath', '')
+		MCRpath = s.value('MCRpath', '')
+		MinGWPath = s.value('MinGWPath', '')
+
+		self.IDRAGRA_EXE.setFilter('Executable (*.exe)')
+		self.CROPCOEFF_EXE.setFilter('Executable (*.exe)')
+
+		self.IDRAGRA_EXE.setFilePath(path2Idragra)
+		self.CROPCOEFF_EXE.setFilePath(path2CropCoeff)
+
+		self.MATLAB_FOLDER.setFilePath(MCRpath)
+		self.MINGW_FOLDER.setFilePath(MinGWPath)
+
 		self.buttonBox.accepted.connect(self.accept)
 		self.buttonBox.rejected.connect(self.reject)
 		#QObject.connect(self.buttonBox, SIGNAL("accepted()"), self.accept)
@@ -96,32 +83,14 @@ class CommonSettings(QDialog):
 		
 	def closeEvent(self, event):
 		self.closed.emit()
-		
-	def setOutputFile(self):
-		s = QSettings('UNIFI-DICEA', 'mobidiQ')
-		res = QFileDialog.getSaveFileName(self, caption = self.tr('Save output as:'), directory = s.value('lastPath'), filter = 'Geotiff (*.tif)')
-		filePath = res[0]
-		if filePath != '':
-			self.OUTPUT_LE.setText(res[0])
-	
+
 	def getData(self):
-		# get selected vars
-		selVarList = []
-		for i in range(self.PLOTVAR_LB.count()):
-			item = self.PLOTVAR_LB.item(i)
-			if item.checkState()==2:
-				# is checked
-				selVar = self.VARIDS[self.VARNAMES.index(item.text())]
-				selVarList.append(selVar)
-			
-		plotVar = ';'.join(selVarList)
-		
-		# get buffer distace
-		bufDist = float(self.BUFDIST_LE.text())
-		bufSeg = int(self.NUMSEG_LE.text())
-		
-		# get CRS
-		aCRS = self.CRS_SEL.crs()
-		crsId = aCRS.postgisSrid()
-		
-		return {'plotVar':plotVar, 'bufDist':bufDist,  'bufSeg':bufSeg, 'crsId':crsId}
+		### get executable path
+		idragraPath = self.IDRAGRA_EXE.filePath()
+		cropcoeffPath = self.CROPCOEFF_EXE.filePath()
+		MCRpath = self.MATLAB_FOLDER.filePath()
+		MinGWPath = self.MINGW_FOLDER.filePath()
+
+		return {'idragraPath':idragraPath,'cropcoeffPath':cropcoeffPath,
+				'MCRpath':MCRpath, 'MinGWPath':MinGWPath
+				}

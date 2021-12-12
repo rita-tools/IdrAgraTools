@@ -26,85 +26,60 @@
    <item>
     <widget class="QTabWidget" name="OPTIONTABS">
      <property name="currentIndex">
-      <number>1</number>
+      <number>0</number>
      </property>
-     <widget class="QWidget" name="projectionTab">
+     <widget class="QWidget" name="exeTab">
       <attribute name="title">
-       <string>Projection</string>
+       <string>Executables</string>
       </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_2">
-       <item>
-        <widget class="QgsProjectionSelectionWidget" name="CRS_SEL"/>
-       </item>
-       <item>
-        <spacer name="verticalSpacer_2">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="plotTab">
-      <attribute name="title">
-       <string>Plot</string>
-      </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_3">
-       <item>
-        <widget class="QLabel" name="PLOTVAR_LBL">
-         <property name="text">
-          <string>Plot variable:</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QListWidget" name="PLOTVAR_LB"/>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="tab">
-      <attribute name="title">
-       <string>Plot tool</string>
-      </attribute>
-      <layout class="QGridLayout" name="gridLayout">
+      <layout class="QFormLayout" name="formLayout">
        <item row="0" column="0">
-        <widget class="QLabel" name="BUFDIST_LBL">
+        <widget class="QLabel" name="IDRAGRA_LB">
          <property name="text">
-          <string>Buffer distance:</string>
+          <string>Path to IdrAgra exe</string>
          </property>
         </widget>
        </item>
        <item row="0" column="1">
-        <widget class="QLineEdit" name="BUFDIST_LE"/>
+        <widget class="QgsFileWidget" name="IDRAGRA_EXE"/>
        </item>
        <item row="1" column="0">
-        <widget class="QLabel" name="NUMSEG_LBL">
+        <widget class="QLabel" name="CROPCOEFF_LB">
          <property name="text">
-          <string>Buffer segments:</string>
+          <string>Path to cropcoeff exe</string>
          </property>
         </widget>
        </item>
        <item row="1" column="1">
-        <widget class="QLineEdit" name="NUMSEG_LE"/>
+        <widget class="QgsFileWidget" name="CROPCOEFF_EXE"/>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="MATLAB_LB">
+         <property name="text">
+          <string>Matlab runtime folder</string>
+         </property>
+        </widget>
        </item>
        <item row="2" column="1">
-        <spacer name="verticalSpacer">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
+        <widget class="QgsFileWidget" name="MATLAB_FOLDER">
+         <property name="storageMode">
+          <enum>QgsFileWidget::GetDirectory</enum>
          </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>177</height>
-          </size>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="MINGW_LB">
+         <property name="text">
+          <string>MinGW folder</string>
          </property>
-        </spacer>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QgsFileWidget" name="MINGW_FOLDER">
+         <property name="storageMode">
+          <enum>QgsFileWidget::GetDirectory</enum>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>
@@ -124,9 +99,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>QgsProjectionSelectionWidget</class>
+   <class>QgsFileWidget</class>
    <extends>QWidget</extends>
-   <header>qgsprojectionselectionwidget.h</header>
+   <header>qgsfilewidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
