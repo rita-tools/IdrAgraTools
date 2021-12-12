@@ -98,6 +98,8 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 	EXTENT = 'EXTENT'
 	CELLSIZE = 'CELLSIZE'
 	DTMLAY = 'DTM_LAY'
+	LOWERLIM = 'LOWER_LIM'
+	UPPERLIM = 'UPPER_LIM'
 	OUTSLOPELAY = 'OUTSLOPE_LAY'
 
 	FEEDBACK = None
@@ -156,12 +158,15 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 						The algorithm clip elevation map and create slope. 
 						<b>Parameters:</b>
 						DTM raster map: the source of the altimetric information [DTM_LAY]
+						Lower limit: the lowest acceptable value (%) [LOWER_LIM]
+						Upper limit: the highest acceptable value (%) [UPPER_LIM]
 						Output Slope map: the slope map expressed as ratio (m/m) [OUTDTM_LAY]
 						
 						Notes:
 						First at all, the slope map is calculated with the same resolution of the clipped elevation map
 						and then the slope map is resampled to the output resolution using a mode-based filter (assign the
-						most frequent value in the pixels subset). Finally, the map is converted in percent value. 
+						most frequent value in the pixels subset). Finally, the map is converted in percent value and values
+						are filtered by lower and upper limits. 
 						"""
 		
 		return self.tr(helpStr)
@@ -183,6 +188,12 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 
 		self.addParameter(QgsProcessingParameterNumber(self.CELLSIZE, self.tr('Output cell size')))
 
+		self.addParameter(QgsProcessingParameterNumber(self.LOWERLIM, self.tr('The lowest acceptable value (%)'),
+													   QgsProcessingParameterNumber.Double,0.0))
+
+		self.addParameter(QgsProcessingParameterNumber(self.UPPERLIM, self.tr('The highest acceptable value (%)'),
+													   QgsProcessingParameterNumber.Double,1000))
+
 		self.addParameter(QgsProcessingParameterRasterDestination(self.OUTSLOPELAY, self.tr('Output slope map')))
 
 	def processAlgorithm(self, parameters, context, feedback):
@@ -193,7 +204,10 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 		# get params
 		dtmLayer = self.parameterAsRasterLayer(parameters,self.DTMLAY,context)
 		outputExt = self.parameterAsExtent(parameters, self.EXTENT, context)
+		lowerLim = self.parameterAsDouble(parameters, self.LOWERLIM, context)
+		upperLim = self.parameterAsDouble(parameters, self.UPPERLIM, context)
 		outputCellSize = self.parameterAsDouble(parameters, self.CELLSIZE, context)
+
 		outSlpMap = self.parameterAsFileOutput(parameters, self.OUTSLOPELAY, context)
 
 		#source = QgsRasterLayer(dtmLayer, 'test', 'gdal')
@@ -298,8 +312,22 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 		driverName = GdalUtils.GdalUtils.getFormatShortNameFromFilename(outSlpMap)
 		# Process calculation with input extent and resolution
 		# slope must be in percent
-		calc = QgsRasterCalculator('100*tan("slope@1"*%s/180)'%math.pi, outSlpMap, driverName,
+		# calc = QgsRasterCalculator('100*tan("slope@1"*%s/180)'%math.pi, outSlpMap, driverName,
+		#						   newExt, ncols, nrows, entries)
+
+		expression = '''
+					((100*tan("slope@1"*%s/180))>=%s)*%s +
+					((100*tan("slope@1"*%s/180))<=%s)*%s +
+					(
+						((100*tan("slope@1"*%s/180))<%s) AND ((100*tan("slope@1"*%s/180))>%s)
+					)*(100*tan("slope@1"*%s/180))'''%(math.pi, upperLim, upperLim,
+													 math.pi, lowerLim, lowerLim,
+													 math.pi, upperLim, math.pi, lowerLim,
+													 math.pi)
+
+		calc = QgsRasterCalculator(expression, outSlpMap, driverName,
 								   newExt, ncols, nrows, entries)
+
 		calc.processCalculation(self.FEEDBACK)
 
 		return {'OUTSLOPE_LAY': outSlpMap}
