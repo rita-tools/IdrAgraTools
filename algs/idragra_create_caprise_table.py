@@ -243,7 +243,7 @@ class IdragraCreateCapriseTable(QgsProcessingAlgorithm):
 
 		# prepare the destination field
 		fldList = QgsFields()
-		fldList.append(QgsField(soilidFld, QVariant.Double))
+		fldList.append(QgsField(soilidFld, QVariant.Int))
 
 		fldList.append(QgsField('main_txtr', QVariant.Double))
 		fldList.append(QgsField('CapRisePar_a3', QVariant.Double))
@@ -264,7 +264,7 @@ class IdragraCreateCapriseTable(QgsProcessingAlgorithm):
 		# 1:sand, 2:Loamy sand, 3:sandy loam,
 		# 4:loam, 5:silt loam, 6:silt,
 		# 7:sandy clay loam, 8: clay loam, 9: silty clay loam, 10: sandy clay, 11: silty clay, 12:clay
-		# Liu classes VS USDA
+		# Macro texture classes VS USDA texture classes
 		# 101: Sandy loam soil -> 1,2,3,
 		# 102: Silt loam soil -> 4,5,6
 		# 103: Clay loam soil -> 7,8,9,10,11,12

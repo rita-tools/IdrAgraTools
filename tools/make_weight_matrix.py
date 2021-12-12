@@ -41,7 +41,7 @@ def makeWeightMatrix_WW(xmin, xmax, ymin, ymax, cellsize, xList, yList, idList, 
 		distDict[id] = makeDistanceArray(xmin, xmax, ymin, ymax, cellsize,x,y)
 		maxDist = max(maxDist,distDict[id].max()) # overall maximum
 	
-	# up to num max, find the closest escluding previously selected index
+	# up to num max, find the closest excluding previously selected index
 	for n in range(nMax):
 		iMatrix = makeIndexArray(xmin, xmax, ymin, ymax, cellsize,np.nan)
 		dMatrix = makeIndexArray(xmin, xmax, ymin, ymax, cellsize,maxDist)

@@ -296,15 +296,14 @@ class IdragraCreatePreHSGTable(QgsProcessingAlgorithm):
 		return minVal
 
 	def maxImpDepth(self,valueArray,depthArray,ksLim):
-		rankArray = np.arange(len(valueArray))
-		rankArray[valueArray>ksLim]=-1
-		resVal = np.amax(rankArray)
-		if resVal == -1:
+		rankArray = np.arange(len(valueArray)) # init a new array with ordered value, implicitly from the most superficial to the deepest
+		rankArray[valueArray>ksLim]=-1 # assign -1 where the layer is permeable more the ksLim
+		resVal = np.amax(rankArray) # get the maximum value
+		if resVal == -1: # the maximum value is -1
 			# all layers are permeable
-			resVal = np.amax(depthArray).item()
-		elif resVal == -1:
-			resVal = 0.0
+			resVal = np.amax(depthArray).item() # get the maximum layer depth
 		else:
+			# all other cases
 			resVal = depthArray[resVal].item()
 
 		return resVal
