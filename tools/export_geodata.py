@@ -42,10 +42,11 @@ from .write_pars_to_template import writeParsToTemplate
 
 class Exporter(QObject):
 
-	def __init__(self, parent=None,feedback = None,tr=None):
+	def __init__(self, parent=None, simdic=None, feedback = None,tr=None):
 		QObject.__init__(self, parent)
 		self.feedback = feedback
 		self.tr = tr
+		self.simdic = simdic
 		self.aGrid = None
 
 
@@ -212,7 +213,9 @@ class Exporter(QObject):
 			algResults = processing.run("idragratools:IdragraMakeSlope",
 						   {'DTM_LAY': dtm,
 							'EXTENT': extent,
-							'CELLSIZE': cellSize, 'OUTSLOPE_LAY': 'TEMPORARY_OUTPUT'},
+							'CELLSIZE': cellSize,
+							'LOWER_LIM': self.simdic['MINSLOPE'], 'UPPER_LIM': self.simdic['MAXSLOPE'],
+							'OUTSLOPE_LAY': 'TEMPORARY_OUTPUT'},
 							context=None, feedback=self.feedback, is_child_algorithm=False)
 
 			processing.run("idragratools:IdragraSaveAscii",
@@ -224,16 +227,26 @@ class Exporter(QObject):
 			self.feedback.reportError(self.tr('Slope will be set to zero for all the area'), False)
 			self.aGrid = GisGrid(progress=self.feedback)
 			self.aGrid.openASC(fileName)
-			self.aGrid = self.aGrid *0.0
+			self.aGrid = self.aGrid *0.0+self.simdic['MINSLOPE']
 			self.aGrid.saveAsASC(outputSlopeFile, 6, True)
 
 		# WATER TABLE DEPTHS
 		nOfWTdepths = 0
-		for var,waterTable in watertableDict.items():
-			if nOfWTdepths==0:
-				# make a general water table for the first year
-				self.feedback.pushInfo(self.tr('A base waterdepth map was set for the simulation period'))
-				wtdepthName = os.path.join(outPath, 'waterdepth.asc')  # remove month and day
+		if dtm:
+			for var,waterTable in watertableDict.items():
+				if nOfWTdepths==0:
+					# make a general water table for the first year
+					self.feedback.pushInfo(self.tr('A base waterdepth map was set for the simulation period'))
+					wtdepthName = os.path.join(outPath, 'waterdepth.asc')  # remove month and day
+					processing.run("idragratools:IdragraCalcWaterDepth", {'DTM': dtm,
+																		  'WATERTABLE': waterTable,
+																		  'EXTENT': extent,
+																		  'CELLSIZE': cellSize,
+																		  'OUTPUT': wtdepthName},
+								   context=None, feedback=self.feedback, is_child_algorithm=False
+								   )
+				nOfWTdepths+=1
+				wtdepthName = os.path.join(outPath,'waterdepth'+var[10:-4]+'.asc') # remove month and day
 				processing.run("idragratools:IdragraCalcWaterDepth", {'DTM': dtm,
 																	  'WATERTABLE': waterTable,
 																	  'EXTENT': extent,
@@ -241,18 +254,9 @@ class Exporter(QObject):
 																	  'OUTPUT': wtdepthName},
 							   context=None, feedback=self.feedback, is_child_algorithm=False
 							   )
-			nOfWTdepths+=1
-			wtdepthName = os.path.join(outPath,'waterdepth'+var[10:-4]+'.asc') # remove month and day
-			processing.run("idragratools:IdragraCalcWaterDepth", {'DTM': dtm,
-																  'WATERTABLE': waterTable,
-																  'EXTENT': extent,
-																  'CELLSIZE': cellSize,
-																  'OUTPUT': wtdepthName},
-						   context=None, feedback=self.feedback, is_child_algorithm=False
-						   )
 
 		if nOfWTdepths==0:
-			self.feedback.reportError(self.tr('No water depths were processed'),False)
+			self.feedback.reportError(self.tr('No water depths were processed. DTM or water table maps are missing.'),False)
 
 		# export rice params
 		writeParsToTemplate(outfile=os.path.join(outPath, 'rice_soilparam.txt'),

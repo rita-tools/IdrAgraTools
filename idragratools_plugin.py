@@ -257,7 +257,7 @@ class IdrAgraTools():
             'cp_ks': self.tr('Stress coefficient'),
             'cp_thickness_II_m': self.tr('2nd layer thickness (m)'),
             'cp_wat_table_depth_under_root_m': self.tr('Water table depth (m)'),
-            'cp_capflux_mm': self.tr('Capilar rise (mm)'),
+            'cp_capflux_mm': self.tr('Capillary rise (mm)'),
             'cp_perc2_mm': self.tr('2nd layer percolation (mm)'),
             'cp_theta2_mm': self.tr('2nd layer water content (mm)'),
             'cp_theta_old_mm': self.tr('Soil water content before (mm)'),
@@ -353,7 +353,7 @@ class IdrAgraTools():
                         '1':'Consumptions',
                         '2':'Field capacity needs satisfaction',
                         '3':'Fixed volumes',
-                        '4':'Scheduled irrigation'
+                        '4':'Scheduled irrigation [NOT AVAILABLE]'
                         }
 
         self.SIMDIC = {'DBFILE':'',
@@ -401,8 +401,9 @@ class IdrAgraTools():
                         'STARTOUTPUT':105,
                         'ENDOUTPUT': 273,
                         'STEPOUTPUT': 10,
-                        'MONTHOUTPUT':'F'
-
+                        'MONTHOUTPUT':'F',
+                        'MINSLOPE':0.1,
+                        'MAXSLOPE':1000
                        }
 
         self.PHENOVARS = {'CNvalue':self.tr('CN value'),
@@ -421,8 +422,10 @@ class IdrAgraTools():
 
         self.DBM = None
 
-        self.actionList = []
-        self.actionState = []
+        # force activation state for specific names
+        # None means always set as initialization
+        self.actionList = ['Advanced','Options']
+        self.actionState = [None,None]
 
         self.mainMenu = None
         self.iface.projectRead.connect(self.loadFromProject)
@@ -514,13 +517,13 @@ class IdrAgraTools():
                           lambda: self.runAsThread(self.computeNodeDischarge), False)
         self._addmenuitem(self.analysisMenu, 'GroupedStats', self.tr('Grouped statistics'),
                           self.makeGroupedStats, False)
-        self._addmenuitem(self.analysisMenu, 'ManageTimeSerie', self.tr('Explore time serie'), self.manageTimeSerie,
+        self._addmenuitem(self.analysisMenu, 'ManageTimeSerie', self.tr('Explore timeseries'), self.manageTimeSerie,
                           False)
 
         self.mainMenu.addMenu(self.analysisMenu)
 
-        self.advancedMenu = self._addmenu(self.mainMenu, 'Advanced', self.tr('Advanced'), False)
-        #self._addmenuitem(self.advancedMenu, 'Options', self.tr('Options'), self.setOptions,True)
+        self.advancedMenu = self._addmenu(self.mainMenu, 'Advanced', self.tr('Advanced'), True)
+        self._addmenuitem(self.advancedMenu, 'Options', self.tr('Options'), self.setOptions,True)
         #self._addmenuitem(self.advancedMenu, 'Test', self.tr('test'), self.test,
         #                  False)
 
@@ -542,10 +545,11 @@ class IdrAgraTools():
     def resetMenuItemState(self):
         if self.mainMenu:
             for action,activate in zip(self.actionList,self.actionState):
-                ACT = self.mainMenu.findChild(QAction, action)
-                if ACT: ACT.setEnabled(activate)
-                MENU = self.mainMenu.findChild(QMenu, action)
-                if MENU: MENU.setEnabled(activate)
+                if activate is not None:
+                    ACT = self.mainMenu.findChild(QAction, action)
+                    if ACT: ACT.setEnabled(activate)
+                    MENU = self.mainMenu.findChild(QMenu, action)
+                    if MENU: MENU.setEnabled(activate)
 
 
     def checkLayerToBeRemoved(self,layerIds):
@@ -563,11 +567,12 @@ class IdrAgraTools():
 
     def setMenuItemState(self):
         # activate function
-        for action in self.actionList:
-            ACT = self.mainMenu.findChild(QAction, action)
-            if ACT: ACT.setEnabled(not ACT.isEnabled())
-            MENU = self.mainMenu.findChild(QMenu, action)
-            if MENU: MENU.setEnabled(not MENU.isEnabled())
+        for action,activate in zip(self.actionList,self.actionState):
+            if activate is not None:
+                ACT = self.mainMenu.findChild(QAction, action)
+                if ACT: ACT.setEnabled(not ACT.isEnabled())
+                MENU = self.mainMenu.findChild(QMenu, action)
+                if MENU: MENU.setEnabled(not MENU.isEnabled())
 
     def unload(self):
         self.mainMenu.deleteLater()
@@ -579,8 +584,10 @@ class IdrAgraTools():
         #s.setValue('qgis/attributeTableView', self.TABLEPOLICY)
 
     def _addmenuitem(self, parent, name, text, function, activate=True):
-        self.actionList.append(name)
-        self.actionState.append(activate)
+        if name not in self.actionList:
+            self.actionList.append(name)
+            self.actionState.append(activate)
+
         action = QAction(parent)
         action.setObjectName(name)
         action.setIcon(QIcon(self.plugin_dir + '/icons/' + name + '.svg'))
@@ -608,8 +615,9 @@ class IdrAgraTools():
         return action
 
     def _addmenu(self, parent, name, text, activate=True):
-        self.actionList.append(name)
-        self.actionState.append(activate)
+        if name not in self.actionList:
+            self.actionList.append(name)
+            self.actionState.append(activate)
         menu = QMenu(parent)
         menu.setIcon(QIcon(self.plugin_dir + '/icons/' + name + '.svg'))
         menu.setObjectName(name)
@@ -662,6 +670,23 @@ class IdrAgraTools():
             s.setValue('crsId', str(self.CRS))
         else:
             self.CRS = int(s.value('crsId'))
+
+    def setOptions(self):
+        # show dialog to set options
+        from .forms.common_settings import CommonSettings
+        dlg = CommonSettings(self.iface)
+
+        result = dlg.exec_()
+        # See if OK was pressed
+        if result:
+            res = dlg.getData()
+            ### set executable path
+            s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+            s.setValue('idragraPath', res['idragraPath'])
+            s.setValue('cropcoeffPath', res['cropcoeffPath'])
+            s.setValue('MCRpath', res['MCRpath'])
+            s.setValue('MinGWPath', res['MinGWPath'])
+
 
     def extractDateTime(self, text, dateFormat='state_%d%m%y_%H%M.mat'):
         # filename is "state_080518_0000.mat"
@@ -738,10 +763,6 @@ class IdrAgraTools():
                                                         'LOAD_SAMPLE_PAR': bool(self.SIMDIC['LOAD_SAMPLE_PAR']),
                                                         'LOAD_SAMPLE_DATA': bool(self.SIMDIC['LOAD_SAMPLE_DATA'])},
                        context = None, feedback = progress, is_child_algorithm = False)
-
-
-
-
 
 
     def openDB(self, dbpath=None):
@@ -861,6 +882,9 @@ class IdrAgraTools():
         self.setupWeatherStationsLayer()
         self.setupCropTypesLayer()
         self.setupSoilUsesLayer()
+        self.setupLanduseMapLayer()
+        self.setupSoilMapLayer()
+        self.setupIrrigationMapLayer()
         self.setupIrrTypesLayer()
         self.setupIrrigationUnitLayer()
         self.setupControlPointLayer()
@@ -900,6 +924,22 @@ class IdrAgraTools():
         vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_soiluses'])
         for vlayer in vlayerList:
             self.setCustomForm(vlayer, 'soiluse_dialog')
+
+    def setupIrrigationMapLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_irrmap'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'irrigation_map_dialog')
+
+    def setupLanduseMapLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_usemap'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'landuse_dialog')
+
+    def setupSoilMapLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_soilmap'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'soil_map_dialog')
+
 
     def setupIrrTypesLayer(self):
         vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_irrmet_types'])
@@ -1442,6 +1482,8 @@ class IdrAgraTools():
             self.SIMDIC['ZEVALAY'] = res['zevalay']
             self.SIMDIC['ZTRANSLAY'] = res['ztranslay']
             self.SIMDIC['CAPILLARYFLAG'] = res['capRise']
+            self.SIMDIC['MINSLOPE'] = res['minSlope']
+            self.SIMDIC['MAXSLOPE'] = res['maxSlope']
             ### set irrigation variable
             self.SIMDIC['MODE'] = res['simMode']
             self.SIMDIC['STARTIRRSEASON'] = res['irrStart']
@@ -1452,15 +1494,9 @@ class IdrAgraTools():
             self.SIMDIC['ENDOUTPUT'] = res['outEndDate']
             self.SIMDIC['STEPOUTPUT'] = res['outStep']
 
+
             #print(self.SIMDIC)
             self.updatePars()
-
-            ### set executable path
-            s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
-            s.setValue('idragraPath', res['idragraPath'])
-            s.setValue('cropcoeffPath', res['cropcoeffPath'])
-            s.setValue('MCRpath', res['MCRpath'])
-            s.setValue('MinGWPath', res['MinGWPath'])
 
             if callback:
                 callback()
@@ -1655,8 +1691,8 @@ class IdrAgraTools():
 
 
         ext = returnExtent(self.SIMDIC['EXTENT'])
-        EXP = Exporter(parent = QgsProject.instance(), feedback=progress, tr=self.tr)
-        EXP.exportGeodata(self.DBM, path2Geodata, ext, self.SIMDIC['CELLSIZE'], dtmLay,
+        self.EXP = Exporter(parent = QgsProject.instance(), simdic = self.SIMDIC, feedback=progress, tr=self.tr)
+        self.EXP.exportGeodata(self.DBM, path2Geodata, ext, self.SIMDIC['CELLSIZE'], dtmLay,
                       wtLayDic, [self.SIMDIC['ZEVALAY'],self.SIMDIC['ZTRANSLAY']],
                       list(range(int(self.SIMDIC['STARTYEAR']),int(self.SIMDIC['ENDYEAR'])+1))
                       )
@@ -3031,8 +3067,9 @@ class IdrAgraTools():
                     self.SIMDIC[k]=v
 
         except Exception as e:
-            print('error loading settings: %s'%str(e))
-
+            self.showCriticalMessageBox(self.tr('Loading settings error'),
+                                        self.tr('An error occurred when loading %s'%proj.fileName()),
+                                        str(e))
 
         if os.path.isfile(dbpath):
             #if (value is not None):

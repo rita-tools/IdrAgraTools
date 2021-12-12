@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>757</width>
-    <height>422</height>
+    <height>570</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -36,7 +36,7 @@
     <item>
      <widget class="QToolBox" name="toolBox">
       <property name="currentIndex">
-       <number>0</number>
+       <number>3</number>
       </property>
       <widget class="QWidget" name="IRRIGATION_PG">
        <property name="geometry">
@@ -44,7 +44,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>143</height>
+         <height>171</height>
         </rect>
        </property>
        <attribute name="label">
@@ -84,8 +84,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>739</width>
-         <height>179</height>
+         <width>717</width>
+         <height>171</height>
         </rect>
        </property>
        <attribute name="label">
@@ -144,8 +144,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>722</width>
-         <height>181</height>
+         <width>717</width>
+         <height>319</height>
         </rect>
        </property>
        <attribute name="label">
@@ -186,8 +186,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>739</width>
-         <height>179</height>
+         <width>717</width>
+         <height>319</height>
         </rect>
        </property>
        <attribute name="label">
@@ -201,6 +201,44 @@
           </property>
          </widget>
         </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="TRANSLAY_LB">
+          <property name="text">
+           <string>Transpirative layer thickness (m)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QDoubleSpinBox" name="TRANSLAY_SB">
+          <property name="maximum">
+           <double>1000.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>0.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QCheckBox" name="CAPRISE_CB">
+          <property name="text">
+           <string>Simulate capillary rise</string>
+          </property>
+         </widget>
+        </item>
+        <item row="4" column="0">
+         <widget class="QLabel" name="MINSLOP_LB">
+          <property name="text">
+           <string>Minimum admissible slope (%)</string>
+          </property>
+         </widget>
+        </item>
+        <item row="6" column="0">
+         <widget class="QLabel" name="MAXSLOPE_LB">
+          <property name="text">
+           <string>Maximum admissible slope (%)</string>
+          </property>
+         </widget>
+        </item>
         <item row="0" column="1">
          <widget class="QDoubleSpinBox" name="EVALAY_SB">
           <property name="maximum">
@@ -211,15 +249,8 @@
           </property>
          </widget>
         </item>
-        <item row="1" column="0">
-         <widget class="QLabel" name="TRANSLAY_LB">
-          <property name="text">
-           <string>Transpirative layer thickness (m)</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QDoubleSpinBox" name="TRANSLAY_SB">
+        <item row="4" column="1">
+         <widget class="QDoubleSpinBox" name="MINSLOPE_SB">
           <property name="maximum">
            <double>1000.000000000000000</double>
           </property>
@@ -228,10 +259,13 @@
           </property>
          </widget>
         </item>
-        <item row="2" column="0">
-         <widget class="QCheckBox" name="CAPRISE_CB">
-          <property name="text">
-           <string>Simulate capillary rise</string>
+        <item row="6" column="1">
+         <widget class="QDoubleSpinBox" name="MAXSLOPE_SB">
+          <property name="maximum">
+           <double>1000.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>0.000000000000000</double>
           </property>
          </widget>
         </item>
@@ -242,8 +276,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>739</width>
-         <height>179</height>
+         <width>717</width>
+         <height>171</height>
         </rect>
        </property>
        <attribute name="label">
@@ -278,77 +312,14 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>739</width>
-         <height>179</height>
+         <width>717</width>
+         <height>171</height>
         </rect>
        </property>
        <attribute name="label">
         <string>Output</string>
        </attribute>
        <layout class="QFormLayout" name="formLayout_5"/>
-      </widget>
-      <widget class="QWidget" name="page_2">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>0</y>
-         <width>739</width>
-         <height>179</height>
-        </rect>
-       </property>
-       <attribute name="label">
-        <string>Executable</string>
-       </attribute>
-       <layout class="QFormLayout" name="formLayout_4">
-        <item row="0" column="0">
-         <widget class="QLabel" name="IDRAGRA_LB">
-          <property name="text">
-           <string>Path to IdrAgra exe</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QgsFileWidget" name="IDRAGRA_EXE"/>
-        </item>
-        <item row="1" column="0">
-         <widget class="QLabel" name="CROPCOEFF_LB">
-          <property name="text">
-           <string>Path to cropcoeff exe</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QgsFileWidget" name="CROPCOEFF_EXE"/>
-        </item>
-        <item row="2" column="0">
-         <widget class="QLabel" name="MATLAB_LB">
-          <property name="text">
-           <string>Matlab runtime folder</string>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="1">
-         <widget class="QgsFileWidget" name="MATLAB_FOLDER">
-          <property name="storageMode">
-           <enum>QgsFileWidget::GetDirectory</enum>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="0">
-         <widget class="QLabel" name="MINGW_LB">
-          <property name="text">
-           <string>MinGW folder</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="1">
-         <widget class="QgsFileWidget" name="MINGW_FOLDER">
-          <property name="storageMode">
-           <enum>QgsFileWidget::GetDirectory</enum>
-          </property>
-         </widget>
-        </item>
-       </layout>
       </widget>
      </widget>
     </item>

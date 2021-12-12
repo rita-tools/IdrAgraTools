@@ -183,6 +183,10 @@ class SetSimulationDialog(QMainWindow):
 		else:
 			self.CAPRISE_CB.setChecked(False)
 
+		# slope limits
+		self.MINSLOPE_SB.setValue(simSettings['MINSLOPE'])
+		self.MAXSLOPE_SB.setValue(simSettings['MAXSLOPE'])
+
 		### set irrigation variable
 		self.IRRSTART_TE.setValue(simSettings['STARTIRRSEASON'])
 		self.IRREND_TE.setValue(simSettings['ENDIRRSEASON'])
@@ -203,22 +207,6 @@ class SetSimulationDialog(QMainWindow):
 		self.STARTDATE_TE.setValue(simSettings['STARTOUTPUT'])
 		self.ENDDATE_TE.setValue(simSettings['ENDOUTPUT'])
 		self.STEPDATE_SB.setValue(simSettings['STEPOUTPUT'])
-
-		### set path to executable
-		s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
-		path2Idragra = s.value('idragraPath', '')
-		path2CropCoeff = s.value('cropcoeffPath', '')
-		MCRpath = s.value('MCRpath', '')
-		MinGWPath = s.value('MinGWPath', '')
-
-		self.IDRAGRA_EXE.setFilter('Executable (*.exe)')
-		self.CROPCOEFF_EXE.setFilter('Executable (*.exe)')
-
-		self.IDRAGRA_EXE.setFilePath(path2Idragra)
-		self.CROPCOEFF_EXE.setFilePath(path2CropCoeff)
-
-		self.MATLAB_FOLDER.setFilePath(MCRpath)
-		self.MINGW_FOLDER.setFilePath(MinGWPath)
 
 		self.FROM_CB.currentTextChanged.connect(self.updateLastYear)
 
@@ -287,6 +275,8 @@ class SetSimulationDialog(QMainWindow):
 		zevalay = self.EVALAY_SB.value()
 		ztranslay = self.TRANSLAY_SB.value()
 		capRise = ['F','T'][int(self.CAPRISE_CB.isChecked())]
+		minSlope = self.MINSLOPE_SB.value()
+		maxSlope = self.MAXSLOPE_SB.value()
 		### get irrigation variable
 		simMode = self.MODE_CB.currentIndex()
 		irrStart = self.IRRSTART_TE.value()
@@ -297,18 +287,9 @@ class SetSimulationDialog(QMainWindow):
 		outEndDate = self.ENDDATE_TE.value()
 		outStep = self.STEPDATE_SB.value()
 
-		### get executable path
-		idragraPath = self.IDRAGRA_EXE.filePath()
-		cropcoeffPath = self.CROPCOEFF_EXE.filePath()
-		MCRpath = self.MATLAB_FOLDER.filePath()
-		MinGWPath = self.MINGW_FOLDER.filePath()
-
-
 		return {'outfolder':outfolder,'simMode':simMode,'useyearlymaps':useYearlyMaps, 'from':fromYear, 'to':toYear,
 				'extent':dtmExtent, 'crs':crs, 'cellsize':cellsize,
-				'zevalay':zevalay,'ztranslay':ztranslay,'capRise':capRise,
+				'zevalay':zevalay,'ztranslay':ztranslay,'capRise':capRise,'minSlope':minSlope, 'maxSlope':maxSlope,
 				'irrStart':irrStart, 'irrEnd':irrEnd,
-				'outMonth':outMonth, 'outStartDate': outStartDate, 'outEndDate': outEndDate, 'outStep': outStep,
-				'idragraPath':idragraPath,'cropcoeffPath':cropcoeffPath,
-				'MCRpath':MCRpath, 'MinGWPath':MinGWPath
+				'outMonth':outMonth, 'outStartDate': outStartDate, 'outEndDate': outEndDate, 'outStep': outStep
 				}
