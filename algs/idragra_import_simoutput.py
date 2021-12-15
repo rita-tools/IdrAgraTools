@@ -120,7 +120,7 @@ class IdragraImportSimoutput(QgsProcessingAlgorithm):
 		Returns the translated algorithm name, which should be used for any
 		user-visible display of the algorithm name.
 		"""
-		return self.tr('Simulation results')
+		return self.tr('Import simulation results')
 
 	def group(self):
 		"""
@@ -162,7 +162,7 @@ class IdragraImportSimoutput(QgsProcessingAlgorithm):
 		
 	def icon(self):
 		self.alg_dir = os.path.dirname(__file__)
-		icon = QIcon(os.path.join(self.alg_dir, 'qwadis_tool.png'))
+		icon = QIcon(os.path.join(self.alg_dir, 'idragra_tool.png'))
 		return icon
 
 	def initAlgorithm(self, config=None):

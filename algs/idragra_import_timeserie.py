@@ -130,7 +130,7 @@ class IdragraImportTimeserie(QgsProcessingAlgorithm):
 		Returns the translated algorithm name, which should be used for any
 		user-visible display of the algorithm name.
 		"""
-		return self.tr('Import timeseries')
+		return self.tr('Import time series')
 
 	def group(self):
 		"""
