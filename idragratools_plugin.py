@@ -1446,8 +1446,10 @@ class IdrAgraTools():
         self.updatePars()
         self.exportIrrigationMethodsTH(progress)
         self.updatePars()
-        self.exportWaterSourcesDataTH(progress)
-        self.updatePars()
+        if self.SIMDIC['MODE'] == 1:
+            self.exportWaterSourcesDataTH(progress)
+            self.updatePars()
+
         self.exportSimProjTH(progress)
         self.execBatFile('run_cropcoef.bat',progress)
         self.execBatFile('run_idragra.bat',progress)
@@ -1835,9 +1837,10 @@ class IdrAgraTools():
                                 'Pheno_%s' % wsId, '%s.dat' % varId)
 
         # get date list
-        dateList = pd.date_range(datetime.strptime('%s0101' % yearList[0], '%Y%m%d'),
-                                 datetime.strptime('%s1231' % yearList[-1], '%Y%m%d'),
-                                 freq='d').tolist()
+        if len(yearList)>0:
+            dateList = pd.date_range(datetime.strptime('%s0101' % yearList[0], '%Y%m%d'),
+                                     datetime.strptime('%s1231' % yearList[-1], '%Y%m%d'),
+                                     freq='d').tolist()
 
         try:
             soiluseNames = self.DBM.getColumnValues(fieldName ='("[" || id || "] " || name) AS label' ,
