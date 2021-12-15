@@ -48,6 +48,7 @@ class Exporter(QObject):
 		self.tr = tr
 		self.simdic = simdic
 		self.aGrid = None
+		self.algResults = None # store temporary outputs
 
 
 	def exportGeodata(self,DBM,outPath, extent, cellSize, dtm, watertableDict, depthList,yearList,):
@@ -61,7 +62,7 @@ class Exporter(QObject):
 		laySource = DBM.DBName+ '|layername=idr_distrmap'
 		fieldName = 'id'
 
-		algResults = processing.run("idragratools:IdragraRasterizeMap",
+		self.algResults = processing.run("idragratools:IdragraRasterizeMap",
 								   {'VECTOR_LAY': laySource, 'VECTOR_FLD': fieldName,
 									'RASTER_EXT': extent,
 									'CELL_DIM': cellSize,
@@ -74,7 +75,7 @@ class Exporter(QObject):
 		fieldName = 'distr_eff'
 
 		self.feedback.setProgress(35.0)
-		algResults = processing.run("idragratools:IdragraRasterizeMap",
+		self.algResults = processing.run("idragratools:IdragraRasterizeMap",
 									{'VECTOR_LAY': laySource, 'VECTOR_FLD': fieldName,
 									 'RASTER_EXT': extent,
 									 'CELL_DIM': cellSize,
@@ -89,7 +90,7 @@ class Exporter(QObject):
 		soilMap = DBM.DBName + '|layername=idr_soilmap'
 		depths = ' '.join([str(x) for x in depthList])
 		# make aggregate soil params
-		algResults = processing.run("idragratools:IdragraSoilParams",
+		self.algResults = processing.run("idragratools:IdragraSoilParams",
 									{'SOURCE_TABLE':sourceTable,
 									 'SOILID_FLD':'soilid','MAXDEPTH_FLD':'maxdepth',
 									 'KSAT_FLD':'ksat',
@@ -98,8 +99,8 @@ class Exporter(QObject):
 									context=None, feedback=self.feedback, is_child_algorithm=False)
 
 		# export to maps
-		algResults =  processing.run("idragratools:IdragraRasterizeMaptable",
-									 {'TABLE_LAY': algResults['OUT_TABLE'],# export aggregate params maps by aritmetic mean ...
+		self.algResults =  processing.run("idragratools:IdragraRasterizeMaptable",
+									 {'TABLE_LAY': self.algResults['OUT_TABLE'],# export aggregate params maps by aritmetic mean ...
 									  'TABLE_FLD': 'soilid', 'VECTOR_LAY': soilMap,
 									  'VECTOR_FLD': 'extid', 'RASTER_LAY': None,
 									  'RASTER_EXT':extent,
@@ -107,7 +108,7 @@ class Exporter(QObject):
 									 context=None, feedback=self.feedback, is_child_algorithm=False)
 
 		# make capillary rise params maps
-		algResults = processing.run("idragratools:IdragraCreateCapriseTable",
+		self.algResults = processing.run("idragratools:IdragraCreateCapriseTable",
 					   {'SOURCE_TABLE': sourceTable,
 						'SOILID_FLD': 'soilid', 'MAXDEPTH_FLD': 'maxdepth',
 						'TXTR_FLD': 'txtr_code', 'DEPTHS': depths,
@@ -115,8 +116,8 @@ class Exporter(QObject):
 					   context=None, feedback=self.feedback, is_child_algorithm=False)
 
 		# export capillary rise params maps...
-		algResults = processing.run("idragratools:IdragraRasterizeMaptable", {
-			'TABLE_LAY': algResults['OUT_TABLE'],
+		self.algResults = processing.run("idragratools:IdragraRasterizeMaptable", {
+			'TABLE_LAY': self.algResults['OUT_TABLE'],
 			'TABLE_FLD': 'soilid', 'VECTOR_LAY': soilMap,
 			'VECTOR_FLD': 'extid', 'RASTER_LAY': None,
 			'RASTER_EXT': extent,
@@ -149,7 +150,7 @@ class Exporter(QObject):
 			waterTableFirst = waterTable
 			break
 
-		algResults = processing.run("idragratools:IdragraCreateHSGMap", {
+		self.algResults = processing.run("idragratools:IdragraCreateHSGMap", {
 									'SOURCE_TABLE': algResults1['OUT_TABLE'],
 									'SOILID_FLD': 'soilid', 'MAXDEPTH_FLD': 'maxsoildepth', 'MIN_KS50': 'minksat50', 'MIN_KS60': 'minksat60',
 									'MIN_KS100': 'minksat100', 'SOIL_MAP': algResults2['OUTPUT'],
@@ -210,7 +211,7 @@ class Exporter(QObject):
 		self.feedback.setProgress(90.0)
 		outputSlopeFile = os.path.join(outPath,'slope.asc')
 		if dtm:
-			algResults = processing.run("idragratools:IdragraMakeSlope",
+			self.algResults = processing.run("idragratools:IdragraMakeSlope",
 						   {'DTM_LAY': dtm,
 							'EXTENT': extent,
 							'CELLSIZE': cellSize,
@@ -219,12 +220,12 @@ class Exporter(QObject):
 							context=None, feedback=self.feedback, is_child_algorithm=False)
 
 			processing.run("idragratools:IdragraSaveAscii",
-						   {'INPUT':algResults['OUTSLOPE_LAY'], 'DIGITS': 6,
+						   {'INPUT':self.algResults['OUTSLOPE_LAY'], 'DIGITS': 6,
 							'OUTPUT': outputSlopeFile},
 						   context=None, feedback=self.feedback, is_child_algorithm=False)
 		else:
 			# make a zero raster
-			self.feedback.reportError(self.tr('Slope will be set to zero for all the area'), False)
+			self.feedback.reportError(self.tr('Slope will be set to %s for all the area'%str(self.simdic['MINSLOPE'])), False)
 			self.aGrid = GisGrid(progress=self.feedback)
 			self.aGrid.openASC(fileName)
 			self.aGrid = self.aGrid *0.0+self.simdic['MINSLOPE']
