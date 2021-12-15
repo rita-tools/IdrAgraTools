@@ -146,13 +146,20 @@ def formOpen(dialog,layerid,featureid):
 		print('error: %s'%str(e))
 
 def calcLat():
+	showCriticalMessageBox = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
+	tr = qgis.utils.plugins['IdragraTools'].tr
 	latTE = myDialog.findChild(QLineEdit,'lat')
 	fromCRS = QgsProject.instance().crs()
 	toCRS = QgsCoordinateReferenceSystem('EPSG:4326')
-	tr = QgsCoordinateTransform(fromCRS, toCRS, QgsProject.instance())
-	geom = feature.geometry()
-	geom.transform(tr)
-	latTE.setText(str(geom.asMultiPoint()[0].y()))
+	coordtr = QgsCoordinateTransform(fromCRS, toCRS, QgsProject.instance())
+	try:
+		geom = feature.geometry()
+		geom.transform(coordtr)
+		latTE.setText(str(geom.asMultiPoint()[0].y()))
+	except Exception as e:
+		showCriticalMessageBox(text=tr('Not supported'),
+							   infoText=tr('This function is not supported in table view'),
+							   detailText=str(e))
 
 def showEditDialog(wsId,name):
 	# make a dialog
@@ -359,13 +366,16 @@ def createArray(wsId,tableName = 'ws_ptot'):
 	return data2D,startYear,endYear
 
 def setEditMode(mode):
-	try:
-		for obj in objToBeEnabledList:
-			obj.setEnabled(mode)
-	except Exception as e:
-		print('error: %s'%str(e))
+	if feature:
+		try:
+			for obj in objToBeEnabledList:
+				obj.setEnabled(mode)
+		except Exception as e:
+			print('error: %s'%str(e))
 
 def getElevation():
+	showCriticalMessageBox = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
+	tr = qgis.utils.plugins['IdragraTools'].tr
 	# get raster layer
 	try:
 		rasteName = qgis.utils.plugins['IdragraTools'].SIMDIC['RASTER']['elevation']
@@ -375,13 +385,17 @@ def getElevation():
 
 	if rasterLay:
 		# if exists ok
-		pointGeom = feature.geometry()
-		pointGeom.convertToSingleType()
-		pointPoint = pointGeom.asPoint()
-		res = rasterLay.dataProvider().identify(pointPoint, QgsRaster.IdentifyFormatValue).results()
-		if len(res)>0:
-			altTE = myDialog.findChild(QLineEdit, 'alt')
-			altTE.setText(str(res[1]))
-
+		try:
+			pointGeom = feature.geometry()
+			pointGeom.convertToSingleType()
+			pointPoint = pointGeom.asPoint()
+			res = rasterLay.dataProvider().identify(pointPoint, QgsRaster.IdentifyFormatValue).results()
+			if len(res)>0:
+				altTE = myDialog.findChild(QLineEdit, 'alt')
+				altTE.setText(str(res[1]))
+		except Exception as e:
+			showCriticalMessageBox(text=tr('Not supported'),
+								   infoText=tr('This function is not supported in table view'),
+								   detailText=str(e))
 if __name__ == '__console__':
 	pass
