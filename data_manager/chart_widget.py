@@ -313,6 +313,8 @@ class ChartWidget(QWidget):
 			self.ax.get_xaxis().set_visible(showX)
 			self.figure.colorbar(self.pcm, ax=self.ax)
 
+	def addEmptyBox(self):
+		pass
 
 	def fixLayout(self):
 		self.figure.tight_layout()
