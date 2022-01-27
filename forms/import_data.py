@@ -49,6 +49,8 @@ from datetime import datetime
 # ~ uiFilePath = os.path.abspath(os.path.join(os.path.dirname(__file__), 'project_dialog.ui'))
 # ~ print('uiFilePath: %s'%uiFilePath)
 # ~ FormClass = uic.loadUiType(uiFilePath)[0]
+from ..tools.show_message import showCriticalMessageBox
+
 
 class ImportData(QDialog):
     closed = pyqtSignal()
@@ -97,8 +99,8 @@ class ImportData(QDialog):
 
     def setInputFile(self):
         res = QFileDialog.getOpenFileName(self, caption=self.tr('Import from:'), directory=self.s.value('lastPath'),
-                                          filter='Comma Separated file (*.csv)')
-        print(res)
+                                          filter='Comma Separated file (*.csv);;All files (*.*)')
+        #print(res)
         filePath = res[0]
         res = None
         if filePath != '':
@@ -153,7 +155,9 @@ class ImportData(QDialog):
                 i += 1
         except Exception as e:
             self.previewError = True
-            print('exception',str(e))
+            showCriticalMessageBox(self.tr('Something of wrong occurred when opening file:'),
+                                   filePath,
+                                   str(e))
 
         if self.previewError:
             self.MSG_LBL.setText(self.tr('Unable to correctly parse text file into table'))
@@ -198,3 +202,4 @@ class ImportData(QDialog):
         return {'selFile': selFile, 'timeFldIdx': timeFldIdx, 'valueFldIdx': valueFldIdx, 'sep': sep,
                 'timeFormat': timeFormat, 'skipLines': skipLines,'selVar':selVar, 'selSensor':selSensor,
                 'overWrite':overWrite, 'saveEdit':saveEdit}
+

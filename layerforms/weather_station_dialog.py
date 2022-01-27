@@ -40,6 +40,8 @@ from IdragraTools.layerforms.utils import *
 
 from IdragraTools.data_manager.chart_widget import ChartWidget
 
+from tools.show_message import showCriticalMessageBox
+
 
 def formOpen(dialog,layerid,featureid):
 	global myDialog
@@ -146,7 +148,6 @@ def formOpen(dialog,layerid,featureid):
 		print('error: %s'%str(e))
 
 def calcLat():
-	showCriticalMessageBox = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
 	tr = qgis.utils.plugins['IdragraTools'].tr
 	latTE = myDialog.findChild(QLineEdit,'lat')
 	fromCRS = QgsProject.instance().crs()
@@ -295,7 +296,6 @@ def plotSingleMeteoDistro(wsId,name,varIdx):
 
 def plotPheno(wsId,varIdx):
 	tr = qgis.utils.plugins['IdragraTools'].tr
-	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
 	PLOT_PHENO_VARS_CB.setCurrentIndex(0)
 	# make a dialog
 	varIdx = varIdx-1 # delete first
@@ -309,7 +309,7 @@ def plotPheno(wsId,varIdx):
 	varId = list(phenovars.keys())[varIdx]
 	phenos,msg = qgis.utils.plugins['IdragraTools'].readCropCoefReasults(varId,wsId)
 	if phenos is None:
-		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if the file exists and it is correctly formatted'),msg)
+		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if the file exists and it is correctly formatted'),msg)
 		return
 
 	# make a plot
@@ -374,14 +374,16 @@ def setEditMode(mode):
 			print('error: %s'%str(e))
 
 def getElevation():
-	showCriticalMessageBox = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
 	tr = qgis.utils.plugins['IdragraTools'].tr
 	# get raster layer
 	try:
 		rasteName = qgis.utils.plugins['IdragraTools'].SIMDIC['RASTER']['elevation']
 		rasterLay = QgsRasterLayer(rasteName,'dtm')
-	except:
+	except Exception as e:
 		rasterLay = None
+		showCriticalMessageBox(text=tr('DTM map not found'),
+							   infoText=tr('This function needs a valid DTM map loaded in the IdrAgraTools project'),
+							   detailText=str(e))
 
 	if rasterLay:
 		# if exists ok

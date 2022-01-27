@@ -32,6 +32,8 @@ from PyQt5.QtWidgets import QPushButton, QLineEdit, QDialog, QMainWindow, QLabel
 
 from data_manager.chart_widget import ChartWidget
 
+from tools.show_message import showInfoMessageBox,showCriticalMessageBox
+
 
 def formOpen(dialog,layerid,featureid):
 	global myDialog
@@ -88,9 +90,8 @@ def plotEvaWC(wsId,name):
 	r,c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
 	df, msg =  qgis.utils.plugins['IdragraTools'].readControlPointsResults(r,c,None,['Giulian_day','theta1_mm'])
 
-	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
 	if df is None:
-		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
 		return
 
 	pars, msgPars =  qgis.utils.plugins['IdragraTools'].readControlPointsParams(r, c, [],['ThetaI_fc','ThetaI_wp'])
@@ -126,9 +127,8 @@ def plotTransWC(wsId,name):
 	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c, None, ['Giulian_day', 'theta2_mm','thickness_II_m'])
 	pars, msgPars = qgis.utils.plugins['IdragraTools'].readControlPointsParams(r, c, [], ['ThetaII_fc', 'ThetaII_wp'])
 
-	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
 	if df is None:
-		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
 		return
 
 	cw = ChartWidget(myDialog, '', False, False)
@@ -161,9 +161,8 @@ def plotEvaVars(wsId,name):
 																		  None, ['Giulian_day', 'rain_mm','irrig_mm','theta1_mm','interception_mm',
 																				 'runoff_mm','eva_mm','perc1_mm'])
 
-	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
 	if df is None:
-		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
 		return
 
 	# make a dialog
@@ -244,9 +243,8 @@ def plotTransVars(wsId,name):
 																		  None, ['Giulian_day', 'perc1_mm', 'capflux_mm',
 																				 'theta2_mm', 'trasp_act_mm',
 																				 'perc2_mm'])
-	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
 	if df is None:
-		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
 		return
 
 	# make a dialog
@@ -325,9 +323,8 @@ def plotCropVars(wsId,name):
 	r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
 	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
 																		  None, ['Giulian_day', 'kcb', 'lai'])
-	reportMsg = qgis.utils.plugins['IdragraTools'].showCriticalMessageBox
 	if df is None:
-		reportMsg(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
 		return
 
 	# make a dialog
