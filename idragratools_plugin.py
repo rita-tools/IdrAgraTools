@@ -46,6 +46,7 @@ from PyQt5 import QtSql
 from PyQt5.QtXml import QDomDocument
 from qgis import processing
 
+from .tools.show_message import showInfoMessageBox, showCriticalMessageBox
 from .tools.network_analyst import NetworkAnalyst
 from .tools.check_matlab_installed import checkMatlabInstalled
 from .data_manager.chart_widget import ChartWidget
@@ -436,7 +437,7 @@ class IdrAgraTools():
         #    self.loadFromProject()
 
     def printSome(self):
-        self.showCriticalMessageBox(self.tr('Not implemented yet'),
+        showCriticalMessageBox(self.tr('Not implemented yet'),
                                     self.tr('This function is not implemented, I\'m sorry :('),
                                     self.tr('Really so sorry ...'))
 
@@ -560,7 +561,7 @@ class IdrAgraTools():
 
             for name,path in self.SIMDIC['RASTERMAP'].items():
                 if laySource == path.replace('\\','/'):
-                    self.showInfoMessageBox(
+                    showInfoMessageBox(
                         self.tr('The selected file is used as %s map and will be removed')%name,
                         self.tr('TODO: It may not effect the process...'))
                     #self.deleteRaster(name)
@@ -630,25 +631,6 @@ class IdrAgraTools():
             if action.objectName() == name:
                 return action
 
-    def showCriticalMessageBox(self, text, infoText, detailText):
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Critical)
-        msg.setText(text)
-        msg.setInformativeText(infoText)
-        msg.setWindowTitle('IdrAgraTools')
-        msg.setDetailedText(detailText)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
-
-    def showInfoMessageBox(self, text, infoText):
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Information)
-        msg.setText(text)
-        msg.setInformativeText(infoText)
-        msg.setWindowTitle('IdrAgraTools')
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec_()
-
     def tr(self, source_text):
         return QgsApplication.translate('IdrAgraTools', source_text)
 
@@ -702,7 +684,7 @@ class IdrAgraTools():
         #print('crs',crs.postgisSrid())
         if filename == '':
             # ask to save the project first
-            self.showCriticalMessageBox(self.tr("Please save the project first"),
+            showCriticalMessageBox(self.tr("Please save the project first"),
                                         self.tr("Before continue you have to save the project"),
                                         self.tr("Go to Project --> Save "))
         else:
@@ -1606,7 +1588,7 @@ class IdrAgraTools():
         if self.SIMDIC['MODE']==1:
             self.runAsThread(function = self.exportWaterSourcesDataTH, onFinished = self.updatePars)
         else:
-            self.showCriticalMessageBox(self.tr('Water sources are not required by simulation mode'),'','')
+            showCriticalMessageBox(self.tr('Water sources are not required by simulation mode'),'','')
 
     def exportWaterSourcesDataTH(self, progress):
         progress.setText(self.tr('Export water sources'))
@@ -1917,7 +1899,7 @@ class IdrAgraTools():
                     finalDF = finalDF.append(df)
 
             except Exception as e:
-                msg += str(e)+'\n'
+                msg += str(e) + '\n'
 
         return finalDF,msg
 
@@ -2464,6 +2446,7 @@ class IdrAgraTools():
         tsList = []
         valList = []
         # open CSV file
+        print("importDataFromCSV")
         try:
             with open(filename, "r") as in_file:
                 i = 0
@@ -2597,7 +2580,7 @@ class IdrAgraTools():
         self.progressDlg.setText(self.tr('** Process stopped before finished! **'), 'red')
         self.threadIsConcludedWithError = True
         if not self.threadIsConcluded:
-            self.showCriticalMessageBox(self.tr('Process stopped before finished'),
+            showCriticalMessageBox(self.tr('Process stopped before finished'),
                                         self.tr('Output may not be completed'),
                                         self.tr('Consider to repeat the process.'))
 
@@ -2647,7 +2630,7 @@ class IdrAgraTools():
         # print('thread end')
 
         # except Exception as e:
-        # self.showCriticalMessageBox('mobidiQ',self.tr("An error occurred! See details."),self.tr("Error message: %s")%(str(e)))
+        # showCriticalMessageBox('mobidiQ',self.tr("An error occurred! See details."),self.tr("Error message: %s")%(str(e)))
         # finally:
         # return True
         return self.worker.getFlag()
@@ -2937,7 +2920,7 @@ class IdrAgraTools():
                 self.DBM.stopConnection()
 
             if msg != '':
-                self.showCriticalMessageBox(text=self.tr('Critical error'),
+                showCriticalMessageBox(text=self.tr('Critical error'),
                                             infoText=self.tr('Cannot performe function'), detailText=msg)
                 return
             # update tempLayer
@@ -3070,19 +3053,21 @@ class IdrAgraTools():
                     self.SIMDIC[k]=v
 
         except Exception as e:
-            self.showCriticalMessageBox(self.tr('Loading settings error'),
-                                        self.tr('An error occurred when loading %s'%proj.fileName()),
-                                        str(e))
+            if dbpath != '': # set silent if dbpath is not set
+                showCriticalMessageBox(self.tr('Loading settings error'),
+                                            self.tr('An error occurred when loading %s'%proj.fileName()),
+                                            str(e))
 
         if os.path.isfile(dbpath):
             #if (value is not None):
             self.openDB(dbpath=dbpath)
         else:
-            # ask for new dbpath
-            dbpath = QFileDialog.getOpenFileName(None, self.tr('Open idragra database'), self.s.value('lastPath'),
-                                                 self.tr('Geopackage file (*.gpkg)'))
-            dbpath = dbpath[0]
-            if os.path.isfile(dbpath): self.openDB(dbpath=dbpath)
+            if dbpath != '':
+                # ask for new dbpath
+                dbpath = QFileDialog.getOpenFileName(None, self.tr('Open idragra database'), self.s.value('lastPath'),
+                                                     self.tr('Geopackage file (*.gpkg)'))
+                dbpath = dbpath[0]
+                if os.path.isfile(dbpath): self.openDB(dbpath=dbpath)
 
     def setRaster(self,tableName,layName, layGroup, assignTime=False):
 
@@ -3164,7 +3149,7 @@ class IdrAgraTools():
                 proj.addMapLayer(rlayer, False)
                 mygroup.insertChildNode(groupIndex, QgsLayerTreeLayer(rlayer))
         else:
-            self.showCriticalMessageBox(self.tr('Loading error'),
+            showCriticalMessageBox(self.tr('Loading error'),
                                         self.tr('Unable to load %s')%rasterPath,
                                         self.tr('The selected layer seems broken or not exist'))
 
