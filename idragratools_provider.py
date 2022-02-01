@@ -34,6 +34,7 @@ from qgis.core import QgsProcessingProvider
 
 from PyQt5.QtGui import QIcon
 
+from .algs.idragra_import_crop_par import IdragraImportCropPar
 from .algs.idragra_bulk_import_timeserie import IdragraBulkImportTimeserie
 from .algs.idragra_statserie import IdragraStatserie
 from .algs.idragra_export_control_points import IdragraExportControlPoints
@@ -86,7 +87,8 @@ class IdrAgraToolsProvider(QgsProcessingProvider):
 						IdragraCalcWaterDepth(),
 						IdragraExportControlPoints(),
 						IdragraStatserie(),
-						IdragraBulkImportTimeserie()
+						IdragraBulkImportTimeserie(),
+						IdragraImportCropPar()
 						]
 
 	def unload(self):

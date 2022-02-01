@@ -28,14 +28,27 @@ __copyright__ = '(C) 2020 by Enrico A. Chiaradia'
 
 __revision__ = '$Format:%H$'
 
+from qgis._core import QgsVectorDataProvider
+
+def all_encodings():
+	return QgsVectorDataProvider.availableEncodings()
+
 def parseParFile(filename,parSep = '=', colSep=' ', feedback = None,tr=None):
 	#~ if not feedback: feedback=MyProgress()
 	#~ if not tr: tr=translate
 	#if feedback: feedback.pushInfo('in parseParFile, processing: %s'%filename)
 	#print('in parseParFile, processing: %s'%filename)
 	lines=[]
-	with open(filename)as f:
-		lines = f.readlines()
+
+	encodings = all_encodings()
+	for enc in encodings:
+		feedback.pushInfo(tr('INFO: try with codec %s' % str(enc)))
+		try:
+			with open(filename, encoding=enc) as f:
+				lines = f.readlines()
+				break
+		except Exception:
+			pass
 
 	parDict = {}
 	tableList = []
