@@ -38,6 +38,7 @@ from .compact_dataset import save2idragra
 from .gis_grid import GisGrid
 from .utils import returnExtent
 from .write_pars_to_template import writeParsToTemplate
+from datetime import date
 
 
 class Exporter(QObject):
@@ -247,7 +248,15 @@ class Exporter(QObject):
 								   context=None, feedback=self.feedback, is_child_algorithm=False
 								   )
 				nOfWTdepths+=1
-				wtdepthName = os.path.join(outPath,'waterdepth'+var[10:-4]+'.asc') # remove month and day
+				# get year and number of days from the 1st of January
+				year = int(var[10:-4])
+				month = int(var[14:-2])
+				day = int(var[16:])
+				delta =  date(year, month, day) - date(year, 1, 1)
+				nOfDays = delta.days
+
+				#wtdepthName = os.path.join(outPath,'waterdepth'+var[10:-4]+'.asc') # remove month and day
+				wtdepthName = os.path.join(outPath, 'waterdepth' + str(year)+'_'+ str(nOfDays) + '.asc')  # set year and num of days from the beginning
 				processing.run("idragratools:IdragraCalcWaterDepth", {'DTM': dtm,
 																	  'WATERTABLE': waterTable,
 																	  'EXTENT': extent,
