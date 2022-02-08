@@ -32,6 +32,20 @@ import numpy as np
 
 def makeWeightMatrix_WW(xmin, xmax, ymin, ymax, cellsize, xList, yList, idList, nMax, feedback = None,tr=None):
 	res = []
+
+	# FIX special case: single weather station
+	if len(idList)==1:
+		uniqueW = float(idList[0]) + 0.999
+		if nMax >1:
+			uniqueW = float(idList[0])+1.0 / nMax
+
+		for n in range(nMax):
+			res.append(makeIndexArray(xmin, xmax, ymin, ymax, cellsize,uniqueW))
+
+		# exit and return res
+		return res
+
+
 	iMatrixList = []
 	dMatrixList = []
 	distDict = {}
@@ -165,5 +179,15 @@ def makeIndexArray(xmin, xmax, ymin, ymax, cellsize,id):
 	nCols = len(xRange)
 	nRows = len(yRange)
 	
-	res = np.ones((nRows,nCols))*id
+	res = np.ones((nRows,nCols),type(id))*id
+	return res
+
+def makeUniformWeightMatrix(xmin, xmax, ymin, ymax, cellsize,id,weight=0.999):
+	# use normalized coordinates
+	xRange = np.arange(xmin + 0.5 * cellsize, xmax, cellsize) - xmax
+	yRange = np.arange(ymin + 0.5 * cellsize, ymax, cellsize) - ymin
+	nCols = len(xRange)
+	nRows = len(yRange)
+
+	res = np.ones((nRows, nCols),float) * id +weight
 	return res
