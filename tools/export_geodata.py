@@ -50,7 +50,8 @@ class Exporter(QObject):
 		self.simdic = simdic
 		self.aGrid = None
 		self.algResults = None # store temporary outputs
-
+		self.algResults1 = None  # store temporary outputs
+		self.algResults2 = None  # store temporary outputs
 
 	def exportGeodata(self,DBM,outPath, extent, cellSize, dtm, watertableDict, depthList,yearList,):
 		yearList = [str(x) for x in yearList] # make a list of strings
@@ -129,13 +130,13 @@ class Exporter(QObject):
 		self.feedback.pushInfo(self.tr('Exporting HSG map'))
 		self.feedback.setProgress(70.0)
 
-		algResults1 = processing.run("idragratools:IdragraCreatePreHSGTable",
+		self.algResults1 = processing.run("idragratools:IdragraCreatePreHSGTable",
 								   {'SOURCE_TABLE': sourceTable,
 									'SOILID_FLD': 'soilid', 'MAXDEPTH_FLD': 'maxdepth', 'KSAT_FLD': 'ksat',
 									'OUT_TABLE': 'TEMPORARY_OUTPUT'},
 									context=None, feedback=self.feedback, is_child_algorithm=False)
 
-		algResults2 = processing.run("gdal:rasterize",
+		self.algResults2 = processing.run("gdal:rasterize",
 									{'INPUT': soilMap, 'FIELD': 'extid', 'BURN': 0,
 									 'UNITS': 1, 'WIDTH': cellSize, 'HEIGHT': cellSize,
 									 'EXTENT': extent,
@@ -152,9 +153,9 @@ class Exporter(QObject):
 			break
 
 		self.algResults = processing.run("idragratools:IdragraCreateHSGMap", {
-									'SOURCE_TABLE': algResults1['OUT_TABLE'],
+									'SOURCE_TABLE': self.algResults1['OUT_TABLE'],
 									'SOILID_FLD': 'soilid', 'MAXDEPTH_FLD': 'maxsoildepth', 'MIN_KS50': 'minksat50', 'MIN_KS60': 'minksat60',
-									'MIN_KS100': 'minksat100', 'SOIL_MAP': algResults2['OUTPUT'],
+									'MIN_KS100': 'minksat100', 'SOIL_MAP': self.algResults2['OUTPUT'],
 									'ELEVATION': dtm,
 									'WATERTABLE': waterTableFirst, 'OUTPUT': fileName},
 									context=None, feedback=self.feedback, is_child_algorithm=False)
