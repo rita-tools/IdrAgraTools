@@ -249,9 +249,9 @@ class Exporter(QObject):
 								   )
 				nOfWTdepths+=1
 				# get year and number of days from the 1st of January
-				year = int(var[10:-4])
-				month = int(var[14:-2])
-				day = int(var[16:])
+				year = int(var[11:-4])
+				month = int(var[15:-2])
+				day = int(var[17:])
 				delta =  date(year, month, day) - date(year, 1, 1)
 				nOfDays = delta.days
 
