@@ -77,7 +77,7 @@ def makeWeightMatrix_WW(xmin, xmax, ymin, ymax, cellsize, xList, yList, idList, 
 		feedback.setProgress(100*n/nMax)
 			
 	# sum all distance-based weight
-	sMatrix = makeIndexArray(xmin, xmax, ymin, ymax, cellsize,0)
+	sMatrix = makeIndexArray(xmin, xmax, ymin, ymax, cellsize,0.0)
 	for dMatrix in dMatrixList:
 		sMatrix+=1.0/dMatrix
 		
