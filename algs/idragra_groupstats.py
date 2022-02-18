@@ -353,7 +353,7 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 			self.FEEDBACK.setProgress(100.0*i/nOfFiles)
 
 		return {'OUTPUT_TABLE':dest_id}
-
+	# TODO: step is calculate from the first day of the year or the irrigation period?
 	def stepToDate(self, year, step, periodStart, periodDelta):
 		# calculate the day of the year for the selected periodù
 		selDate = datetime(year, 1, 1)+timedelta(periodStart-1+step*periodDelta-1)# added -1 to clear starting point

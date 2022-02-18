@@ -204,6 +204,9 @@ class IdragraRasterizeMaptable(QgsProcessingAlgorithm):
 		Here is where the processing itself takes place.
 		"""
 		self.FEEDBACK = feedback
+		# store output here:
+		self.algresult1 = None
+		self.algresult2 = None
 		# get params
 		tableLay = self.parameterAsVectorLayer(parameters, self.TABLELAY, context)
 		tableFld = self.parameterAsFields(parameters, self.TABLEFLD, context)[0]
@@ -243,7 +246,7 @@ class IdragraRasterizeMaptable(QgsProcessingAlgorithm):
 		## 'ncols': ncols, 'nrows':nrows, 'ncells':ncells, 'proj':proj, 'xllcorner':xll, 'yllcorner':yll, 'dx':dx, 'dy':dy, 'cellsize':dx, 'nodata':-9999.0
 
 		# join vector with table first
-		algresult = processing.run("qgis:joinattributestable",
+		self.algresult = processing.run("qgis:joinattributestable",
 				{ 'DISCARD_NONMATCHING' : True,
 					'FIELD' : vectorFld,
 					'FIELDS_TO_COPY' : [],
@@ -255,17 +258,16 @@ class IdragraRasterizeMaptable(QgsProcessingAlgorithm):
 					'PREFIX' : '' },
 				context=context, feedback=feedback, is_child_algorithm=True)
 
-		joinedLay = algresult['OUTPUT']
+		#joinedLay = self.algresult['OUTPUT']
 
 		# rasterize each field in joined layer
 		c =0
 
 		for fldName, fldType in zip(fldNameList,fldTypeList):
 			feedback.pushInfo(self.tr('Exporting field %s'%fldName))
-			outPath = os.path.join(destFolder, fldName + '.asc')
 			# rasterize
-			algresult2 = processing.run("gdal:rasterize",
-							{'INPUT':joinedLay,
+			self.algresult2 = processing.run("gdal:rasterize",
+							{'INPUT':self.algresult['OUTPUT'],
 								'FIELD':fldName,
 								'BURN':0,
 								'UNITS':1,
@@ -281,7 +283,6 @@ class IdragraRasterizeMaptable(QgsProcessingAlgorithm):
 								'OUTPUT':'TEMPORARY_OUTPUT'},
 							context=context, feedback=feedback, is_child_algorithm=True)
 
-			newRasterLay = algresult2['OUTPUT']
 			outPath = os.path.join(destFolder,fldName+'.asc')
 			# convert to ascii
 			# algresult3 = processing.run("gdal:translate",
@@ -294,8 +295,9 @@ class IdragraRasterizeMaptable(QgsProcessingAlgorithm):
 			# 									'DATA_TYPE':0,
 			# 									'OUTPUT':outPath},
 			# 				context=context, feedback=feedback, is_child_algorithm=True)
+			feedback.pushInfo(self.tr('Saving to file %s' % outPath))
 			processing.run("idragratools:IdragraSaveAscii",
-						   {'INPUT': newRasterLay, 'DIGITS': 6,
+						   {'INPUT': self.algresult2['OUTPUT'], 'DIGITS': 6,
 							'OUTPUT': outPath},
 						   context=None, feedback=feedback, is_child_algorithm=False)
 

@@ -183,6 +183,8 @@ class IdragraSaveAscii(QgsProcessingAlgorithm):
 		Here is where the processing itself takes place.
 		"""
 		self.FEEDBACK = feedback
+
+		self.lyr = None
 		# get params
 
 		inputLay = self.parameterAsRasterLayer(parameters, self.INPUT, context)
@@ -298,18 +300,22 @@ class IdragraSaveAscii(QgsProcessingAlgorithm):
 			self.FEEDBACK.error(self.tr('Cannot save to %s because %s') % (filename, str(e)))
 
 	def convertRasterToNumpyArray(self,lyrFile):  # Input: QgsRasterLayer
-		lyr = QgsRasterLayer(lyrFile, 'temp')
+		#self.FEEDBACK.pushInfo(self.tr('In convertRasterToNumpyArray, start %s') % (lyrFile))
+		self.lyr = QgsRasterLayer(lyrFile, 'temp')
 		values = []
-		provider = lyr.dataProvider()
+		provider = self.lyr.dataProvider()
 		nodata = provider.sourceNoDataValue (1)
-		block = provider.block(1, lyr.extent(), lyr.width(), lyr.height())
+		block = provider.block(1, self.lyr.extent(), self.lyr.width(), self.lyr.height())
 
-		for i in range(lyr.height()):
-			for j in range(lyr.width()):
+		#self.FEEDBACK.pushInfo(self.tr('In convertRasterToNumpyArray, middle'))
+
+		for i in range(self.lyr.height()):
+			for j in range(self.lyr.width()):
 				values.append(block.value(i, j))
 
 		a = np.array(values)
-		#print('shape of %s: %s, %s'%(lyrFile,lyr.height(),lyr.width()))
-		a = np.reshape(a,(lyr.height(),lyr.width()))
+		#print('shape of %s: %s, %s'%(lyrFile,self.lyr.height(),self.lyr.width()))
+		a = np.reshape(a,(self.lyr.height(),self.lyr.width()))
 		a[a==nodata]= np.nan
+		#self.FEEDBACK.pushInfo(self.tr('In convertRasterToNumpyArray, end'))
 		return a
