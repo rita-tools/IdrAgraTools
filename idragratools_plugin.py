@@ -183,7 +183,7 @@ class IdrAgraTools():
                         'ws_tmin': self.tr('Min temp. (°C)'), 'ws_tmax': self.tr('Max temp.(°C)'),
                         'ws_ptot': self.tr('Precipitation (mm)'),
                         'ws_umin': self.tr('Min air humidity (-)'), 'ws_umax': self.tr('Max air humidity (-)'),
-                        'ws_vmed': self.tr('Wind velocity (m/s)'), 'ws_rgcorr': self.tr('Solar radiation (J/m2)'),
+                        'ws_vmed': self.tr('Wind velocity (m/s)'), 'ws_rgcorr': self.tr('Solar radiation (MJ/m^2)'),
                         'ws_co2':self.tr('CO2 concentration (p.p.m.)')
                         }
 
@@ -228,7 +228,7 @@ class IdrAgraTools():
         self.METEONAME = {'ws_tmin': self.tr('Min temp. (°C)'), 'ws_tmax': self.tr('Max temp.(°C)'),
                           'ws_ptot': self.tr('Precipitation (mm)'),
                           'ws_umin': self.tr('Min air humidity (-)'), 'ws_umax': self.tr('Max air humidity (-)'),
-                          'ws_vmed': self.tr('Wind velocity (m/s)'), 'ws_rgcorr': self.tr('Solar radiation (J/m2)'),
+                          'ws_vmed': self.tr('Wind velocity (m/s)'), 'ws_rgcorr': self.tr('Solar radiation (MJ/m^2)'),
                           'ws_co2':self.tr('CO2 concentration (p.p.m.)')}
 
         self.WELLNAME = {'well_watertable': self.tr('Water table (m)')}
