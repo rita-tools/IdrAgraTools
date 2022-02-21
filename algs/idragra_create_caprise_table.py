@@ -302,13 +302,14 @@ class IdragraCreateCapriseTable(QgsProcessingAlgorithm):
 		# apply selected aggregation function
 		c = 0
 		for i in uniqueSoilIds:
+			self.FEEDBACK.pushInfo(self.tr('Processing soil id: %s' % (str(i))))
 			feat = QgsFeature(fldList)
 			feat[soilidFld] = i
 			selData = data[np.where(data[:, 0] == i), :][0]
-			# print('i',i,'selData',selData)
+			#print('i',i,'selData',selData)
 			# sort array by depths
 			selData = selData[np.argsort(selData[:, 1])]
-			# print('i', i, 'sorted selData', selData)
+			#print('i', i, 'sorted selData', selData)
 
 
 			# apply the function
@@ -339,11 +340,18 @@ class IdragraCreateCapriseTable(QgsProcessingAlgorithm):
 		depthArray[diff2<0] = maxLim
 		weigthArray = depthArray[1:]-depthArray[:-1]
 		# apply aggregated function
+		#print('valueArray',valueArray)
+		#print('weigthArray',weigthArray)
 		meanVal = aggrFun(valueArray,weigthArray)
 		# return python type value
 		return round(meanVal.item(),6)
 
 	def mainValue(self,valueArray,weigthArray):
 		rankArray = np.arange(len(valueArray))
-		meanIdx = round(sum(weigthArray * rankArray)/sum(weigthArray))
+		meanIdx = np.max(rankArray)
+		if (sum(weigthArray)>0):
+			meanIdx = round(sum(weigthArray * rankArray)/sum(weigthArray))
+		else:
+			self.FEEDBACK.reportError(self.tr('Unable to find the main value, the deeper layer will be used as reference.'),False)
+
 		return valueArray[meanIdx]
