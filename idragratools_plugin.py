@@ -1428,7 +1428,7 @@ class IdrAgraTools():
         self.updatePars()
         self.exportIrrigationMethodsTH(progress)
         self.updatePars()
-        if self.SIMDIC['MODE'] == 1:
+        if (self.SIMDIC['MODE'] in [1,'1']):
             self.exportWaterSourcesDataTH(progress)
             self.updatePars()
 
@@ -1585,7 +1585,7 @@ class IdrAgraTools():
         progress.setPercentage(100.)
 
     def exportWaterSourcesData(self, progress):
-        if self.SIMDIC['MODE']==1:
+        if str(self.SIMDIC['MODE'])=='1':
             self.runAsThread(function = self.exportWaterSourcesDataTH, onFinished = self.updatePars)
         else:
             showCriticalMessageBox(self.tr('Water sources are not required by simulation mode'),'','')
@@ -2122,7 +2122,7 @@ class IdrAgraTools():
         # calculate irrigation district areas
         areaTable = self.calculateDistrictArea(progress)
 
-        if self.SIMDIC['MODE'] == 1:
+        if (self.SIMDIC['MODE'] in [1,'1']):
             # get consume table
             irrFromDiversionDF = self.getDischargeFromCSV(yearList, '%s_Qirr.csv',progress,replaceFieldTableIN)
             irrFromPrivateDF = self.getDischargeFromCSV(yearList, '%s_Qprivate.csv', progress,replaceFieldTableIN)
@@ -3276,7 +3276,7 @@ class IdrAgraTools():
         weatStatList = self.DBM.getUniqueValues('fid','idr_weather_stations')
         watSourceWithData = self.DBM.getUniqueValues('wsid','node_act_disc')
         watSourceList = []
-        if self.SIMDIC['MODE'] ==1:
+        if (self.SIMDIC['MODE']  in [1,'1']):
             tempList = self.DBM.getUniqueValues('inlet_node','idr_distrmap')
 
             for watSource in tempList:
