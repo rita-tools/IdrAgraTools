@@ -304,6 +304,7 @@ class Exporter(QObject):
 
 
 		# weather weight maps, mandatory after the domain map!
+		# TODO: max_num is always 5
 		self.feedback.setText(self.tr('Export weight maps'))
 		wsLaySource = DBM.DBName + '|layername=idr_weather_stations'
 		processing.run("idragratools:IdragraExportWeights",
