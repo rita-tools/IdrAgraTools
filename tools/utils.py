@@ -43,3 +43,10 @@ def returnExtent(extStr):
         print('In returnExtent, error:',str(e))
 
     return ext
+
+def isLeap(year):
+    res = False
+    if (((year % 400 == 0) and (year % 100 == 0)) or ((year % 4 == 0) and (year % 100 != 0))):
+        res = True
+
+    return res
