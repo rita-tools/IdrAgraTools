@@ -202,6 +202,7 @@ class IdragraRasterizeDomain(QgsProcessingAlgorithm):
 		for i,r in enumerate(inputList):
 			# esclude time dependent raster
 			rSource = r.source()
+			# skip meteo matrix because they could be empty
 			if not (('soiluse' in rSource) or ('irr_eff' in rSource) or ('irr_meth' in rSource) or ('Meteo_' in rSource)):
 				feedback.pushInfo('* %s' % rSource)
 				raster = QgsRasterCalculatorEntry()
