@@ -1534,7 +1534,12 @@ class IdrAgraTools():
         numOfStat = len(stationDataList)
         numOfMatrix = 5 # maximum number of weigth matrix
         if numOfStat<5:
+            # this is very important because no data matrix delete precipitation without error
             numOfMatrix = numOfStat
+
+        # in case of one station, weight is divided by two in order to sum to 100%
+        if numOfMatrix == 1:
+            numOfMatrix = 2
 
         self.SIMDIC['NOFMETEO']=numOfStat
         self.SIMDIC['NUMMETEOWEIGTH']= numOfMatrix

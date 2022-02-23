@@ -34,13 +34,16 @@ def makeWeightMatrix_WW(xmin, xmax, ymin, ymax, cellsize, xList, yList, idList, 
 	res = []
 
 	# FIX special case: single weather station
+	# don't make distance weight but make uniform weight near to one
 	if len(idList)==1:
-		uniqueW = float(idList[0]) + 0.999
-		if nMax >1:
-			uniqueW = float(idList[0])+1.0 / nMax
-
+		# set all matrix maps to nan
 		for n in range(nMax):
-			res.append(makeIndexArray(xmin, xmax, ymin, ymax, cellsize,uniqueW))
+			res.append(makeIndexArray(xmin, xmax, ymin, ymax, cellsize,np.nan))
+
+		# replace only the first two maps with the half weight
+		uniqueW = float(idList[0]) + 0.5
+		res[0] = makeIndexArray(xmin, xmax, ymin, ymax, cellsize,uniqueW)
+		res[1] = makeIndexArray(xmin, xmax, ymin, ymax, cellsize,uniqueW)
 
 		# exit and return res
 		return res
