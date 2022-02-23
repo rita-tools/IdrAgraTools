@@ -78,6 +78,7 @@ from datetime import datetime,timedelta
 import os
 
 from algs.date_time_widget import DateTimeWidget
+from ..tools.utils import isLeap
 
 
 class IdragraGroupStats(QgsProcessingAlgorithm):
@@ -325,7 +326,7 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 
 			self.FEEDBACK.pushInfo(self.tr('Processing %s --> %s'%(f,parsedDate)))
 			if parsedDate:
-				# apply zonal statistic
+				# apply zonal statistics
 				#'TEMPORARY_OUTPUT'
 				tempFile = QgsProcessingUtils.generateTempFilename('aggrOutput.gpkg')
 				res = processing.run("native:zonalstatisticsfb", {'INPUT': aggrLay.source(),
@@ -353,10 +354,14 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 			self.FEEDBACK.setProgress(100.0*i/nOfFiles)
 
 		return {'OUTPUT_TABLE':dest_id}
-	# TODO: step is calculate from the first day of the year or the irrigation period?
+	# TODO: step is calculate from the first day of the year or the irrigation period? --> from the outputs dates
+	# TODO: check if it works correctly with leap year
 	def stepToDate(self, year, step, periodStart, periodDelta):
-		# calculate the day of the year for the selected periodù
-		selDate = datetime(year, 1, 1)+timedelta(periodStart-1+step*periodDelta-1)# added -1 to clear starting point
+		# calculate the day of the year for the selected period
+		offset = -2-1 # added -2 to clear starting point
+		if (isLeap(year)): offset = -1-1
+
+		selDate = datetime(year, 1, 1)+timedelta(periodStart+step*periodDelta+offset)
 		lastDate = datetime(year, 12, 31)
 		#print('lastDate:',lastDate)
 		if selDate>lastDate: selDate =lastDate #limit to selected period

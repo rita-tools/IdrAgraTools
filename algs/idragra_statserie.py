@@ -328,6 +328,7 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		idArray = np.array([])
 		if monthlyFlag: startDate = None
 
+		# TODO: check start day!!!!
 		for i in idList:
 			a,b = self.dayValueArray(table, i, yearList, startDate,0.0,cellSize)
 			if len(daysArray)>0: daysArray = np.concatenate((daysArray, a))
@@ -403,10 +404,10 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 			if startDay:
 				firstDayOfYear += timedelta(days=startDay)
 
-			# dayList = [firstDayOfYear]
-			# valueList = [None]
-			dayList = []
-			valueList = []
+			dayList = [firstDayOfYear]
+			valueList = [None]
+			# dayList = []
+			# valueList = []
 			# select a subset
 			query = QgsExpression('"wsid" = %s and "timestamp" like \'%s%s\'' % (sensorId, y, '%'))
 			request = QgsFeatureRequest(query)
@@ -427,7 +428,8 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 			while i < len(dayList):
 				nOfDay = (dayList[i] - dayList[i - 1]).days
 				#print(i,valueList[i],dayList[i - 1], dayList[i], nOfDay)
-				test = np.logical_and(datesArray >= dayList[i - 1], datesArray < dayList[i])
+				# test = np.logical_and(datesArray >= dayList[i - 1], datesArray < dayList[i])
+				test = np.logical_and(datesArray > dayList[i - 1], datesArray <= dayList[i])
 				if valueList[i]: # if it is a valid number
 					valueArray[test] = valueList[i] / nOfDay
 
