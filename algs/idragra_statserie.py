@@ -79,6 +79,7 @@ import os
 
 from algs.date_time_widget import DateTimeWidget
 from tools.gis_grid import GisGrid
+from ..tools.utils import isLeap
 
 
 class IdragraStatserie(QgsProcessingAlgorithm):
@@ -257,7 +258,8 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		try:
 			f = open(idragraFile,'r')
 			for l in f:
-				l = l.replace(' ','')
+				l = l.replace(' ','') # remove inside blank characters
+				l = l.rstrip('\r\n') # remove return carriage
 				l = l.split('=')
 				if len(l)==2:
 					parName = l[0].lower()
@@ -281,6 +283,7 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		except Exception as e:
 			self.FEEDBACK.reportError(self.tr('Cannot parse %s because %s') %
 									  (idragraFile, str(e)),True)
+
 
 		rootSimPath = os.path.dirname(idragraFile)
 		# get cell size from domain map
@@ -326,9 +329,9 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		daysArray = np.array([])
 		valuesArray = np.array([])
 		idArray = np.array([])
+
 		if monthlyFlag: startDate = None
 
-		# TODO: check start day!!!!
 		for i in idList:
 			a,b = self.dayValueArray(table, i, yearList, startDate,0.0,cellSize)
 			if len(daysArray)>0: daysArray = np.concatenate((daysArray, a))
@@ -398,11 +401,17 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		datesArray = self.arrayOfDays(firstDate, endDay)
 		valueArray = np.zeros(len(datesArray)) + nodata
 
+		#print('date len:',len(datesArray))
+
 		nOfYears = len(yearList)
 		for c,y in enumerate(yearList):
 			firstDayOfYear = datetime(y, 1, 1)-timedelta(days=1)
 			if startDay:
-				firstDayOfYear += timedelta(days=startDay)
+				firstDayOfYear += timedelta(days=(startDay - 1))
+				# FIXED: check start day!!!!
+				if ((not isLeap(y)) and (startDay >= 59)):
+					#print('not leap year',y)
+					firstDayOfYear -= timedelta(days=(1))
 
 			dayList = [firstDayOfYear]
 			valueList = [None]
@@ -421,8 +430,12 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 
 			#print('test table request',dummy)
 
+
 			valueList = [x for _, x in sorted(zip(dayList, valueList))]
 			dayList = sorted(dayList)
+
+			#print('dayList', dayList)
+			#print('valueList', valueList)
 
 			i = 1
 			while i < len(dayList):
