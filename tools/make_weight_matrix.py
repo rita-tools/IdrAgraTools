@@ -32,18 +32,19 @@ import numpy as np
 
 def makeWeightMatrix_WW(xmin, xmax, ymin, ymax, cellsize, xList, yList, idList, nMax, feedback = None,tr=None):
 	res = []
+	# populate the list with empty matrix
+	for n in range(nMax):
+		res.append(makeIndexArray(xmin, xmax, ymin, ymax, cellsize, np.nan))
+
+	numOfId = len(idList)
 
 	# FIX special case: single weather station
 	# don't make distance weight but make uniform weight near to one
-	if len(idList)==1:
-		# set all matrix maps to nan
-		for n in range(nMax):
-			res.append(makeIndexArray(xmin, xmax, ymin, ymax, cellsize,np.nan))
-
+	if numOfId==1:
 		# replace only the first two maps with the half weight
 		uniqueW = float(idList[0]) + 0.5
-		res[0] = makeIndexArray(xmin, xmax, ymin, ymax, cellsize,uniqueW)
-		res[1] = makeIndexArray(xmin, xmax, ymin, ymax, cellsize,uniqueW)
+		res[0] = np.flipud(makeIndexArray(xmin, xmax, ymin, ymax, cellsize,uniqueW))
+		res[1] = np.flipud(makeIndexArray(xmin, xmax, ymin, ymax, cellsize,uniqueW))
 
 		# exit and return res
 		return res
@@ -57,7 +58,9 @@ def makeWeightMatrix_WW(xmin, xmax, ymin, ymax, cellsize, xList, yList, idList, 
 	for x,y,id in zip(xList, yList, idList):
 		distDict[id] = makeDistanceArray(xmin, xmax, ymin, ymax, cellsize,x,y)
 		maxDist = max(maxDist,distDict[id].max()) # overall maximum
-	
+
+	# recalculate nMax
+	nMax = min(numOfId,nMax)
 	# up to num max, find the closest excluding previously selected index
 	for n in range(nMax):
 		iMatrix = makeIndexArray(xmin, xmax, ymin, ymax, cellsize,np.nan)
@@ -86,7 +89,7 @@ def makeWeightMatrix_WW(xmin, xmax, ymin, ymax, cellsize, xList, yList, idList, 
 		
 	# normalize weight matrix on the total distance and merge id.weight results
 	for n in range(nMax):
-		res.append(np.flipud(iMatrixList[n]+(1.0/dMatrixList[n])/sMatrix))
+		res[n] = np.flipud(iMatrixList[n]+(1.0/dMatrixList[n])/sMatrix)
 		feedback.setProgress(100*n/nMax)
 	
 	return res
