@@ -100,17 +100,17 @@ DeltaDate = [%STEPOUTPUT%]
 
 # 2.1. Ponding parameters
 
-# PondSlopeMin: slope below which (or equal to) maximum ponding (q_max) occurs 
-PondSlopeMin = 0.00 
+# PondSlopeMin: slope below which (or equal to) maximum ponding (q_max) occurs
+# PondSlopeMin = 0.00
 
-# PondFracMax : maximum ponding ratio between ponded water and theorical runoff 
-PondFracMax = 0.90 
+# PondFracMax : maximum ponding ratio between ponded water and theorical runoff
+# PondFracMax = 0.90
 
 # PondSlopeMax: slope over which minimum ponding (q_min) occurs
-PondSlopeMax = 0.05 
+# PondSlopeMax = 0.05
 
-# PondFracMin: minimum ponding ratio between ponded water and theorical runoff 
-PondFracMin = 0.10
+# PondFracMin: minimum ponding ratio between ponded water and theorical runoff
+#PondFracMin = 0.10
 
 # 2.2. Soil conductivity parameters
 
@@ -136,22 +136,22 @@ EndIrrSeason = [%ENDIRRSEASON%]
 
 # if Mode = 1 (consumptions), define irrigation sources
 # BasinsTotNum: total number of irrigation districts
-BasinsTotNum = [%NBASINS%]
+# BasinsTotNum = [%NBASINS%]
 
 # BasinsXSourceTotNum: number of combinations of irrigation districts and diversions
-BasinsXSourceTotNum = [%NSOURCE%]
+# BasinsXSourceTotNum = [%NSOURCE%]
 
 # SourceSurfDerivTotNum: total number of surface derivations
-SourceSurfDerivTotNum = [%NSOURCEDER%]
+# SourceSurfDerivTotNum = [%NSOURCEDER%]
 
 # SourceFlowWellTotNum: total number of flowing wells
-SourceFlowWellTotNum = [%NSFLOWWELLS%] 
+# SourceFlowWellTotNum = [%NSFLOWWELLS%]
 
 # SourceTailwaterTotNum: total number of tailwater sources
-SourceTailwaterTotNum = [%NTAILWAT%]
+# SourceTailwaterTotNum = [%NTAILWAT%]
 
 # SourceWellTotNum: total number of public wells
-SourceWellTotNum = [%NPUBWELL%]
+# SourceWellTotNum = [%NPUBWELL%]
 
 # 2.3. Layers depth [m]
 
