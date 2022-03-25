@@ -408,10 +408,11 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 			firstDayOfYear = datetime(y, 1, 1)-timedelta(days=1)
 			if startDay:
 				firstDayOfYear += timedelta(days=(startDay - 1))
-				# FIXED: check start day!!!!
-				if ((not isLeap(y)) and (startDay >= 59)):
-					#print('not leap year',y)
-					firstDayOfYear -= timedelta(days=(1))
+				# FIXED: IdrAgra gets exactly the DoY number and not consider the date
+				# so the 155 day is the Jun-13 in leap year and Jun-14 in the others
+				# if ((not isLeap(y)) and (startDay >= 59)):
+				# 	#print('not leap year',y)
+				# 	firstDayOfYear -= timedelta(days=(1))
 
 			dayList = [firstDayOfYear]
 			valueList = [None]
