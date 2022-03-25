@@ -94,8 +94,8 @@ class ChartWidget(QWidget):
 		#~ if secondAxis: self.ax2 = self.ax.twinx()
 		
 		#~ legend = self.ax.legend(loc='upper center', shadow=True)
-		#~ self.h = []
-		#~ self.l = []
+		self.h = []
+		self.l = []
 		
 		self.cid = None
 		self.cname = ''
@@ -181,7 +181,7 @@ class ChartWidget(QWidget):
 		# self.ax.legend(self.h, self.l)
 		plt.legend(self.h, self.l)
 		
-	def addTimeSerie(self,dateTimeList,values,lineType='-',color='r',name = 'lineplot',yaxis = 1,shadow= False):
+	def addTimeSerie(self,dateTimeList,values,lineType='-',color='r',name = 'lineplot',yaxis = 1,shadow= False, addToLegend = True):
 		if len(dateTimeList) > 0:
 			dates = mdt.date2num(dateTimeList)
 
@@ -193,8 +193,9 @@ class ChartWidget(QWidget):
 					self.ax.add_patch(poly)
 					lines = Patch(facecolor=shadow, edgecolor=color, label=name, picker=5)
 				# cursor1 = FollowDotCursor(self.ax, x, y)
-				self.h.append(lines)
-				self.l.append(name)
+				if addToLegend:
+					self.h.append(lines)
+					self.l.append(name)
 
 			else:
 				lines, = self.ax2.plot_date(dates, values, lineType, color=color, label=name, picker=5)
@@ -204,8 +205,9 @@ class ChartWidget(QWidget):
 					self.ax2.add_patch(poly)
 					lines = Patch(facecolor=shadow, edgecolor=color, label=name, picker=5)
 				# cursor1 = FollowDotCursor(self.ax2, x, y)
-				self.h.append(lines)
-				self.l.append(name)
+				if addToLegend:
+					self.h.append(lines)
+					self.l.append(name)
 
 			# self.plotList.append(lines)
 			# self.ax.legend(self.h, self.l)
