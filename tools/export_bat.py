@@ -59,3 +59,32 @@ def exportBat(outPath, feedback = None,tr=None):
 									'IDRAGRAPAR':'idragra_parameters.txt'
 									},
 									templateName='run_idragra.txt')
+
+
+
+def exportCropCoefBat(outPath):
+	s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+	path2cropcoeff = s.value('cropcoeffPath', '')
+
+	# save to file
+	writeParsToTemplate(outfile=os.path.join(outPath,'run_cropcoef.bat'),
+									parsDict =  {
+									'SIMPATH':outPath,
+									'PATHTOCROPCOEFF':path2cropcoeff.replace('/','\\'),
+									'CROPCOEFFPAR':'cropcoef.txt',
+									},
+									templateName='run_cropcoef.txt')
+
+
+def exportIdrAgraBat(outPath):
+	s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
+	path2idragra = s.value('idragraPath', '')
+
+	# save to file
+	writeParsToTemplate(outfile=os.path.join(outPath,'run_idragra.bat'),
+									parsDict =  {
+									'SIMPATH':outPath,
+									'PATHTOIDRAGRA':path2idragra.replace('/','\\'),
+									'IDRAGRAPAR':'idragra_parameters.txt'
+									},
+									templateName='run_idragra.txt')

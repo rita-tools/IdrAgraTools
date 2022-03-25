@@ -60,7 +60,7 @@ from .tools.export_irrigation_method import exportIrrigationMethod
 from .forms.attribute_table_view import AttributesTableView
 from .forms.new_db_dialog import NewDbDialog
 from .tools.utils import returnExtent
-from .tools.export_bat import exportBat
+from .tools.export_bat import exportCropCoefBat, exportIdrAgraBat
 from .tools.export_land_use import exportLandUse
 from .tools.export_water_sources import makeDischSerie, exportWaterSources
 from .tools.write_pars_to_template import writeParsToTemplate
@@ -1637,8 +1637,8 @@ class IdrAgraTools():
         progress.setPercentage(100.)
         progress.setText(self.tr('Export bat file'))
 
-        exportBat(self.SIMDIC['OUTPUTPATH'], progress, self.tr)
-
+        exportCropCoefBat(self.SIMDIC['OUTPUTPATH'])
+        exportIdrAgraBat(self.SIMDIC['OUTPUTPATH'])
 
     def exportSpatialData(self,progress):
         self.runAsThread(function = self.exportSpatialDataTH, onFinished = self.updatePars)
@@ -1719,6 +1719,13 @@ class IdrAgraTools():
             err.close()
 
         if progress: progress.setPercentage(0.0)
+
+        # update here *.bat file
+        if batFile == 'run_cropcoef.bat':
+            exportCropCoefBat(self.SIMDIC['OUTPUTPATH'])
+
+        if batFile == 'run_idragra.bat':
+            exportIdrAgraBat(self.SIMDIC['OUTPUTPATH'])
 
         # delete existing simulation TODO better fix
         if batFile == 'run_idragra.bat':
@@ -1833,8 +1840,11 @@ class IdrAgraTools():
             soiluseNames = self.DBM.getColumnValues(fieldName ='("[" || id || "] " || name) AS label' ,
                                                     tableName='idr_soiluses')
 
-            df = pd.read_csv(fileName, sep='\t', names = soiluseNames+['timestamp'],
-                             engine='python', skiprows=1)
+            # this output are for matlab cropcoef
+            # df = pd.read_csv(fileName, sep='\t', names = soiluseNames+['timestamp'],
+            #                  engine='python', skiprows=1)
+            df = pd.read_csv(fileName, sep='\s* \s*', names=soiluseNames + ['timestamp'],
+                             skiprows=1)
 
             df['timestamp']=dateList
         except Exception as e:
