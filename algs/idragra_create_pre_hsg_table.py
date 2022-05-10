@@ -258,16 +258,17 @@ class IdragraCreatePreHSGTable(QgsProcessingAlgorithm):
 			selData = selData[np.argsort(selData[:, 1])]
 			# print('i', i, 'sorted selData', selData)
 			# TODO: manage length units
+			# FIX: depth units
 			# 0.01 micron/s --> 0.01 * 3600/(10*1000) cm/h
 			ksLim = 0.01 * 3600/(10*1000)
 			feat['maxsoildepth'] =self.maxImpDepth(selData[:, 2], selData[:, 1],ksLim)
 
 			feat['minksat50'] = self.applyAggrFun(selData[:, 2], selData[:, 1], 0.0,
-														   50, self.minVal)
+														   0.50, self.minVal)
 			feat['minksat60'] = self.applyAggrFun(selData[:, 2], selData[:, 1], 0.0,
-														   60, self.minVal)
+														   0.60, self.minVal)
 			feat['minksat100'] = self.applyAggrFun(selData[:, 2], selData[:, 1], 0.0,
-														   100, self.minVal)
+														   1.00, self.minVal)
 
 
 			sink.addFeature(feat, QgsFeatureSink.FastInsert)
