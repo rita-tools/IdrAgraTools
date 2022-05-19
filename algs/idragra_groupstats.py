@@ -358,15 +358,16 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 	# TODO: check if it works correctly with leap year
 	def stepToDate(self, year, step, periodStart, periodDelta):
 		# calculate the day of the year for the selected period
-		 # added -2 to clear starting point
-		if ((not isLeap(year)) and (periodStart >= 59)):
-			#print('not leap year',y)
-		 	offset = -2 - 1
-		else:
-			offset = -1 - 1
+		# added -2 to clear starting point
+		# if ((not isLeap(year)) and (periodStart >= 59)):
+		# 	#print('not leap year',y)
+		#  	offset = -2 - 1
+		# else:
+		# 	offset = -1 - 1
 
 		# offset = -2 - 1
 		#if (isLeap(year)): offset = -1-1
+		offset = -1 - 1 #FIXED: IdrAgra does not aware for leap year
 
 		selDate = datetime(year, 1, 1)+timedelta(periodStart+step*periodDelta+offset)
 		lastDate = datetime(year, 12, 31)
