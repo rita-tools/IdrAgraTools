@@ -39,8 +39,8 @@ from PyQt5.QtWidgets import QDialog, QToolBox, QWidget, QVBoxLayout, QFileDialog
 
 import os
 
-from qgis._core import QgsCoordinateReferenceSystem, QgsRectangle, QgsProject
-from qgis._gui import QgsDateTimeEdit
+from qgis._core import QgsCoordinateReferenceSystem, QgsRectangle, QgsProject, QgsPoint, QgsGeometry, QgsPointXY
+from qgis._gui import QgsDateTimeEdit, QgsRubberBand, QgsVertexMarker
 
 from ..tools.utils import returnExtent
 
@@ -68,6 +68,7 @@ class NoYearDate(QgsDateTimeEdit):
 		selDate = QDate(2000, 1, 1).addDays(dayOfYear-1)
 		self.setDate(selDate)
 
+
 class SetSimulationDialog(QMainWindow):
 	closed = pyqtSignal()
 	accepted = pyqtSignal()
@@ -83,6 +84,8 @@ class SetSimulationDialog(QMainWindow):
 		uic.loadUi(uiFilePath, self)
 
 		# init overall list
+		self.rbList = []
+		self.canvas = parent.mapCanvas()
 		#self.allCaseYearList = allCaseYearList
 		#self.consumeYearList = consumeYearList
 		self.yearList = yearList
@@ -151,7 +154,7 @@ class SetSimulationDialog(QMainWindow):
 		self.updateLastYear()
 
 		### set spatial resolution
-		self.DOMAINEXT.setMapCanvas(parent.mapCanvas())
+		self.DOMAINEXT.setMapCanvas(self.canvas)
 		try:
 			crsCode = float(simSettings['CRS'])
 		except:
@@ -165,7 +168,7 @@ class SetSimulationDialog(QMainWindow):
 		extStr = simSettings['EXTENT']
 		ext = returnExtent(extStr)
 		if ext is None:
-			ext = parent.mapCanvas().extent()
+			ext = self.canvas.extent()
 
 		self.DOMAINEXT.setOriginalExtent(ext, crs)
 		self.DOMAINEXT.setCurrentExtent(ext, crs)
@@ -209,6 +212,8 @@ class SetSimulationDialog(QMainWindow):
 		self.STEPDATE_SB.setValue(simSettings['STEPOUTPUT'])
 
 		self.FROM_CB.currentTextChanged.connect(self.updateLastYear)
+
+		self.DRAW_GRID_BT.clicked.connect(self.drawGrid)
 
 		self.buttonBox.accepted.connect(self.accept)
 		self.buttonBox.rejected.connect(self.reject)
@@ -257,8 +262,66 @@ class SetSimulationDialog(QMainWindow):
 		self.STEPDATE_SB.setEnabled(flag)
 
 	def closeEvent(self, event):
+		self.deleteGrid()
 		self.closed.emit()
-		
+
+	def drawGrid(self):
+		self.deleteGrid()
+
+		col = QColor(153,153,153) # gray color
+
+		rasterExt = self.DOMAINEXT.outputExtent()
+		cellDim = self.CELLSIZE_SB.value()
+
+		xllcorner = rasterExt.xMinimum()
+		# yllcorner = extension.yMinimum()
+		yurcorner = rasterExt.yMaximum()
+		h = rasterExt.height()
+		w = rasterExt.width()
+
+		nrows = round(h / cellDim)
+		ncols = round(w / cellDim)
+
+		xurcorner = xllcorner + ncols * cellDim
+		# yurcorner = yllcorner+nrows*outputCellSize
+		yllcorner = yurcorner - nrows * cellDim
+
+		cellsize = self.CELLSIZE_SB.value()
+
+		xList = [xllcorner+i*cellDim for i in range(0,ncols+1)]
+		yList = [yllcorner+i*cellDim for i in range(0,nrows+1)]
+		# draw vertical lines
+		for x in xList:
+			r = QgsRubberBand(self.canvas, False)  # False = not a polygon
+			r.setColor(col)
+			r.setWidth(3)
+			points = [QgsPoint(x, yllcorner), QgsPoint(x, yurcorner), QgsPoint(x, yllcorner)]
+			r.setToGeometry(QgsGeometry.fromPolyline(points), None)
+			self.rbList.append(r)
+		# draw horizontal lines
+		for y in yList:
+			r = QgsRubberBand(self.canvas, False)  # False = not a polygon
+			r.setColor(col)
+			r.setWidth(3)
+			points = [QgsPoint(xllcorner, y), QgsPoint(xurcorner, y), QgsPoint(xllcorner, y)]
+			r.setToGeometry(QgsGeometry.fromPolyline(points), None)
+			self.rbList.append(r)
+
+		for x in xList[:-1]:
+			for y in yList[:-1]:
+				m = QgsVertexMarker(self.canvas)
+				m.setCenter(QgsPointXY(x+0.5*cellsize, y+0.5*cellsize))
+				m.setColor(col)
+				m.setIconSize(5)
+				m.setIconType(QgsVertexMarker.ICON_CROSS)  # or ICON_CROSS, ICON_X, ICON_BOX
+				m.setPenWidth(3)
+				self.rbList.append(m)
+
+	def deleteGrid(self):
+		#print('deleteGrid')
+		for r in self.rbList:
+			self.canvas.scene().removeItem(r)
+
 	
 	def getData(self):
 		### get output path
