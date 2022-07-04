@@ -36,7 +36,7 @@
     <item>
      <widget class="QToolBox" name="toolBox">
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="IRRIGATION_PG">
        <property name="geometry">
@@ -44,7 +44,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>319</height>
+         <height>325</height>
         </rect>
        </property>
        <attribute name="label">
@@ -84,8 +84,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>206</width>
-         <height>137</height>
+         <width>214</width>
+         <height>139</height>
         </rect>
        </property>
        <attribute name="label">
@@ -144,8 +144,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>219</width>
-         <height>181</height>
+         <width>717</width>
+         <height>325</height>
         </rect>
        </property>
        <attribute name="label">
@@ -169,15 +169,22 @@
           </property>
          </widget>
         </item>
-        <item row="1" column="0" colspan="2">
+        <item row="2" column="0" colspan="2">
          <widget class="QLabel" name="DOMAINEXT_LB">
           <property name="text">
            <string>Set domain extension</string>
           </property>
          </widget>
         </item>
-        <item row="2" column="0" colspan="2">
+        <item row="3" column="0" colspan="2">
          <widget class="QgsExtentGroupBox" name="DOMAINEXT"/>
+        </item>
+        <item row="4" column="0">
+         <widget class="QPushButton" name="DRAW_GRID_BT">
+          <property name="text">
+           <string>Draw preview grid</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -186,8 +193,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>717</width>
-         <height>319</height>
+         <width>245</width>
+         <height>151</height>
         </rect>
        </property>
        <attribute name="label">
@@ -276,7 +283,7 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>159</width>
+         <width>166</width>
          <height>57</height>
         </rect>
        </property>
@@ -312,8 +319,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>98</width>
-         <height>28</height>
+         <width>100</width>
+         <height>30</height>
         </rect>
        </property>
        <attribute name="label">
