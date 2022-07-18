@@ -125,8 +125,12 @@ class ImportData(QDialog):
             in_file = open(filePath, "r")
             i = 0
             v = 0
-            while v <= 20:
+            while True:
+                if v>20: break  # limite preview
+
                 in_line = in_file.readline()
+                if not in_line: break
+
                 if i >= skip:
                     # process the line
                     in_line = in_line[:-1]
