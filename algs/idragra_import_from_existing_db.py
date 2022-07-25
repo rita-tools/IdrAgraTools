@@ -160,7 +160,7 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 						The algorithm import crop parameters from files contained in the selected folder. 
 						<b>Parameters:</b>
 						Source DB: the file path to the source database [SOURCE_DB]
-						Assets: elements to inport [ASSETS]
+						Assets: elements to be imported [ASSETS]
 						Destination DB: the file path to the destination database [DEST_DB]
 						"""
 		
@@ -177,12 +177,14 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 		with some other properties.
 		"""
 		self.ASSETSDICT = qgis.utils.plugins['IdragraTools'].LYRNAME
+		#self.ASSETSDICT['elevation'] =self.tr('Elevation')
+		#self.ASSETSDICT['watertable'] = self.tr('Water table')
 
 		self.addParameter(QgsProcessingParameterFile(self.SOURCE_DB, self.tr('Source DB'),
 													 QgsProcessingParameterFile.Behavior.File, '*.*', '', False,
 													 self.tr('Geopackage (*.gpkg);;All files (*.*)')))
 
-		self.addParameter(QgsProcessingParameterEnum(self.ASSETS, self.tr('Aggregation function'),
+		self.addParameter(QgsProcessingParameterEnum(self.ASSETS, self.tr('Assets'),
 													 list(self.ASSETSDICT.values()),True))
 
 		self.addParameter(QgsProcessingParameterFile(self.DEST_DB, self.tr('Destination DB'),
@@ -213,6 +215,8 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 
 		# loop in seletec assets tables
 		numImportedTables = 0
+		elevRasterList = []
+		wtRasterList = []
 		for tName in assetsTables:
 			self.FEEDBACK.pushInfo(self.tr('Processing table %s' % tName))
 			sql = 'INSERT INTO %s (%s) VALUES (%s);'
@@ -260,6 +264,8 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 
 				#self.FEEDBACK.pushInfo(self.tr('Add row: %s' % str(newDataList)))
 				newDataRows.append(tuple(newDataList))
+				#TODO: import raster data
+				# if (tName == 'elevation'): elevRasterList.append
 
 			#self.FEEDBACK.pushInfo(self.tr('Data to be imported: %s' % str(newDataRows)))
 
