@@ -34,6 +34,7 @@ from math import tan, radians
 import qgis
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QCoreApplication,QVariant
+from osgeo import gdal
 from qgis._analysis import QgsZonalStatistics
 from qgis._core import QgsProcessingParameterCrs
 from qgis.core import (QgsProcessing,
@@ -67,7 +68,8 @@ from qgis.core import (QgsProcessing,
 					   QgsVectorLayer,
 					   QgsRasterLayer,
 					   QgsProject,
-					   NULL, QgsFeature, edit, QgsRaster, QgsGeometry)
+					   NULL, QgsFeature, edit, QgsRaster, QgsGeometry, QgsRasterBlockFeedback, QgsRasterPipe,
+					   QgsRasterProjector)
 						
 import processing
 
@@ -103,6 +105,7 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 	SOURCE_DB= 'SOURCE_DB'
 	DEST_DB = 'DEST_DB'
 	ASSETS = 'ASSETS'
+	RASTER_FLAG = 'RASTER_FLAG'
 	FEEDBACK = None
 	DBM = None
 
@@ -157,10 +160,12 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 		"""
 		
 		helpStr = """
-						The algorithm import crop parameters from files contained in the selected folder. 
+						The algorithm import the dataset from existing gpkg file.
+						Only common parameters with the newest version are imported. 
 						<b>Parameters:</b>
 						Source DB: the file path to the source database [SOURCE_DB]
 						Assets: elements to be imported [ASSETS]
+						Import raster: import also elevation and watertable rasters if exist [RASTER_FLAG]
 						Destination DB: the file path to the destination database [DEST_DB]
 						"""
 		
@@ -187,6 +192,9 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 		self.addParameter(QgsProcessingParameterEnum(self.ASSETS, self.tr('Assets'),
 													 list(self.ASSETSDICT.values()),True))
 
+		self.addParameter(QgsProcessingParameterBoolean(self.RASTER_FLAG, self.tr('Import rasters'),
+													 False, False))
+
 		self.addParameter(QgsProcessingParameterFile(self.DEST_DB, self.tr('Destination DB'),
 													 QgsProcessingParameterFile.Behavior.File, '*.*', '', False,
 													 self.tr('Geopackage (*.gpkg);;All files (*.*)')))
@@ -201,6 +209,7 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 		assetsIds = self.parameterAsEnums(parameters, self.ASSETS, context)
 		assetsTables = [list(self.ASSETSDICT.keys())[i] for i in assetsIds]
 		self.FEEDBACK.pushInfo(self.tr('Table to be processed %s' % str(assetsTables)))
+		rasterFlag = self.parameterAsBoolean(parameters,self.RASTER_FLAG,context)
 		destFn = self.parameterAsFile(parameters, self.DEST_DB, context)
 
 		# open db connection
@@ -215,8 +224,8 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 
 		# loop in seletec assets tables
 		numImportedTables = 0
-		elevRasterList = []
-		wtRasterList = []
+		elevRasterDict = {}
+		wtRasterDict = {}
 		for tName in assetsTables:
 			self.FEEDBACK.pushInfo(self.tr('Processing table %s' % tName))
 			sql = 'INSERT INTO %s (%s) VALUES (%s);'
@@ -264,8 +273,7 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 
 				#self.FEEDBACK.pushInfo(self.tr('Add row: %s' % str(newDataList)))
 				newDataRows.append(tuple(newDataList))
-				#TODO: import raster data
-				# if (tName == 'elevation'): elevRasterList.append
+
 
 			#self.FEEDBACK.pushInfo(self.tr('Data to be imported: %s' % str(newDataRows)))
 
@@ -285,4 +293,57 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 		self.DEST_DBM = None
 		self.SOURCE_DBM = None
 
-		return {'NUMIMPORTEDTABLES':numImportedTables}
+		# import raster
+		if rasterFlag:
+			# search for all raster in source db
+			gpkg = gdal.Open(sourceFn)
+
+			if gpkg.GetSubDatasets():
+				for raster in gpkg.GetSubDatasets():
+					rasterSrc = raster[0]
+					rasterName = raster[1].split(' - ')[0]
+
+					if rasterName.startswith('elevation'):
+						# copy raster
+						newRasterSource = self.copyRaster(rasterSrc, rasterName, destFn)
+						if newRasterSource:
+							elevRasterDict[rasterName] = newRasterSource
+					elif rasterName.startswith('watertable'):
+						# copy raster
+						newRasterSource = self.copyRaster(rasterSrc, rasterName, destFn)
+						if newRasterSource:
+							wtRasterDict[rasterName] = newRasterSource
+					else:
+						self.FEEDBACK.reportError(self.tr('Unrecognized raster layer: %s') % rasterName, False)
+
+		return {'NUMIMPORTEDTABLES':numImportedTables,'ELEVATION':elevRasterDict,'WATERTABLE':wtRasterDict}
+
+	def copyRaster(self,rasterFileName, tableName,destGpkgFile):
+		source = QgsRasterLayer(rasterFileName, tableName, 'gdal')
+		rasterFilePath = None
+		rfeedback = QgsRasterBlockFeedback()
+		if source.isValid():
+			provider = source.dataProvider()
+			fw = QgsRasterFileWriter(destGpkgFile)
+			fw.setOutputFormat('gpkg')
+			fw.setCreateOptions(["RASTER_TABLE=" + str(tableName), 'APPEND_SUBDATASET=YES'])
+
+			pipe = QgsRasterPipe()
+
+			if pipe.set(provider.clone()) is True:
+				projector = QgsRasterProjector()
+				projector.setCrs(provider.crs(), provider.crs())
+				if pipe.insert(2, projector) is True:
+					# print('provider',provider.xSize(),provider.ySize(),provider.extent(),provider.crs())
+					error = fw.writeRaster(pipe, provider.xSize(), provider.ySize(), provider.extent(),
+										   provider.crs(), rfeedback)
+					if error > 0:
+						self.FEEDBACK.reportError(self.tr('Unable to copy the raster (%s)') % str(rfeedback.errors()), False)
+
+					else:
+						# gpkgFile = relpath(gpkgFile, QgsProject.instance().absolutePath())
+						gpkgFile = os.path.basename(destGpkgFile)
+						# rasterFilePath = 'GPKG:' + gpkgFile + ':' + tableName
+						rasterFilePath = os.path.join('.', gpkgFile) + ':' + tableName
+
+		return rasterFilePath.replace('\\', '/')
