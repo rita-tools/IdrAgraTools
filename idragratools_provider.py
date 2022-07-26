@@ -34,6 +34,12 @@ from qgis.core import QgsProcessingProvider
 
 from PyQt5.QtGui import QIcon
 
+from .algs.idragra_import_from_existing_db import IdragraImportFromExistingDB
+from .algs.idragra_groupstats_by_raster import IdragraGroupStatsByRaster
+from .algs.idragra_import_irrunits_results import IdragraImportIrrUnitsResults
+from .algs.idragra_raster_quality import IdragraRasterQuality
+from .algs.idragra_annual_stats import IdragraAnnualStats
+from .algs.idragra_raster_groupstats import IdragraRasterGroupStats
 from .algs.idragra_import_crop_par import IdragraImportCropPar
 from .algs.idragra_bulk_import_timeserie import IdragraBulkImportTimeserie
 from .algs.idragra_statserie import IdragraStatserie
@@ -88,7 +94,13 @@ class IdrAgraToolsProvider(QgsProcessingProvider):
 						IdragraExportControlPoints(),
 						IdragraStatserie(),
 						IdragraBulkImportTimeserie(),
-						IdragraImportCropPar()
+						IdragraImportCropPar(),
+						IdragraRasterGroupStats(),
+						IdragraAnnualStats(),
+						IdragraRasterQuality(),
+						IdragraGroupStatsByRaster(),
+						IdragraImportIrrUnitsResults(),
+						IdragraImportFromExistingDB()
 						]
 
 	def unload(self):

@@ -347,3 +347,4 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 						rasterFilePath = os.path.join('.', gpkgFile) + ':' + tableName
 
 		return rasterFilePath.replace('\\', '/')
+

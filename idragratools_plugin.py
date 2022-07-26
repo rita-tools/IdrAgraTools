@@ -30,6 +30,7 @@ __revision__ = '$Format:%H$'
 
 import gc
 import os
+import re
 import shutil
 import sys
 import inspect
@@ -161,6 +162,10 @@ class IdrAgraTools():
         if self.s.value('MCRpath', '') == '': self.s.setValue('MCRpath',checkMatlabInstalled(version= '9.9'))
         #if self.s.value('MinGWPath', '') == '': self.s.setValue('MinGWPath', checkMatlabInstalled(version='9.9'))
 
+        self.PRJNAME = 'Idragra simulation'
+        self.FILEFORMAT = 'Geopackage file (*.gpkg)'#'Idragra db (*.idb)'
+        self.FILEEXT = 'gpkg'#'idb'
+
         self.STATFUN = {'SUM': self.tr('Sum'), 'AVG': self.tr('Mean'), 'MAX': self.tr('Max'), 'MIN': self.tr('Min')}
 
         # init table and layer names and labels
@@ -183,7 +188,7 @@ class IdrAgraTools():
                         'ws_tmin': self.tr('Min temp. (°C)'), 'ws_tmax': self.tr('Max temp.(°C)'),
                         'ws_ptot': self.tr('Precipitation (mm)'),
                         'ws_umin': self.tr('Min air humidity (-)'), 'ws_umax': self.tr('Max air humidity (-)'),
-                        'ws_vmed': self.tr('Wind velocity (m/s)'), 'ws_rgcorr': self.tr('Solar radiation (MJ/m^2)'),
+                        'ws_vmed': self.tr('Wind velocity (m/s)'), 'ws_rgcorr': self.tr('Solar radiation (MJ/m^2/d)'),
                         'ws_co2':self.tr('CO2 concentration (p.p.m.)')
                         }
 
@@ -228,7 +233,7 @@ class IdrAgraTools():
         self.METEONAME = {'ws_tmin': self.tr('Min temp. (°C)'), 'ws_tmax': self.tr('Max temp.(°C)'),
                           'ws_ptot': self.tr('Precipitation (mm)'),
                           'ws_umin': self.tr('Min air humidity (-)'), 'ws_umax': self.tr('Max air humidity (-)'),
-                          'ws_vmed': self.tr('Wind velocity (m/s)'), 'ws_rgcorr': self.tr('Solar radiation (MJ/m^2)'),
+                          'ws_vmed': self.tr('Wind velocity (m/s)'), 'ws_rgcorr': self.tr('Solar radiation (MJ/m^2/d)'),
                           'ws_co2':self.tr('CO2 concentration (p.p.m.)')}
 
         self.WELLNAME = {'well_watertable': self.tr('Water table (m)')}
@@ -343,6 +348,34 @@ class IdrAgraTools():
             'id_drainto': self.tr('Drainage node')
         }
 
+        self.GROUPBYRASTER = {
+            'irr_units':self.tr('Irrigation units'),
+            'irr_meth': self.tr('Irrigation methods'),
+            'soilid': self.tr('Soils type'),
+            'soiluse': self.tr('Land uses')
+        }
+
+        self.ANNUALVARS = {
+            'biomass_pot_1':self.tr('Potential biomass for the main crop (t/ha)'),
+            'yield_act_1':self.tr('Actual yield for the main crop (t/ha)'),
+            'yield_pot_1':self.tr('Potential yield for the main crop (t/ha)'),
+            'biomass_pot_2':self.tr('Potential biomass for the second crop (t/ha)'),
+            'yield_act_2':self.tr('Actual yield for the second crop (t/ha)'),
+            'yield_pot_2':self.tr('Potential yield for the second crop (t/ha)'),
+            'eff_tot':self.tr('Irrigation efficiency (-)'),
+            'eva_act_agr':self.tr('Cumulative actual evapotranspiration (mm)'),
+            'eva_pot_agr':self.tr('Cumulative potential evapotranspiration (mm)'),
+            'flux_tot':self.tr('Net flux to groundwater (mm)'),
+            'irr_loss':self.tr('Irrigation application losses (mm)'),
+            'irr_mean':self.tr('Mean irrigation application (mm)'),
+            'irr_nr':self.tr('Number of irrigation application (-)'),
+            'irr_tot':self.tr('Cumulative irrigation (mm)'),
+            'prec_tot':self.tr('Cumulative precipitation (mm)'),
+            'run_tot':self.tr('Cumulative runoff (mm)'),
+            'trasp_act_tot':self.tr('Cumulative actual transpiration (mm)'),
+            'trasp_pot_tot':self.tr('Cumulative potential transpiration (mm)')
+        }
+
         self.TIMESTEP = {
             'years': self.tr('Years'),
             'months': self.tr('Months'),
@@ -404,7 +437,8 @@ class IdrAgraTools():
                         'STEPOUTPUT': 10,
                         'MONTHOUTPUT':'F',
                         'MINSLOPE':0.1,
-                        'MAXSLOPE':1000
+                        'MAXSLOPE':1000,
+                        'SOURCE_DB':''
                        }
 
         self.PHENOVARS = {'CNvalue':self.tr('CN value'),
@@ -445,7 +479,7 @@ class IdrAgraTools():
         # add Main Menu
         self.mainMenu = self._addmenu(self.iface.mainWindow().menuBar(), 'IdrAgraTools', 'IdrAgraTools')
         self.dbMenu = self._addmenu(self.mainMenu, 'Database', self.tr('Start'),True)
-        #self._addmenuitem(self.dbMenu, 'LoadDB', self.tr('Open'), self.openDB, True)
+        self._addmenuitem(self.dbMenu, 'LoadDB', self.tr('Open'), self.openDB, True)
         self._addmenuitem(self.dbMenu, 'NewDB', self.tr('New'), self.newDB, True)
         self.mainMenu.addMenu(self.dbMenu)
 
@@ -676,48 +710,59 @@ class IdrAgraTools():
         return dt
 
     def newDB(self,isDemo = False):
-        s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
         # get the filename of the project file
         proj = QgsProject.instance()
         filename = proj.fileName()
         crs =  proj.crs()
         #print('crs',crs.postgisSrid())
-        if filename == '':
-            # ask to save the project first
-            showCriticalMessageBox(self.tr("Please save the project first"),
-                                        self.tr("Before continue you have to save the project"),
-                                        self.tr("Go to Project --> Save "))
-        else:
-            rootName = os.path.basename(filename)
-            rootName = rootName[:-4]
-            rootPath = os.path.dirname(filename)
-            dbpath = os.path.join(rootPath, rootName + '_DATA' + '.gpkg')
+        # if filename == '':
+        #     # ask to save the project first
+        #     showCriticalMessageBox(self.tr("Please save the project first"),
+        #                                 self.tr("Before continue you have to save the project"),
+        #                                 self.tr("Go to Project --> Save "))
+        # else:
+        rootName = os.path.basename(filename)
+        rootName = rootName[:-4]
+        rootPath = os.path.dirname(filename)
+        #dbpath = os.path.join(rootPath, rootName + '_DATA' + '.'+self.FILEEXT)
+        dbpath = ''
 
-            self.SIMDIC['DBFILE']= dbpath
+        self.SIMDIC['DBFILE']= dbpath
+        self.SIMDIC['OUTPUTPATH'] = os.path.join(rootPath, rootName + '_SIM')
+        self.SIMDIC['CRS'] = crs.postgisSrid()
+        self.updatePars()
+
+        # show dialog
+        # TODO
+        dlg = NewDbDialog(self.iface.mainWindow(),self.SIMDIC,self.FILEEXT)
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            #print('res',res)
+            self.SIMDIC['LOAD_SAMPLE_PAR'] = res['loadSamplePar']
+            self.SIMDIC['LOAD_SAMPLE_DATA'] = res['loadSampleData']
+            self.SIMDIC['DBFILE'] = res['dbFile']
+            self.SIMDIC['SOURCE_DB'] = res['sourceFile']
+            self.SIMDIC['CRS'] = res['crs']
+            rootName = os.path.basename(res['dbFile'])
+            rootName = rootName[:-5]
+            rootPath = os.path.dirname(res['dbFile'])
+
             self.SIMDIC['OUTPUTPATH'] = os.path.join(rootPath, rootName + '_SIM')
-            self.SIMDIC['CRS'] = crs.postgisSrid()
             self.updatePars()
 
-            # show dialog
-            # TODO
-            dlg = NewDbDialog(self.iface.mainWindow(),self.SIMDIC)
-            dlg.show()
-            result = dlg.exec_()
-            # See if OK was pressed
-            res = []
-            if result == 1:
-                res = dlg.getData()
-                #print('res',res)
-                self.SIMDIC['LOAD_SAMPLE_PAR'] = res['loadSamplePar']
-                self.SIMDIC['LOAD_SAMPLE_DATA'] = res['loadSampleData']
-                self.SIMDIC['DBFILE'] = res['dbFile']
-                self.SIMDIC['OUTPUTPATH'] = os.path.join(rootPath, rootName + '_SIM')
-                self.updatePars()
+            self.runAsThread(self.newDBTH,self.updateProj)
 
-                self.runAsThread(self.newDBTH,self.updateProj)
+    def updateProj(self,dbpath = None):
+        if not dbpath:
+            dbpath = self.SIMDIC['DBFILE']
+        else:
+            self.SIMDIC['DBFILE'] = dbpath
 
-    def updateProj(self):
-        self.DBM = SQLiteDriver(self.SIMDIC['DBFILE'], False,None,None,self.tr, QgsProject.instance())
+        self.DBM = SQLiteDriver(dbpath, False,None,None,self.tr, QgsProject.instance())
         # activate other actions
         self.setMenuItemState()
         # load layers
@@ -727,8 +772,13 @@ class IdrAgraTools():
 
     def updatePars(self):
         proj = QgsProject.instance()
-        proj.writeEntry('IdrAgraTools', 'dbname', str(self.SIMDIC['DBFILE']))
+        #proj.writeEntry('IdrAgraTools', 'dbname', str(self.SIMDIC['DBFILE']))
         proj.writeEntry('IdrAgraTools', 'simsettings', str(self.SIMDIC))
+        #print('OK update pars',str(self.SIMDIC))
+        uri = 'geopackage:'+self.SIMDIC['DBFILE']+'?projectName='+self.PRJNAME
+        proj.write(uri)
+        proj.writeEntry('Paths', 'Absolute', 'false')
+        proj.write(uri)
 
         # if dialog res is true then
             # set up SIMDICT
@@ -740,30 +790,84 @@ class IdrAgraTools():
         # print('crs id',self.SIMDIC['CRS'])
         # print(crs)
 
-        processing.run("idragratools:IdragraCreateDB", {'DB_FILENAME': self.SIMDIC['DBFILE'],
-                                                        'CRS': crs,
-                                                        'LOAD_SAMPLE_PAR': bool(self.SIMDIC['LOAD_SAMPLE_PAR']),
-                                                        'LOAD_SAMPLE_DATA': bool(self.SIMDIC['LOAD_SAMPLE_DATA'])},
-                       context = None, feedback = progress, is_child_algorithm = False)
+        if (os.path.isfile(self.SIMDIC['SOURCE_DB'])):
+            processing.run("idragratools:IdragraCreateDB", {'DB_FILENAME': self.SIMDIC['DBFILE'],
+                                                            'CRS': crs,
+                                                            'LOAD_SAMPLE_PAR': False,
+                                                            'LOAD_SAMPLE_DATA': False},
+                           context=None, feedback=progress, is_child_algorithm=False)
 
+            res = processing.run("idragratools:IdragraImportFromExistingDB", {'SOURCE_DB': self.SIMDIC['SOURCE_DB'],
+                                                                        'ASSETS': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+                                                                                   12, 13, 14, 15, 16, 17, 18, 19, 20,
+                                                                                   21, 22, 23, 24, 25, 26, 27, 28, 29,
+                                                                                   30, 31, 32, 33, 34],
+                                                                        'RASTER_FLAG': True,
+                                                                        'DEST_DB': self.SIMDIC['DBFILE']},
+                           context = None, feedback = progress, is_child_algorithm = False)
+            # update current settings
+            self.SIMDIC['WATERTABLEMAP'] = res['WATERTABLE']
+            self.SIMDIC['ELEVMAP'] = res['ELEVATION']
+        else:
+            processing.run("idragratools:IdragraCreateDB", {'DB_FILENAME': self.SIMDIC['DBFILE'],
+                                                            'CRS': crs,
+                                                            'LOAD_SAMPLE_PAR': bool(self.SIMDIC['LOAD_SAMPLE_PAR']),
+                                                            'LOAD_SAMPLE_DATA': bool(self.SIMDIC['LOAD_SAMPLE_DATA'])},
+                           context=None, feedback=progress, is_child_algorithm=False)
 
     def openDB(self, dbpath=None):
         s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
         if not dbpath:
             #print('dbpath in openDB',dbpath)
             dbpath = QFileDialog.getOpenFileName(None, self.tr('Open idragra database'), s.value('lastPath'),
-                                                 self.tr('Geopackage file (*.gpkg)'))
+                                                 self.tr(self.FILEFORMAT))
             dbpath = dbpath[0]
 
-        self.DBM = SQLiteDriver(dbpath, False,None,None,self.tr, QgsProject.instance())
-        # activate other actions
-        self.setMenuItemState()
-        # load layers
-        self.loadLayer()
-        self.setupAllLayers()
+        proj = None
+        # update project record
+        # see https://gis.stackexchange.com/questions/357344/trying-to-repair-layer-paths-on-opening-of-a-qgis-project-from-geopackage
+        def path_processor(path):
+            # Replacing GPKG datasources if project is stored in GPKG
+            simDict = eval(proj.readEntry('IdrAgraTools', 'simsettings')[0])
+            oldPath = simDict['DBFILE']
+            oldFileName = os.path.basename(oldPath)
+            if dbpath:
+                fileName = os.path.basename(dbpath)
+                if re.search(oldFileName, path, flags=re.IGNORECASE):
+                    if not re.search(fileName, path, flags=re.IGNORECASE):
+                        QgsMessageLog.logMessage('Replace Layer Source: %s' % path, 'GPKG', Qgis.Info)
+                        path = re.sub(oldFileName, fileName, path, flags=re.IGNORECASE)
+                        QgsMessageLog.logMessage('with: %s' % path, 'GPKG', Qgis.Info)
 
-        # add to project
-        QgsProject.instance().writeEntry('IdrAgraTools', 'dbname', str(dbpath))
+            return path
+
+        idProc = QgsPathResolver.setPathPreprocessor(path_processor)
+
+        proj = QgsProject.instance()
+        uri = 'geopackage:' + dbpath + '?projectName=' + self.PRJNAME
+        proj.read(uri)
+
+        # load parameters
+        self.SIMDIC = eval(proj.readEntry('IdrAgraTools', 'simsettings')[0])
+
+        # TODO: INIT DB
+        self.updateProj(dbpath)
+
+        # TODO: check path to raster
+        # self.DBM = SQLiteDriver(dbpath, False,None,None,self.tr, QgsProject.instance())
+        # # activate other actions
+        # self.setMenuItemState()
+        # # load layers
+        # self.loadLayer()
+        # self.setupAllLayers()
+        #
+        # # add to project
+        # #QgsProject.instance().writeEntry('IdrAgraTools', 'dbname', str(dbpath))
+        # self.SIMDIC['DBFILE'] = str(dbpath)
+        # self.updatePars()
+
+        # remove preprocessor
+        QgsPathResolver.removePathPreprocessor(idProc)
 
     def loadDemoData(self, fGeodata=True):
         # load crop types
@@ -811,6 +915,7 @@ class IdrAgraTools():
             for f in listOfFile:
                 # load crop field
                 gpkg_layer = self.DBM.DBName + '|layername=' + f
+                print('gpkg_layer:',gpkg_layer)
                 csvFile = os.path.join(path2geodata, f + '.csv')
                 addFeaturesFromCSV(gpkg_layer, csvFile)
 
@@ -900,6 +1005,7 @@ class IdrAgraTools():
         vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_crop_types'])
         for vlayer in vlayerList:
             self.setFieldCheckable(vlayer, 'irrigation')
+            self.setFieldCheckable(vlayer, 'vern')
             self.setCustomForm(vlayer, 'crop_type_dialog')
 
     def setupSoilUsesLayer(self):
@@ -959,7 +1065,7 @@ class IdrAgraTools():
         if result == 1:
             res = dlg.getData()
             progress = IfaceProgress(self.iface)
-            print('res',res)
+            #print('res',res)
             self.importDataFromCSV(
                              filename=res['selFile'], tablename=res['selVar'],
                              timeFldIdx=res['timeFldIdx'],valueFldIdx=res['valueFldIdx'],
@@ -1490,6 +1596,16 @@ class IdrAgraTools():
 
         return result
 
+    def calcRasterErrorTH(self, progress):
+        # TODO: calculare raster error
+        # get extention and make a shapefile
+        # check soil map
+        # check land use map
+        # check irrigation units map
+        # check irrigation methods map
+
+        pass
+
     def exportIrrigationMethods(self):
         self.runAsThread(function = self.exportIrrigationMethodsTH, onFinished = None)
 
@@ -1662,14 +1778,20 @@ class IdrAgraTools():
         progress.setProgress(25.0)
 
         # get elevation layer
-        dtmLay = ''
-        try:
-            dtmLay = self.SIMDIC['ELEVMAP']['elevation']
-        except:
-            progress.reportError(self.tr('Elevation is not set'), False)
+        # dtmLay = ''
+        # try:
+        #     dtmLay = self.SIMDIC['ELEVMAP']['elevation']
+        # except:
+        #     progress.reportError(self.tr('Elevation is not set'), False)
 
-        aRaster = QgsRasterLayer(dtmLay,'elevation','gdal')
-        if not aRaster:
+        # FIXED: check relative path
+        #if dtmLay.startswith('.'):
+        #    dtmLay = 'GPKG:'+os.path.join(os.path.dirname(self.SIMDIC['DBFILE']),dtmLay[2:])
+
+        dtmLay = 'GPKG:' + self.SIMDIC['DBFILE'] + ':elevation'
+        aRaster = QgsRasterLayer(dtmLay,'elevation','gdal') # check if dtm file exists
+
+        if not aRaster.isValid():
             progress.reportError(self.tr('Unable to load elevation layer from %s')%dtmLay,False)
             dtmLay = ''
 
@@ -1677,7 +1799,6 @@ class IdrAgraTools():
         wtLayDic = self.SIMDIC['WATERTABLEMAP']
 
         progress.setProgress(50.0)
-
 
         ext = returnExtent(self.SIMDIC['EXTENT'])
         self.EXP = Exporter(parent = QgsProject.instance(), simdic = self.SIMDIC, feedback=progress, tr=self.tr)
@@ -1735,7 +1856,6 @@ class IdrAgraTools():
                     self.tr('WARNING! output folder %s already exists and will be removed!')%outputPath,False)
                 shutil.rmtree(outputPath)
 
-        s = QSettings()
         execPath = os.path.join(self.SIMDIC['OUTPUTPATH'], batFile)
         # print execPath,arg1,arg2
         if progress: progress.setText('%s' % (execPath))
@@ -1838,7 +1958,7 @@ class IdrAgraTools():
 
         try:
             soiluseNames = self.DBM.getColumnValues(fieldName ='("[" || id || "] " || name) AS label' ,
-                                                    tableName='idr_soiluses')
+                                                    tableName='idr_soiluses ORDER BY id')
 
             # this output are for matlab cropcoef
             # df = pd.read_csv(fileName, sep='\t', names = soiluseNames+['timestamp'],
@@ -2130,7 +2250,7 @@ class IdrAgraTools():
         effTable = {}
         for i, irrDistr in irrdistrDF.iterrows():
             replaceFieldTableIN['SubDistr_'+str(irrDistr['id'])]='Source_'+str(irrDistr['inlet_node'])
-            effTable[str(irrDistr['inlet_node'])]=irrDistr['distr_eff']
+            effTable[str(irrDistr['inlet_node'])] = 1. #irrDistr['distr_eff'] FIX: "need mode" always considers the internal network distribution see interventi_fabbisogni_fc in ogg_bilancio.f90
             effTable[str(irrDistr['outlet_node'])] = 1. #/ irrDistr['distr_eff']
             replaceFieldTableOUT['SubDistr_' + str(irrDistr['id'])] = 'Source_' + str(irrDistr['outlet_node'])
 
@@ -2284,6 +2404,20 @@ class IdrAgraTools():
         return resDict
 
     def importDistrictData(self,varIndex,sourceTable,progress):
+        idragraFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'idragra_parameters.txt')
+
+        # calculate irrigation timeserie from district and upload to stp_irr
+        tempFile = QgsProcessingUtils.generateTempFilename('aggrOutput.gpkg')
+        algResults = processing.run("idragratools:IdragraImportIrrUnitsResults",
+                                    {'IDRAGRA_FILE':idragraFile,'AGGR_VAR':varIndex,
+                                     'DB_FILENAME':self.DBM.DBName},
+                                   context=None,
+                                   feedback=progress,
+                                   is_child_algorithm=False
+                                   )
+
+
+    def importDistrictData_OLD(self,varIndex,sourceTable,progress):
         idragraFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'idragra_parameters.txt')
         gpkg_layer = self.DBM.DBName + '|layername=' + 'idr_distrmap'
         gpkg_layer = gpkg_layer.replace('\\', '/')
@@ -2461,7 +2595,7 @@ class IdrAgraTools():
         tsList = []
         valList = []
         # open CSV file
-        print("importDataFromCSV")
+        #print("importDataFromCSV")
         try:
             with open(filename, "r") as in_file:
                 i = 0
@@ -2539,10 +2673,11 @@ class IdrAgraTools():
             featList = self.vLayer.getFeatures(QgsFeatureRequest(expr))
             updateFeat = 0
             for feat in featList:
-                if feat['recval'] != value:
+                if feat['recval'] != v:
                     if overWrite:
                         progress.setText(self.tr('Updating feature %s') % feat.id())
-                        self.vLayer.changeAttributeValues(feat.id(), {idxVal: value}, {idxVal: feat['recval']})
+                        # FIX: update existing values
+                        self.vLayer.changeAttributeValues(feat.id(), {idxVal: v}, {idxVal: feat['recval']})
                 updateFeat += 1
 
             if updateFeat > 1:
@@ -2686,8 +2821,11 @@ class IdrAgraTools():
     def setFieldCheckable(self, layer, fldName):
         fields = layer.fields()
         field_idx = fields.indexOf(fldName)
+        # see https://gis.stackexchange.com/questions/346363/how-to-set-widget-type-to-attachment
+        # for useful infos
         config = {'CheckedState': 1,
-                  'UncheckedState': 0}
+                  'UncheckedState': 0,
+                  'TextDisplayMethod': 1}
 
         widget_setup = QgsEditorWidgetSetup('CheckBox', config)
         layer.setEditorWidgetSetup(field_idx, widget_setup)
@@ -3030,7 +3168,8 @@ class IdrAgraTools():
 
                 self.data = processing.run("idragratools:IdragraGroupStats",
                                {'IDRAGRA_FILE': idragraFile,
-                                'AGGR_LAY': res['selGroupLay'],'AGGR_FLD': res['selGroupField'],
+                                'AGGR_LAY': res['selGroupLay'],'MERGE': res['selMerge'],
+                                'AGGR_FLD': res['selGroupField'],
                                 'AGGR_VAR': res['selVarIdx'], 'AGGR_FUN': res['selFunIdx'],
                                 'OUTPUT_TABLE': 'TEMPORARY_OUTPUT'},
                                context=None,
@@ -3060,27 +3199,32 @@ class IdrAgraTools():
         proj = QgsProject.instance()
         dbpath = ''
         try:
-            dbpath = proj.readEntry('IdrAgraTools', 'dbname')[0]
+            #dbpath = proj.readEntry('IdrAgraTools', 'dbname')[0]
             tempDic = eval(proj.readEntry('IdrAgraTools', 'simsettings')[0])
             usedKeys = list(self.SIMDIC.keys())
             for k,v in tempDic.items():
                 if k in usedKeys: # to prevent bugs
                     self.SIMDIC[k]=v
 
+            dbpath = self.SIMDIC['DBFILE']
+
         except Exception as e:
             if dbpath != '': # set silent if dbpath is not set
                 showCriticalMessageBox(self.tr('Loading settings error'),
                                             self.tr('An error occurred when loading %s'%proj.fileName()),
                                             str(e))
-
+        #print('dbpath:',dbpath)
+        dbpath = os.path.normpath(dbpath)
+        # TODO: remove dbname, modify DBFILE
         if os.path.isfile(dbpath):
             #if (value is not None):
             self.openDB(dbpath=dbpath)
         else:
-            if dbpath != '':
+            print('dbpath is not a file:', dbpath)
+            if dbpath not in ['','.']:
                 # ask for new dbpath
                 dbpath = QFileDialog.getOpenFileName(None, self.tr('Open idragra database'), self.s.value('lastPath'),
-                                                     self.tr('Geopackage file (*.gpkg)'))
+                                                     self.tr(self.FILEFORMAT))
                 dbpath = dbpath[0]
                 if os.path.isfile(dbpath): self.openDB(dbpath=dbpath)
 
@@ -3125,6 +3269,7 @@ class IdrAgraTools():
 
         def updatePar():
             self.SIMDIC['ELEVMAP'] = dlg.getData()
+            #print('elevmap:',self.SIMDIC['ELEVMAP'])
             self.updatePars()
 
         dlg.closed.connect(updatePar)
@@ -3145,11 +3290,17 @@ class IdrAgraTools():
         dlg.show()
 
     def loadRaster(self,rasterPath, rasterName, layGroup):
+        proj = QgsProject.instance()
 
+        # if rasterPath[0]=='.':
+        #     rasterPath = os.path.join(proj.absolutePath(),rasterPath[2:])
+        #
+        # if not os.path.exists(rasterPath):
+        #     rasterPath = 'GPKG:' + os.path.join(proj.absolutePath(),rasterPath)
+        rasterPath = 'GPKG:' + self.DBM.DBName+':'+rasterName
         # load in project if not in the list
         #print('outDtmFile',outDtmFile)
         #rlayer =  self.getRasterLayerBySource(outDtmFile)
-        proj = QgsProject.instance()
         oldlayer = self.getLayerByName(rasterName)
         rlayer = QgsRasterLayer(rasterPath, rasterName, 'gdal')
 
@@ -3171,9 +3322,16 @@ class IdrAgraTools():
     def unloadRaster(self,rasterPath, rasterName):
         # loop in project
         proj = QgsProject.instance()
-        for layer in proj.mapLayers().values():
-            if ((layer.source().replace('\\', '/') == rasterPath) and (layer.name()==rasterName)) :
-                proj.removeMapLayer(layer.id())
+
+        # if not os.path.exists(rasterPath):
+        #     rasterPath = 'GPKG:' + os.path.join(proj.absolutePath(), rasterPath)
+        #
+        #
+        # for layer in proj.mapLayers().values():
+        #     if ((layer.source().replace('\\', '/') == rasterPath) and (layer.name()==rasterName)) :
+        #         proj.removeMapLayer(layer.id())
+        layer = self.getRasterLayerByName(rasterName)
+        if layer: proj.removeMapLayer(layer.id())
 
     def setDataSource(self, layer, newProvider, newDatasource, extent=None):
         # modified from https://github.com/enricofer/changeDataSource/blob/master/setdatasource.py
