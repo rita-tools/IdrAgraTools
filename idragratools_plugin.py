@@ -98,6 +98,13 @@ from .tools.add_features_from_csv import addFeaturesFromCSV
 from .tools.export_meteodata import exportMeteodataFromDB
 
 import pandas as pd
+import sys
+if (sys.version_info >= (3, 9)):
+    def checkTread(t):
+        return t.is_alive()
+else:
+    def checkTread(t):
+        return t.isAlive()
 
 
 # TODO:
@@ -1891,7 +1898,8 @@ class IdrAgraTools():
             perc = 0.0
             currentYear = -1
             year = -1
-            while t.isAlive():
+
+            while checkTread(t):
                 try:
                     line = q.get(timeout=.1)  # q.get_nowait() # or #TODO_check performance
                     #line = q.get_nowait()
