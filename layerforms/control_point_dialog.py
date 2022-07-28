@@ -80,7 +80,21 @@ def formOpen(dialog,layerid,featureid):
 			int(myDialog.findChild(QLineEdit, 'id').text()),
 			myDialog.findChild(QLineEdit, 'name').text()))
 
-	setInfoLabel()
+	#setInfoLabel()
+	INFO_LBL = myDialog.findChild(QLabel, 'INFO_LBL')
+	tr = qgis.utils.plugins['IdragraTools'].tr
+
+	# hide plot buttons if feature is
+	if not feature.geometry():
+		PLOT_EVA_WC.setHidden(True)
+		PLOT_EVA_VARS.setHidden(True)
+		PLOT_TRANS_WC.setHidden(True)
+		PLOT_TRANS_VARS.setHidden(True)
+		PLOT_CROP_VARS.setHidden(True)
+		INFO_LBL.setHidden(True)
+	else:
+		r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
+		INFO_LBL.setText(tr('Cell coordinates (row,column): %s,%s') % (r, c))
 
 def plotEvaWC(wsId,name):
 	tr = qgis.utils.plugins['IdragraTools'].tr
@@ -166,7 +180,6 @@ def plotEvaVars(wsId,name):
 		return
 
 	# make a dialog
-	tr = qgis.utils.plugins['IdragraTools'].tr
 	cw = ChartWidget(myDialog, '', False, False)
 	cw.setAxis(pos=211, secondAxis=False,label = ['External vars'])
 
@@ -386,13 +399,3 @@ def plotCropVars(wsId,name):
 	dlg.setWindowTitle(tr('Crop vars.'))
 	dlg.setCentralWidget(cw)
 	dlg.show()
-
-def setInfoLabel():
-	tr = qgis.utils.plugins['IdragraTools'].tr
-	INFO_LBL = myDialog.findChild(QLabel, 'INFO_LBL')
-	# get data
-	if feature.geometry():
-		r,c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
-		INFO_LBL.setText(tr('Cell coordinates (row,column): %s,%s')%(r,c))
-	else:
-		INFO_LBL.setText('')
