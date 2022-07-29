@@ -783,6 +783,9 @@ class IdrAgraTools():
         proj.writeEntry('IdrAgraTools', 'simsettings', str(self.SIMDIC))
         #print('OK update pars',str(self.SIMDIC))
         uri = 'geopackage:'+self.SIMDIC['DBFILE']+'?projectName='+self.PRJNAME
+        crs = QgsCoordinateReferenceSystem()
+        crs.createFromSrid(self.SIMDIC['CRS'])
+        proj.setCrs(crs)
         proj.write(uri)
         proj.writeEntry('Paths', 'Absolute', 'false')
         proj.write(uri)
