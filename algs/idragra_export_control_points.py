@@ -231,8 +231,15 @@ class IdragraExportControlPoints(QgsProcessingAlgorithm):
 					self.tr('Control point named %s is outside the extension') %
 					(feature['name']))
 			else:
-				recs.append('%s\t%s\t%s'%(n+1,r,c)) #flipped
-				nOfCP += 1
+				newRec = '%s\t%s\t%s'%(n+1,r,c) #flipped
+				if newRec not in recs:
+					recs.append(newRec)
+					nOfCP += 1
+				else:
+					self.FEEDBACK.reportError(
+						self.tr('More than one control point falls in one computational cell. Only one will be exported. Consider to reduce cell size.') %
+						(feature['name']))
+
 
 			n+=1
 			self.FEEDBACK.setProgress(100. * n / nFeats)

@@ -34,12 +34,13 @@ import sys
 from PyQt5 import QtGui
 from PyQt5.QtWidgets import QDialog,QAction,QMenu,QMessageBox,QPushButton,QWidget,QVBoxLayout,QComboBox,QLabel
 		
-
+import matplotlib
 from matplotlib.backends.backend_qt5agg  import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdt
 from matplotlib.patches import Polygon, Patch
+
 
 import numpy as np
 
@@ -48,8 +49,12 @@ from datetime import datetime
 
 from matplotlib.sankey import Sankey
 
-from data_manager.chart_tool_bar import ChartToolBar
-
+if (matplotlib.__version__).startswith('3.1.'):
+	from data_manager.chart_tool_bar_3_1 import ChartToolBar
+elif (matplotlib.__version__).startswith('3.5.'):
+	from data_manager.chart_tool_bar_3_5 import ChartToolBar
+else:
+	from data_manager.chart_tool_bar_3_1 import ChartToolBar
 
 class ChartWidget(QWidget):
 	def __init__(self, parent=None, title = '', secondAxis = False, enableConnection = True,size= None):
@@ -71,7 +76,8 @@ class ChartWidget(QWidget):
 		# this is the Navigation widget
 		# it takes the Canvas widget and a parent
 		#self.toolbar = NavigationToolbar(self.canvas, self)
-		self.toolbar = ChartToolBar(self.canvas,self)
+		self.toolbar = ChartToolBar(self.canvas,parent)#self
+		self.toolbar.update()
 
 		if enableConnection:
 			# Add
@@ -144,6 +150,7 @@ class ChartWidget(QWidget):
 		if mainTitle is not None: self.ax.set_title(mainTitle)
 		if xTitle is not None: self.ax.set_xlabel(xTitle)
 		if yTitle is not None: self.ax.set_ylabel(yTitle)
+		#print('in setTitles, y2Title:',y2Title)
 		if y2Title is not None: self.ax2.set_ylabel(y2Title)
 		
 		#ax.set_xticks(ind + width / 2)

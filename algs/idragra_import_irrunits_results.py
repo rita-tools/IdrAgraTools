@@ -29,12 +29,11 @@ __copyright__ = '(C) 2020 by Enrico A. Chiaradia'
 __revision__ = '$Format:%H$'
 
 import glob
-from math import tan, radians
 
 import qgis
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QCoreApplication, QVariant, QDate
-from qgis._analysis import QgsZonalStatistics
+
 from qgis.core import (QgsProcessing,
 					   QgsFeatureSink,
 					   QgsProcessingException,
@@ -68,21 +67,18 @@ from qgis.core import (QgsProcessing,
 					   QgsProject,
 					   NULL, QgsFeature, edit, QgsRaster, QgsProcessingUtils)
 						
-import processing
-import calendar
 
 import numpy as np
+import pandas as pd
 
-from datetime import datetime, timedelta
+from datetime import datetime,timedelta
 
 import os
 
-from algs.date_time_widget import DateTimeWidget
-from tools.gis_grid import GisGrid
-from ..tools.utils import isLeap
+from tools.sqlite_driver import SQLiteDriver
 
 
-class IdragraStatserie(QgsProcessingAlgorithm):
+class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 	"""
 	This is an example algorithm that takes a vector layer and
 	creates a new identical one.
@@ -101,11 +97,8 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 	# calling from the QGIS console.
 	
 	IDRAGRAFILE= 'IDRAGRA_FILE'
-	AGGRLAY = 'AGGR_LAY'
-	AGGRFLD = 'AGGR_FLD'
 	AGGRVAR = 'AGGR_VAR'
-	AGGRFUN = 'AGGR_FUN'
-	OUTPUTTABLE = 'OUTPUT_TABLE'
+	DB_FILENAME = 'DB_FILENAME'
 	FEEDBACK = None
 
 	def __init__(self):
@@ -119,7 +112,7 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		return QCoreApplication.translate('Processing', string)
 
 	def createInstance(self):
-		return IdragraStatserie()
+		return IdragraImportIrrUnitsResults()
 
 	def name(self):
 		"""
@@ -129,21 +122,21 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		lowercase alphanumeric characters only and no spaces or other
 		formatting characters.
 		"""
-		return 'IdragraStatserie'
+		return 'IdragraImportIrrUnitsResults'
 
 	def displayName(self):
 		"""
 		Returns the translated algorithm name, which should be used for any
 		user-visible display of the algorithm name.
 		"""
-		return self.tr('Make time serie from statistics')
+		return self.tr('Irrigation units results')
 
 	def group(self):
 		"""
 		Returns the name of the group this algorithm belongs to. This string
 		should be localised.
 		"""
-		return self.tr('Analysis')
+		return self.tr('Import')
 
 	def groupId(self):
 		"""
@@ -153,7 +146,7 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		contain lowercase alphanumeric characters only and no spaces or other
 		formatting characters.
 		"""
-		return 'IdragraAnalysis'
+		return 'IdragraImport'
 
 	def shortHelpString(self):
 		"""
@@ -163,14 +156,12 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		"""
 
 		helpStr = """
-						The algorithm create a time serie of selected statistic function of the selected variable. 
+						The algorithm import simulation results by the aggregation on the irrigation units. 
 						<b>Parameters:</b>
 						IdrAgra file: the parameters file used for the IdrAgra simulation (*.txt) [IDRAGRA_FILE]
-						Aggregation map: the vector layer that define aggregation areas [AGGR_LAY]
-						Aggregation field: the field that define aggregation groups [AGGR_FLD]
+						Aggregation raster map: the raster layer that define aggregation areas [AGGR_LAY]
 						Aggregation variable: the variable to be aggregated [AGGR_VAR]
-						Aggregation function: the function to be used for aggregation [AGGR_FUN]
-						Distribution function: the function to be used for daily distribution over the perod [DISTR_FUN]
+						Aggregation function: the function to use for aggregation [AGGR_FUN]
 						Output table: the resultant table [OUTPUT_TABLE]
 						"""
 		
@@ -187,7 +178,7 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		with some other properties.
 		"""
 		self.STEPNAME = qgis.utils.plugins['IdragraTools'].STEPNAME
-		self.GROUPBY =  qgis.utils.plugins['IdragraTools'].GROUPBY
+		self.GROUPBY =  qgis.utils.plugins['IdragraTools'].GROUPBYRASTER
 
 		self.AGGRFUNCTIONS = qgis.utils.plugins['IdragraTools'].AGGRFUNCTIONS
 
@@ -198,80 +189,69 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 		self.addParameter(QgsProcessingParameterFile(self.IDRAGRAFILE, self.tr('IdrAgra file'),
 													  QgsProcessingParameterFile.Behavior.File,'*.*','',False,
 													  'IdrAgra pars file (*.txt);;All files (*.*)'))
-	
-		self.addParameter(QgsProcessingParameterFeatureSource(self.AGGRLAY, self.tr('Aggregation map'),
-															  [], None, True))
-
-		self.addParameter(QgsProcessingParameterField(self.AGGRFLD, self.tr('Aggregation field'), 'fid', self.AGGRLAY,
-													  QgsProcessingParameterField.Numeric))
 
 		self.addParameter(QgsProcessingParameterEnum(self.AGGRVAR, self.tr('Aggregation variable'),
 													 list(self.STEPNAME.values())))
 
-		self.addParameter(QgsProcessingParameterEnum(self.AGGRFUN, self.tr('Aggregation function'),
-													 list(self.AGGRFUNCTIONS.values())))
-
-
-		self.addParameter(QgsProcessingParameterFeatureSink (self.OUTPUTTABLE, self.tr('Select output file'),QgsProcessing.TypeVectorPolygon))
+		self.addParameter(QgsProcessingParameterFile(self.DB_FILENAME, self.tr('DB filename'),
+													 QgsProcessingParameterFile.Behavior.File, '*.*', '', False,
+													 self.tr('Geopackage (*.gpkg);;All files (*.*)')))
 
 	def processAlgorithm(self, parameters, context, feedback):
 		"""
 		Here is where the processing itself takes place.
 		"""
 		self.FEEDBACK = feedback
+
+		nodata = -9
 		# get params
 		idragraFile = self.parameterAsFile(parameters, self.IDRAGRAFILE, context)
-
-		aggrLay = self.parameterAsVectorLayer(parameters, self.AGGRLAY, context)
-
-		aggrFld = self.parameterAsFields(parameters, self.AGGRFLD, context)[0]
 
 		varIdx = self.parameterAsEnum(parameters, self.AGGRVAR, context)
 		varToUse = list(self.STEPNAME.keys())[varIdx]
 
-		aggrFunIdx = self.parameterAsEnum(parameters, self.AGGRFUN, context)
-		aggrFun = list(self.AGGRFUNCTIONS.keys())[aggrFunIdx]
+		dbFilename = self.parameterAsFile(parameters, self.DB_FILENAME, context)
+		self.DBM = SQLiteDriver(dbFilename, False, None, self.FEEDBACK, self.tr, QgsProject.instance())
+
+		layToUse = 'irr_units'
 
 		# TODO: explode over days in period
 
-		fldList = QgsFields()
-		fldList.append(QgsField('timestamp', QVariant.Date))
-		fldList.append(QgsField('wsid', QVariant.String))
-		fldList.append(QgsField('recval', QVariant.Double))
 
-		# get output file
-		(sink, dest_id) = self.parameterAsSink(
-			parameters,
-			self.OUTPUTTABLE,
-			context,
-			fldList
-			)
+		# init table
+		resTable = {
+			'wsid' : [],
+			'recval' :[],
+			'count' : [],
+			'timestamp': []
+		}
 
-		# loop in the idragra project file and get parameters
+		# loop in the idragra project file
 
+		# ... get path to geodata folder InputPath
+		# ... get path to results folder OutputPath
+		# ... get output settings MonthlyFlag, StartDate, EndDate, DeltaDate
 		monthlyFlag = True
 		startDate = 1
 		endDate = 366
 		deltaDate = 366
-		outputPath = ''
 
 		try:
 			f = open(idragraFile,'r')
 			for l in f:
-				l = l.replace(' ','') # remove inside blank characters
-				l = l.rstrip('\r\n') # remove return carriage
+				l = l.replace(' ','')
+				l = l.rstrip('\n')  # remove return carriage
 				l = l.split('=')
 				if len(l)==2:
 					parName = l[0].lower()
 					#print(parName)
 					if parName== 'inputpath':
 						inputPath = l[1]
-					if parName == 'meteopath':
-						meteoPath = l[1]
 					elif parName== 'outputpath':
 						outputPath = l[1]
 					elif parName == 'monthlyflag':
-						if l[1]=='F': monthlyFlag = False
+						if l[1]=='F':
+							monthlyFlag = False
 					elif parName == 'startdate':
 						startDate = int(l[1])
 					elif parName == 'enddate':
@@ -284,56 +264,77 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 			self.FEEDBACK.reportError(self.tr('Cannot parse %s because %s') %
 									  (idragraFile, str(e)),True)
 
-
+		# TODO: get raster base map
 		rootSimPath = os.path.dirname(idragraFile)
-		# get cell size from domain map
-		pathToImport = os.path.join(rootSimPath, inputPath)[:-1]
-		pathToImport = os.path.join(pathToImport, 'domain.asc')
 
-		domainGrd = GisGrid()
-		domainGrd.openASC(pathToImport)
-		cellSize = domainGrd.dx
+		baseFileName = os.path.join(rootSimPath,inputPath,layToUse+'.asc')
+		# create a grid file
+		baseData = np.loadtxt(baseFileName,dtype=np.int,skiprows=6)
+		baseList = list(np.unique(baseData))
+		baseList.remove(nodata)
 
-		# get simulation time directly from meteodata
-		pathToImport = os.path.join(rootSimPath, meteoPath)[:-1]  # because ends with //
-		fileFilter = '*.dat'
+		# get the list of the output for the selected variable
+
+		fileFilter = '*'+varToUse[4:]+'.asc'
+
+		pathToImport = os.path.join(rootSimPath,outputPath)[:-1] # because ends with //
+		#print('pathToImport',pathToImport)
 		fileList = glob.glob(os.path.join(pathToImport, fileFilter))
-		firstDay, endDay = self.getTimeLimits(filename=fileList[0])
+		#print('fileList',fileList)
+		nOfFiles = len(fileList)
+		i = 0.
+		yearList = []
+		for f in fileList:
+			# parse file name
+			fname = os.path.basename(f)
+			# extract date time
+			parsedDate = None
+			y = nodata
+			if monthlyFlag:
+				# 2000_month1_caprise
+				try:
+					y = int(fname[0:4])
+					tokStart = fname.index('_month')+len('_month')
+					tokEnd = fname.index('_', tokStart)
+					s = int(fname[tokStart:tokEnd])
+					parsedDate = self.monthToDate(year=y, month = s)
+				except:
+					pass
+			else:
+				# 2000_step1_caprise.asc
+				if '_step' in fname:
+					#self.FEEDBACK.pushInfo(self.tr('last file %s') % fname)
+					y = int(fname[0:4])
+					tokStart = fname.index('_step')+len('_step')
+					tokEnd = fname.index('_',tokStart)
+					s = int(fname[tokStart:tokEnd])
+					# step to date
+					parsedDate = self.stepToDate(year=y,step = s,periodStart =startDate, periodDelta = deltaDate)
 
-		# call aggregation algorithm
-		tempFile = QgsProcessingUtils.generateTempFilename('aggrOutput.gpkg')
-		# algResults = processing.run("idragratools:IdragraGroupStats",
-		# 						   {'IDRAGRA_FILE': idragraFile,
-		# 							'AGGR_LAY': aggrLay, 'AGGR_FLD': aggrFld,
-		# 							'AGGR_VAR': varIdx, 'AGGR_FUN': aggrFunIdx,
-		# 							'OUTPUT_TABLE': tempFile},
-		# 						   context=context,
-		# 						   feedback=feedback,
-		# 						   is_child_algorithm=True
-		# 						   )
+			if y not in yearList: yearList.append(y)
 
-		algResults = processing.run("idragratools:IdragraGroupStatsByRaster",
-					   {'IDRAGRA_FILE': idragraFile,
-						'AGGR_LAY': 'irr_units', 'AGGR_VAR': varIdx, 'AGGR_FUN': aggrFunIdx,
-						'OUTPUT_TABLE': tempFile},
-					   context=context,
-					   feedback=feedback,
-					   is_child_algorithm=True
-		)
+			self.FEEDBACK.pushInfo(self.tr('Processing %s --> %s'%(f,parsedDate)))
+			if parsedDate:
+				varData = np.loadtxt(f, dtype=np.float, skiprows=6)
 
-		# get table and create time series
-		table = QgsVectorLayer(tempFile,'temp','ogr')
-		#print('features count:',table.featureCount()) #ok
+				for i in baseList:
+					mask = np.where(np.logical_and(baseData[:,:] == i,varData[:,:] != nodata))
+					calcVal = (np.mean(varData[mask]))
+					countVal = (np.count_nonzero(mask))
+					# store data
+					resTable['wsid'].append(i.item())
+					resTable['recval'].append(calcVal.item())
+					resTable['count'].append(countVal)
+					resTable['timestamp'].append(parsedDate)
 
-		# get list of processed years
-		firstYear = firstDay.year
-		endYear = endDay.year
-		yearList = list(range(firstYear, endYear + 1))
-		#print('n. of year',len(yearList))
+			i+=1.
+			self.FEEDBACK.setProgress(100.0*i/nOfFiles)
 
-		# get the list of unique id
-		attrIndex = table.fields().indexFromName('wsid')
-		idList = table.uniqueValues(attrIndex)
+		# make table ad pandas dataframe
+		resTable = pd.DataFrame(resTable)
+
+		if nodata in yearList: yearList.remove(nodata)
+		yearList = sorted(yearList)
 
 		daysArray = np.array([])
 		valuesArray = np.array([])
@@ -341,69 +342,50 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 
 		if monthlyFlag: startDate = None
 
-		for i in idList:
-			a,b = self.dayValueArray(table, i, yearList, startDate,0.0,cellSize)
-			if len(daysArray)>0: daysArray = np.concatenate((daysArray, a))
-			else: daysArray = a
+		# TODO: fix function
+		for i in baseList:
+			a, b = self.dayValueArray(resTable, i, yearList, startDate, 0.0)
+			if len(daysArray) > 0:
+				daysArray = np.concatenate((daysArray, a))
+			else:
+				daysArray = a
 
-			if len(valuesArray)>0: valuesArray = np.concatenate((valuesArray, b))
-			else: valuesArray = b
+			if len(valuesArray) > 0:
+				valuesArray = np.concatenate((valuesArray, b))
+			else:
+				valuesArray = b
 
 			c = np.repeat(i, len(a))
-			if len(idArray)>0: idArray = np.concatenate((idArray, c))
-			else: idArray = c
+			if len(idArray) > 0:
+				idArray = np.concatenate((idArray, c))
+			else:
+				idArray = c
 
-		# save values to table
-		nOfRec = len(daysArray)
-		i=0.
-		for k in np.stack((idArray, daysArray, valuesArray), axis=1):
-			feat = QgsFeature(fldList)
-			feat['wsid'] = k[0]
-			feat['timestamp'] = k[1].strftime('%Y-%m-%d')
-			feat['recval'] = k[2]
+		# save values to database table
 
-			sink.addFeature(feat, QgsFeatureSink.FastInsert)
+		concatValues = []
+		for timestamp,sensorId,value in zip(daysArray,idArray,valuesArray):
+			concatValues.append("('" + timestamp.strftime('%Y-%m-%d') + "', '" + str(sensorId) + "', '" + str(value) + "')")
 
-			i+=1.
-			self.FEEDBACK.setProgress(100.0*i/nOfRec)
+		concatValues = ', '.join(concatValues)
 
-		return {'OUTPUT_TABLE':dest_id}
+		sql = 'DELETE FROM %s;' % varToUse
+		sql += 'VACUUM;'
+		sql += 'BEGIN; '
+		sql += 'INSERT INTO %s (timestamp,wsid,recval) VALUES %s; ' % (varToUse,concatValues)
+		sql += 'COMMIT;'
 
-	def stepToDate(self, year, step, periodStart, periodDelta):
-		# calculate the day of the year for the selected periodù
-		selDate = datetime(year, 1, 1)+timedelta(periodStart+step*periodDelta)
-		return selDate.strftime('%Y-%m-%d')
+		msg = self.DBM.executeSQL(sql)
+		if msg != '':
+			self.FEEDBACK.pushInfo(self.tr('SQL error: %s' % msg))
+			self.FEEDBACK.pushInfo(self.tr('at: %s' % sql))
 
-	def monthToDate(self, year, month):
-		if month == 12:
-			month = 1
-			year +=1
-		else: month+=1
-
-		selDate = datetime(year, month, 1)-timedelta(1)
-		return selDate.strftime('%Y-%m-%d')
-
-	def getTimeLimits(self, filename):
-		lineToParse = ''
-		with open(filename) as fp:
-			for i, line in enumerate(fp):
-				if i == 2:
-					lineToParse = line[:-1] # remove return carriage symbol
-					break
-
-		toks = lineToParse.split(' -> ')
-		firstDay = None
-		endDay = None
-		if len(toks)==2:
-			firstDay = datetime.strptime(toks[0],'%d/%m/%Y')
-			endDay = datetime.strptime(toks[1], '%d/%m/%Y')
-
-		return firstDay, endDay
+		return {'OUTPUT_TABLE':None}
 
 	def arrayOfDays(self,startDate, endDate):
 		return np.arange(startDate, endDate+timedelta(days=1), timedelta(days=1)).astype(datetime)
 
-	def dayValueArray(self,table,sensorId, yearList, startDay, nodata = -999,cellSize = 250.):
+	def dayValueArray(self,table,sensorId, yearList, startDay, nodata = -999):
 		# create an empty time series
 		firstDate = datetime(yearList[0],1,1)
 		endDay = datetime(yearList[-1],12,31)
@@ -430,25 +412,17 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 			# dayList = []
 			# valueList = []
 			# select a subset
-			query = QgsExpression('"wsid" = %s and "timestamp" like \'%s%s\'' % (sensorId, y, '%'))
-			request = QgsFeatureRequest(query)
-			request.setFlags(QgsFeatureRequest.NoGeometry)
-			selection = table.getFeatures(request)
-			#dummy = 0
-			for s in selection:
-				dayList.append(datetime(s['timestamp'].year(),s['timestamp'].month(),s['timestamp'].day()))
-				valueList.append(s['recval'])#*s['count']*cellSize*cellSize/1000.) # in cubic meters
-				#dummy+=1
+			# q = "wsid == %s and timestamp like \'%s%s\'" % (sensorId, y, '%')
+			# selection = table.query(q)
+			#print('table:',table)
 
-			#print('test table request',dummy)
-			#print('dayList',dayList)
-			#print('valueList',valueList)
+			 #selection=table[table['wsid'] == sensorId & table['timestamp'].str().startswith("%s"%y)]
+			selection = table[(table['wsid'] == sensorId) & (table['timestamp'].dt.year == y)]
+			selection = selection.sort_values(by="timestamp")
+			print('selection:', selection)
 
-			valueList = [x for _, x in sorted(zip(dayList, valueList))]
-			dayList = sorted(dayList)
-
-			#print('dayList', dayList)
-			#print('valueList', valueList)
+			dayList = selection['timestamp'].to_list()
+			valueList = selection['recval'].to_list()
 
 			i = 1
 			while i < len(dayList):
@@ -464,3 +438,33 @@ class IdragraStatserie(QgsProcessingAlgorithm):
 			self.FEEDBACK.setProgress(100.0 * c / nOfYears)
 
 		return datesArray,valueArray
+
+	# TODO: step is calculate from the first day of the year or the irrigation period? --> from the outputs dates
+	# TODO: check if it works correctly with leap year
+	def stepToDate(self, year, step, periodStart, periodDelta):
+		# calculate the day of the year for the selected period
+		# added -2 to clear starting point
+		# if ((not isLeap(year)) and (periodStart >= 59)):
+		# 	#print('not leap year',y)
+		#  	offset = -2 - 1
+		# else:
+		# 	offset = -1 - 1
+
+		# offset = -2 - 1
+		#if (isLeap(year)): offset = -1-1
+		offset = -1 - 1 #FIXED: IdrAgra does not aware for leap year
+
+		selDate = datetime(year, 1, 1)+timedelta(periodStart+step*periodDelta+offset)
+		lastDate = datetime(year, 12, 31)
+		#print('lastDate:',lastDate)
+		if selDate>lastDate: selDate =lastDate #limit to selected period
+		return selDate#.strftime('%Y-%m-%d')
+
+	def monthToDate(self, year, month):
+		if month == 12:
+			month = 1
+			year +=1
+		else: month+=1
+
+		selDate = datetime(year, month, 1)-timedelta(1)
+		return selDate#.strftime('%Y-%m-%d')

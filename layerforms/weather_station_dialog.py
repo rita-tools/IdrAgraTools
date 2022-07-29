@@ -197,12 +197,12 @@ def plotMeteoVars(wsId,name):
 		if p['axes']=='y': y1Title.append(p['name'])
 		if p['axes']=='y2': y2Title.append(p['name'])
 
-	# set title
-	cw.setTitles(xlabs = None, ylabs = None, xTitle = None, yTitle = ', '.join(y1Title), y2Title = ', '.join(y2Title), mainTitle = None)
-
 	# flip y axes
 	cw.flipAxes(x1 = None, y1 = True, x2 = None, y2 = None)
 
+	# set title
+	cw.setTitles(xlabs=None, ylabs=None, xTitle=None, yTitle=', '.join(y1Title), y2Title=', '.join(y2Title),
+				 mainTitle=None)
 
 	# second plot
 	cw.setAxis(pos=312 , secondAxis=False,label = ['Humidity'])

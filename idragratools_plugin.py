@@ -2039,7 +2039,8 @@ class IdrAgraTools():
                 if finalDF is None:
                     finalDF = df
                 else:
-                    finalDF = finalDF.append(df)
+                    # TODO: Deprecated since version 1.4.0: Use concat() instead.
+                    finalDF = finalDF.append(df,ignore_index = True)
 
             except Exception as e:
                 msg += str(e) + '\n'

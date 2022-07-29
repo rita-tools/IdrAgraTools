@@ -298,7 +298,7 @@ class IdragraMakeSlope(QgsProcessingAlgorithm):
 								   )
 
 		slopeLay = QgsRasterLayer(algresult['OUTPUT'], 'slope')
-
+		# TODO: filter for 1-cell raster
 		# make slope as ratio
 
 		entries = []

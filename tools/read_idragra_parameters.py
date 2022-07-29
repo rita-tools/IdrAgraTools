@@ -28,26 +28,37 @@ __copyright__ = '(C) 2020 by Enrico A. Chiaradia'
 
 __revision__ = '$Format:%H$'
 
-from qgis._core import QgsRectangle
+def readIdragraParameters(idragraFile, feedback,tr):
 
+    pars = {}
 
-def returnExtent(extStr):
-    ext = None
     try:
-        ll,ur = extStr.split(' : ')
-        xll,yll = ll.split(',')
-        xur, yur = ur.split(',')
-        #print(xll,yll,xur,yur)
-        ext = QgsRectangle(round(float(xll),4), round(float(yll),4), round(float(xur),4), round(float(yur),4))
+        f = open(idragraFile, 'r')
+        for l in f:
+            l = l.replace(' ', '')
+            l = l.rstrip('\n')  # remove return carriage
+            l = l.split('=')
+            if len(l) == 2:
+                parName = l[0].lower()
+                # print(parName)
+                if parName == 'inputpath':
+                    pars['inputpath'] = l[1]
+                elif parName == 'outputpath':
+                    pars['outputpath'] = l[1]
+                elif parName == 'monthlyflag':
+                    if l[1] == 'F': pars['monthlyflag'] = False
+                    else: pars['monthlyflag'] = True
+                elif parName == 'startdate':
+                    pars['startdate'] = int(l[1])
+                elif parName == 'enddate':
+                    pars['enddate'] = int(l[1])
+                elif parName == 'deltadate':
+                    pars['deltadate'] = int(l[1])
+                else:
+                    # all the other cases
+                    pars[parName] = l[1]
     except Exception as e:
-        print('In returnExtent, error:',str(e))
+        feedback.reportError(tr('Cannot parse %s because %s') %
+                              (idragraFile, str(e)), True)
 
-    return ext
-
-def isLeap(year):
-    res = False
-    if (((year % 400 == 0) and (year % 100 == 0)) or ((year % 4 == 0) and (year % 100 != 0))):
-        res = True
-
-    return res
-
+    return pars

@@ -272,6 +272,8 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 			else:
 				destFile = os.path.join(destFolder, nameFormat + '_%s.asc'%y)
 
+			# TODO: first rasterization with zero values
+
 			# rasterize
 			algResults = processing.run("gdal:rasterize",
 										{'INPUT': newLayName, 'FIELD': dataFld, 'BURN': 0,

@@ -93,9 +93,12 @@ class GroupstatsDialog(QDialog):
 		selGroupName = self.GROUPBY_LAY_CB.currentLayer().name()
 		selGroupField = self.GROUPBY_FLD_CB.currentText()
 
+		selMerge = self.MERGE_CB.isChecked()
+
 
 		return {'selVarIdx':selVarIdx,
 				'selGroupLay':selGroupLay,
 				'selGroupField':selGroupField,
 				'selGroupName':selGroupName,
-				'selFunIdx':selFunIdx}
+				'selFunIdx':selFunIdx,
+				'selMerge':selMerge}

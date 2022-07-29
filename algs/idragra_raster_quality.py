@@ -410,6 +410,6 @@ class IdragraRasterQuality(QgsProcessingAlgorithm):
 
 		qIndex = round(100*RMSE/tot_area,2)
 
-		self.FEEDBACK.pushInfo(self.tr('Quality index between raster and vector areas (RMSE/mask_area): %s %s' % (qIndex,'%')))
+		self.FEEDBACK.pushInfo(self.tr('Average error between raster and vector areas (RMSE/mask_area): %s %s' % (qIndex,'%')))
 
-		return {self.DESTFILE: dest_id}
+		return {self.DESTFILE: dest_id, 'ERROR':qIndex}

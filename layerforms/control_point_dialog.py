@@ -138,11 +138,11 @@ def plotTransWC(wsId,name):
 	# get data
 	simdic = qgis.utils.plugins['IdragraTools'].SIMDIC
 	r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
-	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c, None, ['Giulian_day', 'theta2_mm','thickness_II_m'])
+	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c, None, ['Giulian_day', 'pday','theta2_mm','thickness_II_m'])
 	pars, msgPars = qgis.utils.plugins['IdragraTools'].readControlPointsParams(r, c, [], ['ThetaII_fc', 'ThetaII_wp'])
 
 	if df is None:
-		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if file exists'),msg)
 		return
 
 	cw = ChartWidget(myDialog, '', False, False)
@@ -155,11 +155,22 @@ def plotTransWC(wsId,name):
 						lineType='-', color='#4A7EBB', name=tr('Soil water content (-)'),
 						yaxis=1,
 						shadow=False)
+
+
 	if pars is not None:
 		cw.addTimeSerie(pars['timestamp'], pars['ThetaII_wp'], lineType='-', color='#BE4B48',
 						name=tr('Wilting point (-)'), yaxis=1, shadow=False)
 		cw.addTimeSerie(pars['timestamp'], pars['ThetaII_fc'], lineType='-', color='#98B954',
 						name=tr('Field capacity (-)'), yaxis=1, shadow=False)
+
+	if ((df is not None) and (pars is not None)):
+		#df['RAWlim']
+		df['RAWlim'] = (pars['ThetaII_fc'] - df['pday'] * (pars['ThetaII_fc'] - pars['ThetaII_wp']))
+
+		cw.addTimeSerie(df['Giulian_day'], df['RAWlim'],
+						lineType='-', color='#7d60a0', name=tr('RAW limit (-)'),
+						yaxis=1,
+						shadow=False)
 
 	dlg = QMainWindow(myDialog)
 	dlg.setWindowTitle(tr('2nd layer WC'))

@@ -296,7 +296,11 @@ class IdragraImportFromExistingDB(QgsProcessingAlgorithm):
 		# import raster
 		if rasterFlag:
 			# search for all raster in source db
-			gpkg = gdal.Open(sourceFn)
+			gdal.UseExceptions()
+			try:
+				gpkg = gdal.Open(sourceFn)
+			except Exception as e:
+				self.FEEDBACK.reportError(self.tr('Unable to read database for raster layers (Complete error: %s)') % str(e), True)
 
 			if gpkg.GetSubDatasets():
 				for raster in gpkg.GetSubDatasets():

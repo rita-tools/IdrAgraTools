@@ -84,6 +84,7 @@ class SQLiteDriver(QObject):
 		self.conn = None
 		self.cur = None
 		self.DBName = filename
+		#print('in sqlDriver',filename)
 		if progress is None:
 			self.progress = MyProgress()
 		else:
@@ -107,7 +108,10 @@ class SQLiteDriver(QObject):
 		except Exception as e:
 			self.progress.setInfo(str(e),True)
 
-		self.resetCounter()
+		try:
+			self.resetCounter()
+		except Exception as e:
+			self.progress.reportError('Unable to reset counter in %s (%s)'%(filename,str(e)), False)
 
 	def resetCounter(self):
 		sql = "UPDATE 'sqlite_sequence' SET 'seq' = 0;"
@@ -182,6 +186,8 @@ class SQLiteDriver(QObject):
 				options.EditionCapability = QgsVectorFileWriter.CanAddNewLayer 
 				
 			options.layerName = lyr.name()
+
+			#print('in init table',gpkgPath)
 			_writer = QgsVectorFileWriter.writeAsVectorFormat(lyr, gpkgPath, options )
 			#print(options.layerName,_writer)
 
@@ -403,6 +409,8 @@ class SQLiteDriver(QObject):
 	def startConnection(self):
 		# start connection
 		self.conn = sqlite.connect(self.DBName,detect_types=sqlite.PARSE_DECLTYPES)
+		self.conn.enable_load_extension(True)
+		self.conn.execute('SELECT load_extension("mod_spatialite")')
 		# creating a Cursor
 		self.cur = self.conn.cursor()
 		
@@ -412,14 +420,19 @@ class SQLiteDriver(QObject):
 		#self.cur.execute('VACUUM')
 		self.conn.close()
 	
-	def executeSQL(self,sql):
+	def executeSQL(self,sql,data=None):
 		msg=''
 		try:
 			self.startConnection()
-			self.cur.executescript(sql)
+			#self.cur.execute('SELECT load_extension("mod_spatialite");')
+			if data:
+				self.cur.executemany(sql,data)
+				self.conn.commit()
+			else:
+				self.cur.executescript(sql)
 		except Exception as e:
 			msg = str(e)
-			self.progress.reportError(self.tr('SQL error at %s: %s') %(sql,msg),True)
+			self.progress.reportError(self.tr('SQL error at %s: %s \nwith data%s') %(sql,msg,str(data)),True)
 		finally:
 			self.stopConnection()
 			

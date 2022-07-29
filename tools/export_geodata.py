@@ -87,9 +87,21 @@ class Exporter(QObject):
 		self.feedback.pushInfo(self.tr('Exporting soils parameters'))
 		self.feedback.setProgress(50.0)
 		# SOIL PARAMETERS MAP
+
+
+		# export soil ids. Actually not used by IdrAgra but needed to test cell dimension
+		fileName = os.path.join(outPath, 'soilid' + '.asc')
+		soilMap = DBM.DBName + '|layername=idr_soilmap'
+		fieldName = 'extid'
+		self.algResults = processing.run("idragratools:IdragraRasterizeMap",
+										 {'VECTOR_LAY': soilMap, 'VECTOR_FLD': fieldName,
+										  'RASTER_EXT': extent,
+										  'CELL_DIM': cellSize,
+										  'DEST_FILE': fileName},
+										 context=None, feedback=self.feedback, is_child_algorithm=False)
+
 		# make aggregate parameters
 		sourceTable = DBM.DBName + '|layername=idr_soil_profiles'
-		soilMap = DBM.DBName + '|layername=idr_soilmap'
 		depths = ' '.join([str(x) for x in depthList])
 		# make aggregate soil params
 		self.algResults = processing.run("idragratools:IdragraSoilParams",
@@ -149,7 +161,12 @@ class Exporter(QObject):
 		fileName = os.path.join(outPath, 'hydr_group' + '.asc')
 		waterTableFirst = ''
 		for var, waterTable in watertableDict.items():
-			waterTableFirst = waterTable
+			waterTableFirst = 'GPKG:' + self.simdic['DBFILE']+ ':'+var
+
+			# waterTableFirst = waterTable
+			# if waterTableFirst.startswith('.'):
+			# 	waterTableFirst = 'GPKG:'+os.path.join(os.path.dirname(self.simdic['DBFILE']), waterTableFirst[2:])
+
 			break
 
 		self.algResults = processing.run("idragratools:IdragraCreateHSGMap", {
@@ -237,6 +254,11 @@ class Exporter(QObject):
 		nOfWTdepths = 0
 		if dtm:
 			for var,waterTable in watertableDict.items():
+				#if waterTable.startswith('.'):
+				#	waterTable = 'GPKG:'+os.path.join(os.path.dirname(self.simdic['DBFILE']), waterTable[2:])
+
+				waterTable = 'GPKG:' + self.simdic['DBFILE'] + ':' + var
+
 				if nOfWTdepths==0:
 					# make a general water table for the first year
 					self.feedback.pushInfo(self.tr('A base waterdepth map was set for the simulation period'))
@@ -250,21 +272,25 @@ class Exporter(QObject):
 								   )
 				nOfWTdepths+=1
 				# get year and number of days from the 1st of January
-				year = int(var[11:-4])
-				month = int(var[15:-2])
-				day = int(var[17:])
-				delta =  date(year, month, day) - date(year, 1, 1)
-				nOfDays = delta.days
+				# FIXED: manage missing year-day
+				try:
+					year = int(var[11:-4])
+					month = int(var[15:-2])
+					day = int(var[17:])
+					delta =  date(year, month, day) - date(year, 1, 1)
+					nOfDays = delta.days+1
 
-				#wtdepthName = os.path.join(outPath,'waterdepth'+var[10:-4]+'.asc') # remove month and day
-				wtdepthName = os.path.join(outPath, 'waterdepth' + str(year)+'_'+ str(nOfDays) + '.asc')  # set year and num of days from the beginning
-				processing.run("idragratools:IdragraCalcWaterDepth", {'DTM': dtm,
-																	  'WATERTABLE': waterTable,
-																	  'EXTENT': extent,
-																	  'CELLSIZE': cellSize,
-																	  'OUTPUT': wtdepthName},
-							   context=None, feedback=self.feedback, is_child_algorithm=False
-							   )
+					#wtdepthName = os.path.join(outPath,'waterdepth'+var[10:-4]+'.asc') # remove month and day
+					wtdepthName = os.path.join(outPath, 'waterdepth' + str(year)+'_'+ str(nOfDays) + '.asc')  # set year and num of days from the beginning
+					processing.run("idragratools:IdragraCalcWaterDepth", {'DTM': dtm,
+																		  'WATERTABLE': waterTable,
+																		  'EXTENT': extent,
+																		  'CELLSIZE': cellSize,
+																		  'OUTPUT': wtdepthName},
+								   context=None, feedback=self.feedback, is_child_algorithm=False
+								   )
+				except:
+					pass
 
 		if nOfWTdepths==0:
 			self.feedback.reportError(self.tr('No water depths were processed. DTM or water table maps are missing.'),False)

@@ -23,7 +23,7 @@
       <string>Unique feature identifier</string>
      </property>
      <property name="text">
-      <string>Id</string>
+      <string>Id [id]</string>
      </property>
     </widget>
    </item>
@@ -43,7 +43,7 @@
       <string>The name of the link</string>
      </property>
      <property name="text">
-      <string>Name</string>
+      <string>Name [name]</string>
      </property>
     </widget>
    </item>
@@ -57,7 +57,7 @@
    <item row="2" column="0">
     <widget class="QLabel" name="descr_LBL">
      <property name="text">
-      <string>Description</string>
+      <string>Description [descr]</string>
      </property>
     </widget>
    </item>

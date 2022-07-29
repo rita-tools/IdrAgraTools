@@ -1,38 +1,38 @@
-import matplotlib
-from PyQt5.QtWidgets import *
-from PyQt5 import uic
-from datetime import datetime
-from datetime import timedelta
 import os
 
+from PyQt5.QtGui import QCursor
+from PyQt5.QtWidgets import QApplication
+from matplotlib.backend_tools import cursors
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT
 from matplotlib.backend_bases import MouseButton
 import matplotlib.dates as mdt
-from qgis.PyQt import QtWidgets, QtCore
+from qgis.PyQt import QtWidgets, QtCore, QtGui
 
 
 class ChartToolBar(NavigationToolbar2QT):
 	def __init__(self, canvas, parent):
-		self.toolitems = (
-						('Home', 'Reset original view', 'Home', 'home'),
-						('Back', 'Back to previous view', 'Back', 'back'),
-						('Forward', 'Forward to next view', 'Forward', 'forward'),
-						(None, None, None, None),
-						('Pan', 'Pan axes with left mouse, zoom with right', 'Move', 'pan'),
-						('Zoom', 'Zoom to rectangle', 'ZoomToRect', 'zoom'),
-						('Notes','Add notes','Notes','add_notes'),
-						('NotesRemove', 'Delete notes', 'NotesRemove', 'remove_notes'),
-						(None, None, None, None),
-						('Subplots', 'Configure subplots', 'Subplots', 'configure_subplots'),
-						('Customize', 'Edit axis, curve and image parameters', 'Customize', 'edit_parameters'),
-						(None, None, None, None),
-						('Save', 'Save the figure', 'Filesave', 'save_figure'),
-						)
-		#self.addNotesFlg = False
-		#self.removeNotesFlg = False
 		self.digits = True # before parent initialization
+		self.basedir = os.path.join(os.path.dirname(__file__), 'icons')
 
 		NavigationToolbar2QT.__init__(self, canvas, parent)
+
+		self.toolitems = (
+			('Home', 'Reset original view', 'Home', 'home'),
+			('Back', 'Back to previous view', 'Back', 'back'),
+			('Forward', 'Forward to next view', 'Forward', 'forward'),
+			(None, None, None, None),
+			('Pan', 'Pan axes with left mouse, zoom with right', 'Move', 'pan'),
+			('Zoom', 'Zoom to rectangle', 'ZoomToRect', 'zoom'),
+			('Notes', 'Add notes', 'Notes', 'add_notes'),
+			('NotesRemove', 'Delete notes', 'NotesRemove', 'remove_notes'),
+			(None, None, None, None),
+			('Subplots', 'Configure subplots', 'Subplots', 'configure_subplots'),
+			('Customize', 'Edit axis, curve and image parameters', 'Customize', 'edit_parameters'),
+			(None, None, None, None),
+			('Save', 'Save the figure', 'Filesave', 'save_figure'),
+		)
+
+		self._init_toolbar()
 		self.canvas = canvas
 		self.ann_list = []
 
@@ -40,15 +40,17 @@ class ChartToolBar(NavigationToolbar2QT):
 		self.cid_addtext = self.canvas.mpl_connect('pick_event', self.addTextToPlot)
 		self.coordinates = False
 
-
 	def _init_toolbar(self):
 		self.basedir = os.path.join(os.path.dirname(__file__), 'icons')
+		self.clear() # clear all elements in the toolbar
 
 		for text, tooltip_text, image_file, callback in self.toolitems:
+			#print('load image:',os.path.join(self.basedir,image_file + '.svg'))
+
 			if text is None:
 				self.addSeparator()
 			else:
-				a = self.addAction(self._icon(image_file + '.svg'),
+				a = self.addAction(self._icon(os.path.join(self.basedir,image_file + '.svg')),
 								   text, getattr(self, callback))
 				self._actions[callback] = a
 				if callback in ['zoom', 'pan','add_notes','remove_notes']:
@@ -56,7 +58,7 @@ class ChartToolBar(NavigationToolbar2QT):
 				if tooltip_text is not None:
 					a.setToolTip(tooltip_text)
 				if text == '__Subplots':
-					a = self.addAction(self._icon(image_file + '.svg'),
+					a = self.addAction(self._icon(os.path.join(self.basedir,image_file + '.svg')),
 									   'Customize', self.edit_parameters)
 					a.setToolTip('Edit axis, curve and image parameters')
 
@@ -90,37 +92,53 @@ class ChartToolBar(NavigationToolbar2QT):
 		# otherwise the layout looks different - but we don't want to set it if
 		# not using HiDPI icons otherwise they look worse than before.
 		#if is_pyqt5() and self.canvas._dpi_ratio > 1:
-		if self.canvas._dpi_ratio > 1:
-			self.setIconSize(QtCore.QSize(24, 24))
-			self.layout().setSpacing(12)
+		# if self.canvas._dpi_ratio > 1:
+		# 	self.setIconSize(QtCore.QSize(24, 24))
+		# 	self.layout().setSpacing(12)
 
 	def _update_buttons_checked(self):
 		# sync button checkstates to match active mode
 		#print('CALL _update_buttons_checked')
-		self._actions['pan'].setChecked(self._active == 'PAN')
-		self._actions['zoom'].setChecked(self._active == 'ZOOM')
-		self._actions['remove_notes'].setChecked(self._active == 'REMOVE_NOTES')
-		self._actions['add_notes'].setChecked(self._active == 'ADD_NOTES')
+		print('_update_buttons_checked',self.canvas.figure.axes[0].get_navigate_mode())
+		self._actions['pan'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'PAN')
+		self._actions['zoom'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'ZOOM')
+		self._actions['remove_notes'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'REMOVE_NOTES')
+		self._actions['add_notes'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'ADD_NOTES')
+		#toolButton.toggle()
 
 	def add_notes(self):
 		#print('before is',self.addNotesFlg)
 		#self.addNotesFlg = not self.addNotesFlg
-		if self._active == 'ADD_NOTES':
-			self._active = None
+		if self.canvas.figure.axes[0].get_navigate_mode() == 'ADD_NOTES':
+			self.canvas.figure.axes[0].set_navigate_mode(None)
 		else:
-			self._active = 'ADD_NOTES'
+			self.canvas.figure.axes[0].set_navigate_mode('ADD_NOTES')
+			print('add notes')
 			self._update_buttons_checked()
+			print('last cursor',self._lastCursor)
 			self.canvas.widgetlock.release(self)
+			self.canvas.set_cursor(cursors.POINTER)
+			self._lastCursor = cursors.POINTER
+			print('new last cursor', self._lastCursor)
+			self.canvas.widgetlock.locked()
+
 			#print('after is', self.addNotesFlg)
 
 	def remove_notes(self):
+		# TODO: fix pointer changes
 		#self.removeNotesFlg = not self.removeNotesFlg
-		if self._active == 'REMOVE_NOTES':
-			self._active = None
+		if self.canvas.figure.axes[0].get_navigate_mode() == 'REMOVE_NOTES':
+			self.canvas.figure.axes[0].set_navigate_mode(None)
 		else:
-			self._active = 'REMOVE_NOTES'
+			self.canvas.figure.axes[0].set_navigate_mode('REMOVE_NOTES')
+			print('remove notes')
 			self._update_buttons_checked()
+			print('last cursor', self._lastCursor)
 			self.canvas.widgetlock.release(self)
+			self.canvas.set_cursor(cursors.POINTER)
+			self._lastCursor = cursors.POINTER
+			print('new last cursor', self._lastCursor)
+			self.canvas.widgetlock.locked()
 
 	def addTextToPlot(self,event):
 		print('addTextToPlot')
@@ -128,7 +146,7 @@ class ChartToolBar(NavigationToolbar2QT):
 		if self.digits:
 			numOfDig = self.digitSB.value()
 
-		if self._active == 'ADD_NOTES': #self.addNotesFlg:
+		if self.canvas.figure.axes[0].get_navigate_mode() == 'ADD_NOTES': #self.addNotesFlg:
 			artist = event.artist
 			#xmouse, ymouse = event.mouseevent.xdata, event.mouseevent.ydata
 			xmouse, ymouse = event.mouseevent.x, event.mouseevent.y
@@ -164,7 +182,7 @@ class ChartToolBar(NavigationToolbar2QT):
 
 	def delTextFromPlot(self,event):
 		xmouse, ymouse = event.x, event.y
-		if self._active == 'REMOVE_NOTES': #self.removeNotesFlg:
+		if self.canvas.figure.axes[0].get_navigate_mode() == 'REMOVE_NOTES': #self.removeNotesFlg:
 			if len(self.ann_list)>0:
 				#print('click mouse in', xmouse, ymouse)
 				i=len(self.ann_list)

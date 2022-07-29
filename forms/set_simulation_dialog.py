@@ -39,7 +39,9 @@ from PyQt5.QtWidgets import QDialog, QToolBox, QWidget, QVBoxLayout, QFileDialog
 
 import os
 
-from qgis._core import QgsCoordinateReferenceSystem, QgsRectangle, QgsProject, QgsPoint, QgsGeometry, QgsPointXY
+from qgis import processing
+from qgis._core import QgsCoordinateReferenceSystem, QgsRectangle, QgsProject, QgsPoint, QgsGeometry, QgsPointXY, \
+	QgsWkbTypes
 from qgis._gui import QgsDateTimeEdit, QgsRubberBand, QgsVertexMarker
 
 from ..tools.utils import returnExtent
@@ -213,7 +215,12 @@ class SetSimulationDialog(QMainWindow):
 
 		self.FROM_CB.currentTextChanged.connect(self.updateLastYear)
 
-		self.DRAW_GRID_BT.clicked.connect(self.drawGrid)
+		# connect preview function
+		self.conn_canvas = self.canvas.extentsChanged.connect(self.drawGrid)
+		self.DOMAINEXT.extentChanged.connect(self.drawGrid)
+		self.CELLSIZE_SB.valueChanged.connect(self.drawGrid)
+		self.DRAW_GRID_CB.toggled.connect(self.drawGrid)
+
 
 		self.buttonBox.accepted.connect(self.accept)
 		self.buttonBox.rejected.connect(self.reject)
@@ -262,11 +269,15 @@ class SetSimulationDialog(QMainWindow):
 		self.STEPDATE_SB.setEnabled(flag)
 
 	def closeEvent(self, event):
+		self.disconnect(self.conn_canvas)
 		self.deleteGrid()
 		self.closed.emit()
 
-	def drawGrid(self):
+	def drawGrid(self,val=None):
 		self.deleteGrid()
+		if not self.DRAW_GRID_CB.isChecked():
+			print('Update preview not checked',self.DRAW_GRID_CB.isChecked(),val)
+			return
 
 		col = QColor(153,153,153) # gray color
 
@@ -286,43 +297,66 @@ class SetSimulationDialog(QMainWindow):
 		# yurcorner = yllcorner+nrows*outputCellSize
 		yllcorner = yurcorner - nrows * cellDim
 
-		cellsize = self.CELLSIZE_SB.value()
 
-		xList = [xllcorner+i*cellDim for i in range(0,ncols+1)]
-		yList = [yllcorner+i*cellDim for i in range(0,nrows+1)]
-		# draw vertical lines
-		for x in xList:
-			r = QgsRubberBand(self.canvas, False)  # False = not a polygon
-			r.setColor(col)
-			r.setWidth(3)
-			points = [QgsPoint(x, yllcorner), QgsPoint(x, yurcorner), QgsPoint(x, yllcorner)]
-			r.setToGeometry(QgsGeometry.fromPolyline(points), None)
-			self.rbList.append(r)
-		# draw horizontal lines
-		for y in yList:
-			r = QgsRubberBand(self.canvas, False)  # False = not a polygon
-			r.setColor(col)
-			r.setWidth(3)
-			points = [QgsPoint(xllcorner, y), QgsPoint(xurcorner, y), QgsPoint(xllcorner, y)]
-			r.setToGeometry(QgsGeometry.fromPolyline(points), None)
-			self.rbList.append(r)
+		viewExt = self.canvas.extent()
+		nOfCells = viewExt.area()/(cellDim*cellDim)
 
-		for x in xList[:-1]:
-			for y in yList[:-1]:
-				m = QgsVertexMarker(self.canvas)
-				m.setCenter(QgsPointXY(x+0.5*cellsize, y+0.5*cellsize))
-				m.setColor(col)
-				m.setIconSize(5)
-				m.setIconType(QgsVertexMarker.ICON_CROSS)  # or ICON_CROSS, ICON_X, ICON_BOX
-				m.setPenWidth(3)
-				self.rbList.append(m)
+		if nOfCells>500:
+			# draw only the edge
+			xList = [xllcorner,xurcorner]
+			yList = [yllcorner, yurcorner]
+			# draw polygon
+			r = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
+			r.setStrokeColor(col)
+			r.setFillColor(QColor(153,153,153,60))
+			r.setWidth(3)
+			geom = QgsGeometry().fromRect(rasterExt)  # QgsGeometry object
+			# set rubber band to geometry
+			r.setToGeometry(geom)
+			self.rbList.append(r)
+		else:
+			xList = [xllcorner+i*cellDim for i in range(0,ncols+1)]
+			yList = [yllcorner+i*cellDim for i in range(0,nrows+1)]
+			# filter coordinates
+			view_xmin = viewExt.xMinimum() - cellDim
+			view_xmax = viewExt.xMaximum() + cellDim
+			view_ymin = viewExt.yMinimum() - cellDim
+			view_ymax = viewExt.yMaximum() + cellDim
+			xList = list(filter(lambda x: (x >= view_xmin) and (x<=view_xmax), xList))
+			yList = list(filter(lambda y: (y >= view_ymin) and (y <= view_ymax), yList))
+
+			# draw vertical lines
+			for x in xList:
+				r = QgsRubberBand(self.canvas, False)  # False = not a polygon
+				r.setColor(col)
+				r.setWidth(3)
+				points = [QgsPoint(x, yllcorner), QgsPoint(x, yurcorner), QgsPoint(x, yllcorner)]
+				r.setToGeometry(QgsGeometry.fromPolyline(points), None)
+				self.rbList.append(r)
+			# draw horizontal lines
+			for y in yList:
+				r = QgsRubberBand(self.canvas, False)  # False = not a polygon
+				r.setColor(col)
+				r.setWidth(3)
+				points = [QgsPoint(xllcorner, y), QgsPoint(xurcorner, y), QgsPoint(xllcorner, y)]
+				r.setToGeometry(QgsGeometry.fromPolyline(points), None)
+				self.rbList.append(r)
+
+			for x in xList[:-1]:
+				for y in yList[:-1]:
+					m = QgsVertexMarker(self.canvas)
+					m.setCenter(QgsPointXY(x+0.5*cellDim, y+0.5*cellDim))
+					m.setColor(col)
+					m.setIconSize(5)
+					m.setIconType(QgsVertexMarker.ICON_CROSS)  # or ICON_CROSS, ICON_X, ICON_BOX
+					m.setPenWidth(3)
+					self.rbList.append(m)
 
 	def deleteGrid(self):
 		#print('deleteGrid')
 		for r in self.rbList:
 			self.canvas.scene().removeItem(r)
 
-	
 	def getData(self):
 		### get output path
 		outfolder = self.OUTFOLDER_FW.filePath()
@@ -349,6 +383,7 @@ class SetSimulationDialog(QMainWindow):
 		outStartDate = self.STARTDATE_TE.value()
 		outEndDate = self.ENDDATE_TE.value()
 		outStep = self.STEPDATE_SB.value()
+
 
 		return {'outfolder':outfolder,'simMode':simMode,'useyearlymaps':useYearlyMaps, 'from':fromYear, 'to':toYear,
 				'extent':dtmExtent, 'crs':crs, 'cellsize':cellsize,

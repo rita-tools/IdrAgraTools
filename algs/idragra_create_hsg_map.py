@@ -332,9 +332,9 @@ class IdragraCreateHSGMap(QgsProcessingAlgorithm):
 		# A=1, B=2, C=3 and D=4
 		hsgArray = np.zeros(maxDepthArray.shape,np.float32)-9
 		# ---------------------------
-		hsgArray[maxDepthArray < 50.0 * cm2m] = 4
+		hsgArray[(maxDepthArray < 50.0 * cm2m)*(maxDepthArray >=0)] = 4
 		# ---------------------------
-		hsgArray[wtDepthArray < 60.0 * cm2m] = 4
+		hsgArray[(wtDepthArray < 60.0 * cm2m)*(maxDepthArray >=0)] = 4
 		# ---------------------------
 		hsgArray[(maxDepthArray >= 50.0 * cm2m)*(maxDepthArray <= 100.0 * cm2m) *
 				(wtDepthArray >= 60.0 * cm2m)*(minksat50Array > 40.0 * nms2cmh)] = 1

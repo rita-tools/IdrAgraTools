@@ -111,6 +111,7 @@ class ManageRastersDialog(QMainWindow):
 		self.TV.setModel(aModel)
 		self.TV.setSelectionBehavior(QAbstractItemView.SelectRows)
 		self.TV.horizontalHeader().setStretchLastSection(True)
+		self.TV.setColumnHidden(1, True) # hide column with path because actually no more used
 
 	def addRaster(self):
 		# open file
@@ -124,7 +125,7 @@ class ManageRastersDialog(QMainWindow):
 			importRasterFlag = res['importRaster']
 			startDate = res['date']
 			tableName = self.tableName
-			if self.assignTime:
+			if (self.assignTime and (startDate !='')):
 				tableName += '_' + startDate
 
 			if importRasterFlag and self.DBM:
@@ -153,13 +154,13 @@ class ManageRastersDialog(QMainWindow):
 				if aModel.data(index)== tableName:
 					index = aModel.index(row, 1)
 					# update source
-					aModel.setData(index, filePath)
+					aModel.setData(index, '')
 					notReplaced = False
 					break
 
 			if notReplaced:
 				# add at the end
-				aModel.addRow(rowCount, [tableName,filePath],False)
+				aModel.addRow(rowCount, [tableName,''],False)
 
 			self.rasterAdded.emit(filePath,tableName)
 

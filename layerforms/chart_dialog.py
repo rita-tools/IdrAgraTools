@@ -109,7 +109,9 @@ class ChartDialog(QDialog):
 		if mainTitle is not None: self.ax.set_title(mainTitle)
 		if xTitle is not None: self.ax.set_xlabel(xTitle)
 		if yTitle is not None: self.ax.set_ylabel(yTitle)
-		if y2Title is not None: self.ax2.set_ylabel(y2Title)
+		print('in setTitles:',y2Title)
+		if y2Title is not None:
+			self.ax2.set_ylabel(y2Title)
 		
 		#ax.set_xticks(ind + width / 2)
 		#plt.tight_layout()

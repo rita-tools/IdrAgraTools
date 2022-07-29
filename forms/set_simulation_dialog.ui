@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>757</width>
-    <height>570</height>
+    <height>680</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -44,7 +44,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>325</height>
+         <height>353</height>
         </rect>
        </property>
        <attribute name="label">
@@ -84,8 +84,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>214</width>
-         <height>139</height>
+         <width>717</width>
+         <height>353</height>
         </rect>
        </property>
        <attribute name="label">
@@ -145,7 +145,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>325</height>
+         <height>353</height>
         </rect>
        </property>
        <attribute name="label">
@@ -180,7 +180,7 @@
          <widget class="QgsExtentGroupBox" name="DOMAINEXT"/>
         </item>
         <item row="4" column="0">
-         <widget class="QPushButton" name="DRAW_GRID_BT">
+         <widget class="QCheckBox" name="DRAW_GRID_CB">
           <property name="text">
            <string>Draw preview grid</string>
           </property>
@@ -193,8 +193,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>245</width>
-         <height>151</height>
+         <width>717</width>
+         <height>353</height>
         </rect>
        </property>
        <attribute name="label">
@@ -283,8 +283,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>166</width>
-         <height>57</height>
+         <width>717</width>
+         <height>353</height>
         </rect>
        </property>
        <attribute name="label">
@@ -319,8 +319,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>100</width>
-         <height>30</height>
+         <width>717</width>
+         <height>353</height>
         </rect>
        </property>
        <attribute name="label">

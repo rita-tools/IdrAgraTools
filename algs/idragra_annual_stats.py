@@ -78,10 +78,14 @@ from datetime import datetime,timedelta
 import os
 
 from algs.date_time_widget import DateTimeWidget
+from ..tools.read_idragra_parameters import readIdragraParameters
+from ..tools.gis_grid import GisGrid
 from ..tools.utils import isLeap
+import numpy as np
+import pandas as pd
 
 
-class IdragraGroupStats(QgsProcessingAlgorithm):
+class IdragraAnnualStats(QgsProcessingAlgorithm):
 	"""
 	This is an example algorithm that takes a vector layer and
 	creates a new identical one.
@@ -100,11 +104,9 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 	# calling from the QGIS console.
 	
 	IDRAGRAFILE= 'IDRAGRA_FILE'
-	AGGRLAY = 'AGGR_LAY'
-	MERGE = 'MERGE'
-	AGGRFLD = 'AGGR_FLD'
+	AGGRMAP = 'AGGR_MAP'
 	AGGRVAR = 'AGGR_VAR'
-	AGGRFUN = 'AGGR_FUN'
+	YEAR = 'YEAR'
 	OUTPUTTABLE = 'OUTPUT_TABLE'
 	FEEDBACK = None
 
@@ -119,7 +121,7 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 		return QCoreApplication.translate('Processing', string)
 
 	def createInstance(self):
-		return IdragraGroupStats()
+		return IdragraAnnualStats()
 
 	def name(self):
 		"""
@@ -129,14 +131,14 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 		lowercase alphanumeric characters only and no spaces or other
 		formatting characters.
 		"""
-		return 'IdragraGroupStats'
+		return 'IdragraAnnualStats'
 
 	def displayName(self):
 		"""
 		Returns the translated algorithm name, which should be used for any
 		user-visible display of the algorithm name.
 		"""
-		return self.tr('Make statistics by group')
+		return self.tr('Make statistics by selected variables and year')
 
 	def group(self):
 		"""
@@ -166,12 +168,9 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 						The algorithm calculate the selected statistic function of the selected variable. 
 						<b>Parameters:</b>
 						IdrAgra file: the parameters file used for the IdrAgra simulation (*.txt) [IDRAGRA_FILE]
-						Aggregation map: the vector layer that define aggregation areas [AGGR_LAY]
-						Merge: merge shapes by field value [MERGE]
-						Aggregation field: the field that define aggregation groups [AGGR_FLD]
+						Aggregation map: the variable that define aggregation areas [AGGR_MAP]
 						Aggregation variable: the variable to be aggregated [AGGR_VAR]
 						Aggregation function: the function to be used for aggregation [AGGR_FUN]
-						Distribution function: the function to be used for daily distribution over the perod [DISTR_FUN]
 						Output table: the resultant table [OUTPUT_TABLE]
 						"""
 		
@@ -187,9 +186,9 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 		Here we define the inputs and output of the algorithm, along
 		with some other properties.
 		"""
-		self.STEPNAME = qgis.utils.plugins['IdragraTools'].STEPNAME
-		self.GROUPBY =  qgis.utils.plugins['IdragraTools'].GROUPBY
+		self.ANNUALVARS = qgis.utils.plugins['IdragraTools'].ANNUALVARS
 
+		self.GROUPBYRASTER =  qgis.utils.plugins['IdragraTools'].GROUPBYRASTER
 		self.AGGRFUNCTIONS = qgis.utils.plugins['IdragraTools'].AGGRFUNCTIONS
 
 		self.TIMESTEP = qgis.utils.plugins['IdragraTools'].TIMESTEP
@@ -200,23 +199,18 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 													  QgsProcessingParameterFile.Behavior.File,'*.*','',False,
 													  'IdrAgra pars file (*.txt);;All files (*.*)'))
 	
-		self.addParameter(QgsProcessingParameterFeatureSource(self.AGGRLAY, self.tr('Aggregation map'),
-															  [], None, True))
-
-		self.addParameter(QgsProcessingParameterBoolean(self.MERGE, self.tr('Merge'),
-														True, True))
-
-		self.addParameter(QgsProcessingParameterField(self.AGGRFLD, self.tr('Aggregation field'), 'fid', self.AGGRLAY,
-													  QgsProcessingParameterField.Any))
+		self.addParameter(QgsProcessingParameterEnum(self.AGGRMAP, self.tr('Aggregation map'),
+													 list(self.GROUPBYRASTER.values())))
 
 		self.addParameter(QgsProcessingParameterEnum(self.AGGRVAR, self.tr('Aggregation variable'),
-													 list(self.STEPNAME.values())))
+													 list(self.ANNUALVARS.values()),True,0,False))
 
-		self.addParameter(QgsProcessingParameterEnum(self.AGGRFUN, self.tr('Aggregation function'),
-													 list(self.AGGRFUNCTIONS.values())))
+		self.addParameter(QgsProcessingParameterNumber(self.YEAR, self.tr('Reference year ()'),
+													   QgsProcessingParameterNumber.Integer))
 
-
-		self.addParameter(QgsProcessingParameterFeatureSink (self.OUTPUTTABLE, self.tr('Select output file'),QgsProcessing.TypeVectorPolygon))
+		self.addParameter(QgsProcessingParameterFileDestination (self.OUTPUTTABLE, self.tr('Select output file'),
+																 'Comma Separated File (*.csv);;All files (*.*)',
+																 '*.csv', True, False))
 
 	def processAlgorithm(self, parameters, context, feedback):
 		"""
@@ -226,153 +220,97 @@ class IdragraGroupStats(QgsProcessingAlgorithm):
 		# get params
 		idragraFile = self.parameterAsFile(parameters, self.IDRAGRAFILE, context)
 
-		aggrLay = self.parameterAsVectorLayer(parameters, self.AGGRLAY, context)
+		aggrIdx = self.parameterAsEnum(parameters, self.AGGRMAP, context)
+		aggrMap = list(self.GROUPBYRASTER.keys())[aggrIdx]
 
-		merge = self.parameterAsBoolean(parameters, self.MERGE, context)
+		varIdxList = self.parameterAsEnums(parameters, self.AGGRVAR, context)
 
-		aggrFld = self.parameterAsFields(parameters, self.AGGRFLD, context)[0]
+		year = self.parameterAsInt(parameters, self.YEAR, context)
 
-		varIdx = self.parameterAsEnum(parameters, self.AGGRVAR, context)
-		varToUse = list(self.STEPNAME.keys())[varIdx]
-
-		aggrFunIdx = self.parameterAsEnum(parameters, self.AGGRFUN, context)
-		aggrFun = list(self.AGGRFUNCTIONS.keys())[aggrFunIdx]
-
-		# TODO: explode over days in period
-
-		fldList = QgsFields()
-		fldList.append(QgsField('timestamp', QVariant.Date))
-		fldList.append(QgsField('wsid', QVariant.String))
-		fldList.append(QgsField('recval', QVariant.Double))
-		fldList.append(QgsField('count', QVariant.Double))
-
-		# get output file
-		(sink, dest_id) = self.parameterAsSink(
-			parameters,
-			self.OUTPUTTABLE,
-			context,
-			fldList,
-			aggrLay.wkbType(),
-			aggrLay.sourceCrs()
-		)
-
-		if merge:
-			dissolvedFile = QgsProcessingUtils.generateTempFilename('dissolved.gpkg')
-			# dissolve element by selected field
-			res = processing.run("native:dissolve", {'INPUT': aggrLay.source(),
-													'FIELD': [aggrFld],
-													 'OUTPUT': dissolvedFile},
-								 context=None,
-								 feedback=None,
-								 is_child_algorithm=True)
-		else:
-			dissolvedFile = aggrLay.source()
+		outFile = self.parameterAsFileOutput(parameters, self.OUTPUTTABLE, context)
 
 		# loop in the idragra project file
+		pars = readIdragraParameters(idragraFile, self.FEEDBACK, self.tr)
 
-		# ... get path to geodata folder InputPath
-		# ... get path to results folder OutputPath
-		# ... get output settings MonthlyFlag, StartDate, EndDate, DeltaDate
-		monthlyFlag = True
-		startDate = 1
-		endDate = 366
-		deltaDate = 366
-
-		try:
-			f = open(idragraFile,'r')
-			for l in f:
-				l = l.replace(' ','')
-				l = l.rstrip('\n')  # remove return carriage
-				l = l.split('=')
-				if len(l)==2:
-					parName = l[0].lower()
-					#print(parName)
-					if parName== 'inputpath':
-						inputPath = l[1]
-					elif parName== 'outputpath':
-						outputPath = l[1]
-					elif parName == 'monthlyflag':
-						if l[1]=='F':
-							monthlyFlag = False
-					elif parName == 'startdate':
-						startDate = int(l[1])
-					elif parName == 'enddate':
-						endDate = int(l[1])
-					elif parName == 'deltadate':
-						deltaDate = int(l[1])
-					else:
-						pass
-		except Exception as e:
-			self.FEEDBACK.reportError(self.tr('Cannot parse %s because %s') %
-									  (idragraFile, str(e)),True)
-
-
-		# get the list of the output for the selected variable
-
-		fileFilter = '*'+varToUse[4:]+'.asc'
+		# set path
 		rootSimPath = os.path.dirname(idragraFile)
-		pathToImport = os.path.join(rootSimPath,outputPath)[:-1] # because ends with //
-		#print('pathToImport',pathToImport)
-		fileList = glob.glob(os.path.join(pathToImport, fileFilter))
-		#print('fileList',fileList)
-		nOfFiles = len(fileList)
-		i = 0.
-		for f in fileList:
-			# parse file name
-			fname = os.path.basename(f)
-			# extract date time
-			parsedDate = None
-			if monthlyFlag:
-				# 2000_month1_caprise
+		pathToImport = os.path.join(rootSimPath, pars['outputpath'])[:-1]  # because ends with //
+		pathToGeoData = os.path.join(rootSimPath, pars['inputpath'])[:-1]  # because ends with //
+
+		# get the list of reference maps
+		fileFilter = aggrMap + '*.asc'
+		path2find = os.path.join(pathToGeoData, fileFilter)
+		refMapFileList = glob.glob(path2find)
+		refMapFile = ''
+
+		if len(refMapFileList)==0:
+			self.FEEDBACK.reportError(self.tr('Unable to find anyt reference map like %s') %
+									  (path2find), True)
+
+		if len(refMapFileList) == 1:
+			refMapFile = refMapFileList[0]
+		else:
+			for f in refMapFileList:
+				if year in f:
+					refMapFile = f
+
+		# open reference map
+		refMap = GisGrid()
+		refMap.openASC(refMapFile)
+		#print('shape refMap', refMap.data.shape)
+
+		# get unique values
+		uniqueIds = list(refMap.getUniqueValues())
+		sorted(uniqueIds)
+
+		res = {'aggr.map.ids': [int(x) for x in uniqueIds]}
+
+		nOfVars = len(varIdxList)
+
+		for j,varIdx in enumerate(varIdxList):
+			varToUse = list(self.ANNUALVARS.keys())[varIdx]
+			# init column values
+			res[varToUse] = [0.] * len(uniqueIds)
+
+			# get the list of output for the selected variables
+			filename = '%s_%s.asc'%(year,varToUse)
+			path2find = os.path.join(pathToImport, filename)
+
+			if not os.path.exists(path2find):
+				self.FEEDBACK.reportError(self.tr('Cannot find %s') %
+										  (path2find),False)
+				# go to the next
+				continue
+
+			# apply zonal statistics
+			varMap = GisGrid()
+			varMap.openASC(path2find)
+			#varData = varMap.getMaskedData()
+			#print('shape varMap', varData.data.shape)
+
+			for i,uId in enumerate(uniqueIds):
+				#print('uId',uId)
+				#selVarArray = varMap.data*refMap.data[refMap.data==uId]
+				maskedArray = np.ma.masked_where(np.logical_or((refMap.data != uId),(varMap.data == varMap.nodata)), varMap.data)
 				try:
-					y = int(fname[0:4])
-					tokStart = fname.index('_month')+len('_month')
-					tokEnd = fname.index('_', tokStart)
-					s = int(fname[tokStart:tokEnd])
-					parsedDate = self.monthToDate(year=y, month = s)
+					resVal = np.nanmean(maskedArray)
 				except:
-					pass
-			else:
-				# 2000_step1_caprise.asc
-				if '_step' in fname:
-					#self.FEEDBACK.pushInfo(self.tr('last file %s') % fname)
-					y = int(fname[0:4])
-					tokStart = fname.index('_step')+len('_step')
-					tokEnd = fname.index('_',tokStart)
-					s = int(fname[tokStart:tokEnd])
-					# step to date
-					parsedDate = self.stepToDate(year=y,step = s,periodStart =startDate, periodDelta = deltaDate)
+					resVal = np.nan
 
-			self.FEEDBACK.pushInfo(self.tr('Processing %s --> %s'%(f,parsedDate)))
-			if parsedDate:
-				# apply zonal statistics
-				#'TEMPORARY_OUTPUT'
-				tempFile = QgsProcessingUtils.generateTempFilename('aggrOutput.gpkg')
-				res = processing.run("native:zonalstatisticsfb", {'INPUT': dissolvedFile,
-															'INPUT_RASTER': f,
-															'RASTER_BAND': 1, 'COLUMN_PREFIX': '_',
-															'STATISTICS': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-															'OUTPUT': tempFile},
-									   context=None,
-									   feedback=None,
-									   is_child_algorithm=True)
+				if (resVal == varMap.nodata): resVal = np.nan
+				#self.FEEDBACK.pushInfo(self.tr('Select value %s --> %s' % (str(uId), resVal)))
+				res[varToUse][i] = resVal
 
-				# append results
-				statLay = QgsVectorLayer(res['OUTPUT'],'temp','ogr')
-				for k in statLay.getFeatures():
-					feat = QgsFeature(fldList)
-					feat.setGeometry(k.geometry())
-					feat['wsid'] = k[aggrFld]
-					feat['recval'] = k[aggrFun]
-					feat['count'] = k['_count']
-					feat['timestamp'] = parsedDate
+		self.FEEDBACK.setProgress(100.0*j/nOfVars)
 
-					sink.addFeature(feat, QgsFeatureSink.FastInsert)
+		resDF = pd.DataFrame.from_dict(res)
+		if '*' not in outFile:
+			self.FEEDBACK.pushInfo(self.tr('Saving to %s' % (outFile)))
+			resDF.to_csv(outFile, sep=',', na_rep='', header=True, index=False)
 
-			i+=1.
-			self.FEEDBACK.setProgress(100.0*i/nOfFiles)
+		return {'OUTPUT_TABLE':resDF}
 
-		return {'OUTPUT_TABLE':dest_id}
+
 	# TODO: step is calculate from the first day of the year or the irrigation period? --> from the outputs dates
 	# TODO: check if it works correctly with leap year
 	def stepToDate(self, year, step, periodStart, periodDelta):

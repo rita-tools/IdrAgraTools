@@ -331,6 +331,12 @@ class GisGrid(QObject):
 		itemIndex = self.sub2ind(array_shape = None, rows = itemIndex[0][0], cols = itemIndex[1][0])
 		return itemIndex
 
+	def getUniqueValues(self):
+		uniqueVals = np.unique(self.data).tolist()
+		# remove nodata
+		uniqueVals.remove(self.nodata)
+		return uniqueVals
+
 	def saveAsGDAL(self, outputFile,dataType = Qgis.Float32):
 		# create raster with array data
 		outputFormat = QgsRasterFileWriter.driverForExtension(os.path.splitext(outputFile)[1])
