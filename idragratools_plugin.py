@@ -445,7 +445,9 @@ class IdrAgraTools():
                         'MONTHOUTPUT':'F',
                         'MINSLOPE':0.1,
                         'MAXSLOPE':1000,
-                        'SOURCE_DB':''
+                        'SOURCE_DB':'',
+                        'DEFAULT_LU':1,
+                        'DEFAULT_IM':1
                        }
 
         self.PHENOVARS = {'CNvalue':self.tr('CN value'),
@@ -857,8 +859,10 @@ class IdrAgraTools():
         uri = 'geopackage:' + dbpath + '?projectName=' + self.PRJNAME
         proj.read(uri)
 
-        # load parameters
-        self.SIMDIC = eval(proj.readEntry('IdrAgraTools', 'simsettings')[0])
+        # load parameters without removing defaults if exist
+        tempSimDic = eval(proj.readEntry('IdrAgraTools', 'simsettings')[0])
+        for k,v in tempSimDic.items():
+            self.SIMDIC[k]=v
 
         # TODO: INIT DB
         self.updateProj(dbpath)
@@ -2262,7 +2266,12 @@ class IdrAgraTools():
         effTable = {}
         for i, irrDistr in irrdistrDF.iterrows():
             replaceFieldTableIN['SubDistr_'+str(irrDistr['id'])]='Source_'+str(irrDistr['inlet_node'])
-            effTable[str(irrDistr['inlet_node'])] = 1. #irrDistr['distr_eff'] FIX: "need mode" always considers the internal network distribution see interventi_fabbisogni_fc in ogg_bilancio.f90
+            if (self.SIMDIC['MODE'] in [1, '1']):
+                effTable[str(irrDistr['inlet_node'])] = irrDistr['distr_eff']
+            else:
+                # irrDistr['distr_eff'] FIX: "need mode" always considers the internal network distribution see interventi_fabbisogni_fc in ogg_bilancio.f90
+                effTable[str(irrDistr['inlet_node'])] = 1.
+
             effTable[str(irrDistr['outlet_node'])] = 1. #/ irrDistr['distr_eff']
             replaceFieldTableOUT['SubDistr_' + str(irrDistr['id'])] = 'Source_' + str(irrDistr['outlet_node'])
 
@@ -2355,7 +2364,7 @@ class IdrAgraTools():
                     finalDF = finalDF.append(df,ignore_index=True)
 
             except Exception as e:
-                progress.reportError(str(e),False)
+                progress.reportError(self.tr('Unable to open %s')%csvFile,False)
 
         return finalDF
 
