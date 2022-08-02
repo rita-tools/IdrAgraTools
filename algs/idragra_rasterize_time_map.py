@@ -97,6 +97,7 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 	CELLDIM = 'CELL_DIM'
 	YEARLIST = 'YEAR_LIST'
 	DESTFOLDER = 'DEST_FOLDER'
+	INITVALUE = 'INIT_VALUE'
 
 	FEEDBACK = None
 
@@ -160,6 +161,7 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 						Base name: use as format for output name [NAME_FORMAT]
 						Raster extension: the maximum extension of the raster domain map (min x, max x, min y, max y) [RASTER_EXT]
 						Raster cell dimension: the dimension of the squared cell in map units [CELL_DIM]
+						Init value: the value to assign as base [INIT_VALUE]
 						Year list: spase separated list of year to be exported (e.g. 2000 2001 2002 ...). If empty, export all available years [YEAR_LIST]
 						Output folder: the complete path of the output file [DEST_FOLDER]
 						"""
@@ -191,6 +193,8 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 
 		self.addParameter(QgsProcessingParameterNumber(self.CELLDIM, self.tr('Raster cell dimension')))
 
+		self.addParameter(QgsProcessingParameterNumber(self.INITVALUE, self.tr('Init value'),defaultValue = -9))
+
 		self.addParameter(QgsProcessingParameterString(self.YEARLIST, self.tr('Year list'),'', False, True))
 
 		self.addParameter(QgsProcessingParameterFile(self.DESTFOLDER, self.tr('Output folder'),
@@ -212,6 +216,7 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 		nameFormat = self.parameterAsString(parameters,self.NAMEFORMAT,context)
 		rasterExt = self.parameterAsExtent(parameters, self.RASTEREXT, context)
 		cellDim = self.parameterAsDouble(parameters, self.CELLDIM, context)
+		initValue = self.parameterAsDouble(parameters, self.INITVALUE, context)
 
 		yearList = self.parameterAsString(parameters, self.YEARLIST, context)
 		yearList = yearList.split(' ')
@@ -227,6 +232,7 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 		if field.type() in [1, 2, 3]:
 			fieldType = 4  # int32 in GDAL
 			digits = 0
+			initValue = int(initValue)
 
 		# loop in yearList and make a selection of elements
 		res = []
@@ -279,7 +285,7 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 										{'INPUT': newLayName, 'FIELD': dataFld, 'BURN': 0,
 										 'UNITS': 1, 'WIDTH': cellDim, 'HEIGHT': cellDim,
 										 'EXTENT': rasterExt,
-										 'NODATA': -9, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': -9,
+										 'NODATA': -9, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': initValue,
 										 'INVERT': False,
 										 'EXTRA': '',
 										 'OUTPUT': 'TEMPORARY_OUTPUT'},

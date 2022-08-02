@@ -446,8 +446,8 @@ class IdrAgraTools():
                         'MINSLOPE':0.1,
                         'MAXSLOPE':1000,
                         'SOURCE_DB':'',
-                        'DEFAULT_LU':1,
-                        'DEFAULT_IM':1
+                        'DEFAULT_LU':0,
+                        'DEFAULT_IM':0
                        }
 
         self.PHENOVARS = {'CNvalue':self.tr('CN value'),

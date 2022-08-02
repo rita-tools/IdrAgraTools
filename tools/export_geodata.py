@@ -33,6 +33,7 @@ import os
 import numpy as np
 from PyQt5.QtCore import QObject
 from qgis import processing
+from qgis._core import QgsVectorLayer, QgsFeatureRequest
 
 from .compact_dataset import save2idragra
 from .gis_grid import GisGrid
@@ -183,27 +184,47 @@ class Exporter(QObject):
 		# LANDUSE maps (time)
 		# TODO: check if time is always necessary
 		landuseMap = DBM.DBName + '|layername=idr_usemap'
+		defaultValue = -9
+		if self.simdic['DEFAULT_LU']: defaultValue = self.simdic['DEFAULT_LU']
 		processing.run("idragratools:IdragraRasterizeTimeMap",
 					   {'VECTOR_LAY': landuseMap, 'DATA_FLD': 'extid',
 						'TIME_FLD': 'date', 'NAME_FORMAT': 'soiluse',
 						'RASTER_EXT': extent,
-						'CELL_DIM': cellSize, 'YEAR_LIST': ' '.join(yearList),'DEST_FOLDER': outPath},
+						'CELL_DIM': cellSize,
+						'INIT_VALUE':defaultValue,
+						'YEAR_LIST': ' '.join(yearList),'DEST_FOLDER': outPath},
 									context=None, feedback=self.feedback, is_child_algorithm=False)
 
 		# IRRIGATION MAP (time)
 		self.feedback.pushInfo(self.tr('Exporting irrigation methods'))
 		self.feedback.setProgress(90.0)
 		irrMethodsMap = DBM.DBName + '|layername=idr_irrmap'
+
+		defaultValue = -9
+		if self.simdic['DEFAULT_IM']: defaultValue = self.simdic['DEFAULT_IM']
+
 		processing.run("idragratools:IdragraRasterizeTimeMap",
 					   {'VECTOR_LAY': irrMethodsMap, 'DATA_FLD': 'extid',
 						'TIME_FLD': 'date', 'NAME_FORMAT': 'irr_meth',
 						'RASTER_EXT': extent,
-						'CELL_DIM': cellSize,  'YEAR_LIST': ' '.join(yearList), 'DEST_FOLDER': outPath},
+						'CELL_DIM': cellSize,
+						'INIT_VALUE':defaultValue,
+						'YEAR_LIST': ' '.join(yearList), 'DEST_FOLDER': outPath},
 									context=None, feedback=self.feedback, is_child_algorithm=False)
 
 		# EXPORT IRRIGATION EFFICIENCY MAP (time)
 		# join irrigation methods map with irrigation params
 		irrMethodsPars = DBM.DBName + '|layername=idr_irrmet_types'
+
+		# get irrigation efficiency for default method
+		parTable = QgsVectorLayer(irrMethodsPars,'irrmethods')
+		defaultValue = -9
+		if self.simdic['DEFAULT_IM']:
+			req = QgsFeatureRequest().setFilterExpression('"id" = %s'%(self.simdic['DEFAULT_IM']))
+			for feat in parTable.getFeatures(req):
+				defaultValue = feat['irr_eff']
+
+
 		algresult = processing.run("qgis:joinattributestable",
 								   {'DISCARD_NONMATCHING': True,
 									'FIELD': 'extid',
@@ -219,11 +240,14 @@ class Exporter(QObject):
 		joinedLay = algresult['OUTPUT']
 
 		# rasterize time maps of irrigation efficiency
+		# efficiency is set to zero by default in order to accidentally compute irrigation requirements
 		processing.run("idragratools:IdragraRasterizeTimeMap",
 					   {'VECTOR_LAY': joinedLay, 'DATA_FLD': 'irr_eff',
 						'TIME_FLD': 'date', 'NAME_FORMAT': 'irr_eff',
 						'RASTER_EXT': extent,
-						'CELL_DIM': cellSize,  'YEAR_LIST': ' '.join(yearList),'DEST_FOLDER': outPath},
+						'CELL_DIM': cellSize,
+						'INIT_VALUE':defaultValue,
+						'YEAR_LIST': ' '.join(yearList),'DEST_FOLDER': outPath},
 					   context=None, feedback=self.feedback, is_child_algorithm=False)
 		# SLOPE MAPS
 		self.feedback.pushInfo(self.tr('Exporting slope maps'))
