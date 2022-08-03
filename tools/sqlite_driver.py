@@ -1223,6 +1223,24 @@ class SQLiteDriver(QObject):
 
 		return {'nodeList':wsNode,'ratioList':wsRatio}
 
+	def getDictFromTable(self,table,keyFld,valueFld):
+		res = {}
+		try:
+			self.startConnection()
+			# sql = "SELECT links.OBJ_ID FROM links WHERE links.NODE_START IN (SELECT nodes.OBJ_ID FROM nodes, links WHERE nodes.OBJ_ID = links.NODE_END);"
+			sql = "SELECT %s,%s FROM %s;" % (keyFld,valueFld,table)
+			self.cur.execute(sql)
+			data = self.cur.fetchall()
+			for d in data:
+				res[d[0]] = d[1]
+
+		except Exception as e:
+			self.progress.setInfo('SQL error %s at %s' % (str(e), sql), True)
+		finally:
+			self.stopConnection()
+
+		return res
+
 	def getAllFollowingLink(self,nodeStart = 'NODE_START',nodeEnd ='NODE_END',downStream = False):
 		if not downStream:
 			nodeStart = 'NODE_END'
