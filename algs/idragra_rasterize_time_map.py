@@ -278,19 +278,36 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 			else:
 				destFile = os.path.join(destFolder, nameFormat + '_%s.asc'%y)
 
-			# TODO: first rasterization with zero values
-
-			# rasterize
+			# first rasterization with initValue all the covered area
 			algResults = processing.run("gdal:rasterize",
-										{'INPUT': newLayName, 'FIELD': dataFld, 'BURN': 0,
+										{'INPUT': vectorLay, 'FIELD': '', 'BURN': initValue,
 										 'UNITS': 1, 'WIDTH': cellDim, 'HEIGHT': cellDim,
 										 'EXTENT': rasterExt,
-										 'NODATA': -9, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': initValue,
+										 'NODATA': -9, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': -9,
 										 'INVERT': False,
 										 'EXTRA': '',
 										 'OUTPUT': 'TEMPORARY_OUTPUT'},
 										context=None, feedback=feedback, is_child_algorithm=False
 										)
+
+			# replace rasterization with over burn
+
+			# algResults = processing.run("gdal:rasterize",
+			# 							{'INPUT': newLayName, 'FIELD': dataFld, 'BURN': 0,
+			# 							 'UNITS': 1, 'WIDTH': cellDim, 'HEIGHT': cellDim,
+			# 							 'EXTENT': rasterExt,
+			# 							 'NODATA': -9, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': initValue,
+			# 							 'INVERT': False,
+			# 							 'EXTRA': '',
+			# 							 'OUTPUT': 'TEMPORARY_OUTPUT'},
+			# 							context=None, feedback=feedback, is_child_algorithm=False
+			# 							)
+
+			processing.run("gdal:rasterize_over",
+										{'INPUT': newLayName,
+										 'INPUT_RASTER': algResults['OUTPUT'],
+										 'FIELD': dataFld, 'ADD': False, 'EXTRA': ''},
+										context=None, feedback=feedback, is_child_algorithm=False)
 
 			processing.run("idragratools:IdragraSaveAscii",
 						   {'INPUT': algResults['OUTPUT'], 'DIGITS': digits,

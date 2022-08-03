@@ -79,7 +79,7 @@ class SetSimulationDialog(QMainWindow):
 	VARLIST = {}
 	FUNLIST = {}
 	
-	def __init__(self, parent=None, yearList=[],modeList = [], simSettings = {}):
+	def __init__(self, parent=None, yearList=[],modeList = [], simSettings = {}, defLuDict = {},defImDict={}):
 		QMainWindow.__init__(self, parent.mainWindow())
 		# Set up the user interface from Designer.
 		uiFilePath = os.path.abspath(os.path.join(os.path.dirname(__file__), 'set_simulation_dialog.ui'))
@@ -91,6 +91,8 @@ class SetSimulationDialog(QMainWindow):
 		#self.allCaseYearList = allCaseYearList
 		#self.consumeYearList = consumeYearList
 		self.yearList = yearList
+		self.defLuDict = defLuDict
+		self.defImDict = defImDict
 
 		# init irrigation page
 		self.IRRSTART_LB = QLabel(self.tr('Irrigation season starts at'), self)
@@ -127,11 +129,22 @@ class SetSimulationDialog(QMainWindow):
 			self.MODE_CB.setCurrentText(modeList[simSettings['MODE']])
 			self.MODE_CB.currentIndexChanged.emit(simSettings['MODE'])
 
+		self.DEF_LU_CB.addItems(list(self.defLuDict.values()))
+		#print('self.defLuDict.keys:',list(self.defLuDict.keys()),'selected:',simSettings['DEFAULT_LU'])
+		if simSettings['DEFAULT_LU'] in list(self.defLuDict.keys()):
+			self.DEF_LU_CB.setCurrentText(self.defLuDict[simSettings['DEFAULT_LU']])
+
+		self.DEF_IM_CB.addItems(list(self.defImDict.values()))
+		if simSettings['DEFAULT_IM'] in list(self.defImDict.keys()):
+			self.DEF_IM_CB.setCurrentText(self.defImDict[simSettings['DEFAULT_IM']])
+
 		# yearly maps
 		if simSettings['SOILUSEVARFLAG'] == 'T':
 			self.SOILUSEVARFLAG_CB.setChecked(True)
 		else:
 			self.SOILUSEVARFLAG_CB.setChecked(False)
+
+
 
 		### set output path
 		self.OUTFOLDER_FW.setFilePath(simSettings['OUTPUTPATH'])
@@ -228,6 +241,12 @@ class SetSimulationDialog(QMainWindow):
 		#QObject.connect(self.buttonBox, SIGNAL("rejected()"), self.reject)
 		QMetaObject.connectSlotsByName(self)
 
+	def close(self):
+		self.disconnect(self.conn_canvas)
+		self.deleteGrid()
+		super().close()
+
+
 	def accept(self):
 		self.close()
 		self.accepted.emit()
@@ -269,14 +288,14 @@ class SetSimulationDialog(QMainWindow):
 		self.STEPDATE_SB.setEnabled(flag)
 
 	def closeEvent(self, event):
-		self.disconnect(self.conn_canvas)
-		self.deleteGrid()
+		# self.disconnect(self.conn_canvas)
+		# self.deleteGrid()
 		self.closed.emit()
 
 	def drawGrid(self,val=None):
 		self.deleteGrid()
 		if not self.DRAW_GRID_CB.isChecked():
-			print('Update preview not checked',self.DRAW_GRID_CB.isChecked(),val)
+			#print('Update preview not checked',self.DRAW_GRID_CB.isChecked(),val)
 			return
 
 		col = QColor(153,153,153) # gray color
@@ -301,7 +320,7 @@ class SetSimulationDialog(QMainWindow):
 		viewExt = self.canvas.extent()
 		nOfCells = viewExt.area()/(cellDim*cellDim)
 
-		if nOfCells>500:
+		if nOfCells>1000:
 			# draw only the edge
 			xList = [xllcorner,xurcorner]
 			yList = [yllcorner, yurcorner]
@@ -384,8 +403,12 @@ class SetSimulationDialog(QMainWindow):
 		outEndDate = self.ENDDATE_TE.value()
 		outStep = self.STEPDATE_SB.value()
 
+		defLU = list(self.defLuDict.keys())[self.DEF_LU_CB.currentIndex()]
+		defIM = list(self.defImDict.keys())[self.DEF_IM_CB.currentIndex()]
 
-		return {'outfolder':outfolder,'simMode':simMode,'useyearlymaps':useYearlyMaps, 'from':fromYear, 'to':toYear,
+		return {'outfolder':outfolder,'simMode':simMode,
+				'defLU': defLU, 'defIM':defIM,
+				'useyearlymaps':useYearlyMaps, 'from':fromYear, 'to':toYear,
 				'extent':dtmExtent, 'crs':crs, 'cellsize':cellsize,
 				'zevalay':zevalay,'ztranslay':ztranslay,'capRise':capRise,'minSlope':minSlope, 'maxSlope':maxSlope,
 				'irrStart':irrStart, 'irrEnd':irrEnd,

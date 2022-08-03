@@ -1562,9 +1562,19 @@ class IdrAgraTools():
         yearList = range(startDate, endDate + 1)
         yearList = [str(y) for y in yearList]
 
+        # get dictionary of landuses
+        luDict = {0:self.tr('Not selected')}
+        luDict.update(self.DBM.getDictFromTable('idr_soiluses','id','name'))
+        #luDict[0] = self.tr('Not selected')
+
+        # get dictionary of irrigation methods
+        imDict = {0:self.tr('Not selected')}
+        imDict.update(self.DBM.getDictFromTable('idr_irrmet_types', 'id', 'name'))
+        #imDict[0] = self.tr('Not selected')
+
         # show dialog to choose folder and set simulation parameters
         from .forms.set_simulation_dialog import SetSimulationDialog
-        dlg = SetSimulationDialog(self.iface, yearList, list(self.SIMMODE.values()),self.SIMDIC)
+        dlg = SetSimulationDialog(self.iface, yearList, list(self.SIMMODE.values()),self.SIMDIC, luDict,imDict)
         result = 1
         #result = dlg.exec_()
         # See if OK was pressed
@@ -1597,7 +1607,9 @@ class IdrAgraTools():
             self.SIMDIC['STARTOUTPUT'] = res['outStartDate']
             self.SIMDIC['ENDOUTPUT'] = res['outEndDate']
             self.SIMDIC['STEPOUTPUT'] = res['outStep']
-
+            # set default landuse and method
+            self.SIMDIC['DEFAULT_LU'] = res['defLU']
+            self.SIMDIC['DEFAULT_IM'] = res['defIM']
 
             #print(self.SIMDIC)
             self.updatePars()

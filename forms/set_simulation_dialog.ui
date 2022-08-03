@@ -36,7 +36,7 @@
     <item>
      <widget class="QToolBox" name="toolBox">
       <property name="currentIndex">
-       <number>2</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="IRRIGATION_PG">
        <property name="geometry">
@@ -44,13 +44,13 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>353</height>
+         <height>429</height>
         </rect>
        </property>
        <attribute name="label">
         <string>Simulation options</string>
        </attribute>
-       <layout class="QFormLayout" name="formLayout_7">
+       <layout class="QFormLayout" name="formLayout_4">
         <item row="0" column="0">
          <widget class="QLabel" name="MODEL_LB">
           <property name="text">
@@ -61,7 +61,7 @@
         <item row="0" column="1">
          <widget class="QComboBox" name="MODE_CB"/>
         </item>
-        <item row="1" column="0" colspan="2">
+        <item row="2" column="0" colspan="2">
          <widget class="QCheckBox" name="SOILUSEVARFLAG_CB">
           <property name="enabled">
            <bool>false</bool>
@@ -77,6 +77,26 @@
           </property>
          </widget>
         </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="DEF_LU_LB">
+          <property name="text">
+           <string>Default land use</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QComboBox" name="DEF_LU_CB"/>
+        </item>
+        <item row="5" column="0">
+         <widget class="QLabel" name="DEF_IM_LB">
+          <property name="text">
+           <string>Default irrigation method</string>
+          </property>
+         </widget>
+        </item>
+        <item row="5" column="1">
+         <widget class="QComboBox" name="DEF_IM_CB"/>
+        </item>
        </layout>
       </widget>
       <widget class="QWidget" name="TIME_PG">
@@ -85,7 +105,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>353</height>
+         <height>429</height>
         </rect>
        </property>
        <attribute name="label">
@@ -145,7 +165,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>353</height>
+         <height>429</height>
         </rect>
        </property>
        <attribute name="label">
@@ -194,7 +214,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>353</height>
+         <height>429</height>
         </rect>
        </property>
        <attribute name="label">
@@ -284,7 +304,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>353</height>
+         <height>429</height>
         </rect>
        </property>
        <attribute name="label">
@@ -320,7 +340,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>353</height>
+         <height>429</height>
         </rect>
        </property>
        <attribute name="label">
