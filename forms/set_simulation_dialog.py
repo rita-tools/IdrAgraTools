@@ -242,7 +242,11 @@ class SetSimulationDialog(QMainWindow):
 		QMetaObject.connectSlotsByName(self)
 
 	def close(self):
-		self.disconnect(self.conn_canvas)
+		try:
+			self.disconnect(self.conn_canvas)
+		except:
+			self.canvas.extentsChanged.disconnect(self.drawGrid)
+
 		self.deleteGrid()
 		super().close()
 
