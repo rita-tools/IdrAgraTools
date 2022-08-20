@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Idragra Simulation Report[%sub_title%]</title>
+    <style>
+    div.notes {margin-top: 25px; padding: 10px; border-radius: 25px;border-radius: 25px;
+                border: 2px solid black;}
+    body {width: 90%; padding: 5%; font-family:Arial;}
+    table {width:100%; table-layout:fixed;}
+    tr.odd {background-color: LightGrey;}
+    table.statistics, table.statistics th, table.statistics td
+                     {text-align: center;
+                      border: 1px solid black;
+                      border-collapse: collapse;
+                      }}
+    img {width:100%}
+    div.image_container{display: flex; justify-content: center;}
+    p.caption {font-weight: bold;}
+    </style>
+</head>
+<body>
+    <h1>Idragra Simulation Report[%sub_title%]</h1>
+    <p>Created by IdrAgraTools on [%current_date%]</p>
+    <p>Based on data collected from <i>[%sim_path%]</i></p>
+    <div id = "toc">
+        [%report_toc%]
+    </div>
+    <div id="content">
+        [%report_body%]
+    </div>
+</body>
+<footer>
+</footer>
+</html>

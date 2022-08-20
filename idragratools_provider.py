@@ -34,6 +34,7 @@ from qgis.core import QgsProcessingProvider
 
 from PyQt5.QtGui import QIcon
 
+from .algs.idragra_report_overview import IdragraReportOverview
 from .algs.idragra_import_from_existing_db import IdragraImportFromExistingDB
 from .algs.idragra_groupstats_by_raster import IdragraGroupStatsByRaster
 from .algs.idragra_import_irrunits_results import IdragraImportIrrUnitsResults
@@ -100,7 +101,8 @@ class IdrAgraToolsProvider(QgsProcessingProvider):
 						IdragraRasterQuality(),
 						IdragraGroupStatsByRaster(),
 						IdragraImportIrrUnitsResults(),
-						IdragraImportFromExistingDB()
+						IdragraImportFromExistingDB(),
+						IdragraReportOverview()
 						]
 
 	def unload(self):

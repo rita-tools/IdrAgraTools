@@ -47,6 +47,7 @@ from PyQt5 import QtSql
 from PyQt5.QtXml import QDomDocument
 from qgis import processing
 
+from .forms.report_view import ReportDialog
 from .tools.show_message import showInfoMessageBox, showCriticalMessageBox
 from .tools.network_analyst import NetworkAnalyst
 from .tools.check_matlab_installed import checkMatlabInstalled
@@ -73,7 +74,7 @@ if cmd_folder not in sys.path:
 
 from qgis.core import QgsProcessingAlgorithm, QgsApplication, QgsProject, QgsVectorLayer, QgsGeometry, QgsFeature, \
     QgsFeatureRequest, QgsExpression
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QVariant, QUrl
 from processing import execAlgorithmDialog
 
 from PyQt5.QtCore import qVersion, QCoreApplication, QLocale, QSettings, QTranslator, QThread, Qt, QTimer
@@ -172,6 +173,7 @@ class IdrAgraTools():
         self.PRJNAME = 'Idragra simulation'
         self.FILEFORMAT = 'Geopackage file (*.gpkg)'#'Idragra db (*.idb)'
         self.FILEEXT = 'gpkg'#'idb'
+        self.HTMLFILE = None # store reference to html report file
 
         self.STATFUN = {'SUM': self.tr('Sum'), 'AVG': self.tr('Mean'), 'MAX': self.tr('Max'), 'MIN': self.tr('Min')}
 
@@ -468,8 +470,8 @@ class IdrAgraTools():
 
         # force activation state for specific names
         # None means always set as initialization
-        self.actionList = ['Advanced','Options']
-        self.actionState = [None,None]
+        self.actionList = ['Advanced','Options','testexport']
+        self.actionState = [None,None,None]
 
         self.mainMenu = None
         self.iface.projectRead.connect(self.loadFromProject)
@@ -563,6 +565,9 @@ class IdrAgraTools():
                           self.makeGroupedStats, False)
         self._addmenuitem(self.analysisMenu, 'ManageTimeSerie', self.tr('Explore timeseries'), self.manageTimeSerie,
                           False)
+        self._addmenuitem(self.analysisMenu, 'GenerateReport', self.tr('Generate report'),
+                          lambda: self.runAsThread(self.generateReport,self.showReportExplorer),
+                          False)
 
         self.mainMenu.addMenu(self.analysisMenu)
 
@@ -570,6 +575,9 @@ class IdrAgraTools():
         self._addmenuitem(self.advancedMenu, 'Options', self.tr('Options'), self.setOptions,True)
         #self._addmenuitem(self.advancedMenu, 'Test', self.tr('test'), self.test,
         #                  False)
+        #self._addmenuitem(self.advancedMenu, 'testexport', self.tr('Test esport'), self.createImageMap, True)
+
+
 
         self.mainMenu.addMenu(self.advancedMenu)
 
@@ -3504,6 +3512,42 @@ class IdrAgraTools():
                                        weatStatList=weatStatList, watSourceList=watSourceList,
                                        feedback=progress,tr=self.tr)
         print(res)
+
+    def createImageMap(self):
+        from tools.layout_to_image import layoutToImage
+
+        layerNames = ['idr_weather_stations','idr_distrmap','idr_soilmap']
+        layerList = []
+        for layName in layerNames:
+            layerList.append(self.getVectorLayerByName(layName))
+
+        fileName = r'C:\examples\test_img\test.png'
+        #mapToImage(layerList,fileName)
+        layoutToImage(layerList,fileName)
+
+        # from data_manager.chart_widget import ChartWidget
+        # fileName = r'C:\examples\test_img\test_chart.png'
+        #
+        # cw = ChartWidget(None, '', False, False, None)
+        # cw.setAxis(pos=111, secondAxis=False, label=['test'])
+        # cw.addPieChart()
+        # cw.saveToFile(fileName,400,400)
+
+    def generateReport(self,progress=None):
+        # run algorithm
+        algResults = processing.run("idragratools:IdragraReportOverview",
+                       {'SIM_FOLDER': self.SIMDIC['OUTPUTPATH'], 'OUTPUT': 'TEMPORARY_OUTPUT'},
+                                         context=None, feedback=progress, is_child_algorithm=False)
+        self.HTMLFILE = algResults['OUTPUT']
+        return algResults['OUTPUT']
+
+    def showReportExplorer(self, htmlFile=None):
+        if not htmlFile: htmlFile = self.HTMLFILE
+
+        if htmlFile:
+            self.dlg = ReportDialog(self.iface.mainWindow())
+            self.dlg.loadReport(htmlFile)
+            self.dlg.show()
 
     def createHeatMap(self):
         pass
