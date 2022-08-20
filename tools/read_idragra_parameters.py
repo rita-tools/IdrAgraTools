@@ -60,5 +60,7 @@ def readIdragraParameters(idragraFile, feedback,tr):
     except Exception as e:
         feedback.reportError(tr('Cannot parse %s because %s') %
                               (idragraFile, str(e)), True)
+    finally:
+        if f: f.close()
 
     return pars
