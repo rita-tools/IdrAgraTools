@@ -187,7 +187,7 @@ class ChartWidget(QWidget):
 		self.l.append(name)
 		# self.ax.legend(self.h, self.l)
 		plt.legend(self.h, self.l)
-		
+
 	def addTimeSerie(self,dateTimeList,values,lineType='-',color='r',name = 'lineplot',yaxis = 1,shadow= False, addToLegend = True):
 		if len(dateTimeList) > 0:
 			dates = mdt.date2num(dateTimeList)
@@ -220,7 +220,10 @@ class ChartWidget(QWidget):
 			# self.ax.legend(self.h, self.l)
 			# plt.legend(self.h, self.l)
 			# plt.legend(handles = self.h, labels = self.l, loc='upper center', bbox_to_anchor=(0.5, -0.1),fancybox=True, shadow=True, ncol=len(self.h))
-			plt.legend(handles=self.h, labels=self.l)#, loc='upper center', bbox_to_anchor=(0.5, 1.15), fancybox=True, shadow=True, ncol=len(self.h))
+			#plt.legend(handles=self.h, labels=self.l)#, loc='upper center', bbox_to_anchor=(0.5, 1.15), fancybox=True, shadow=True, ncol=len(self.h))
+			#self.ax.legend()
+			#self.figure.legend()
+			self.ax.legend(handles=self.h, labels=self.l)
 
 	def addFluxChart(self,flows=[25, 0, 60, -10, -20, -5, -15, -10, -40],
 				   labels=['', '', '', 'First', 'Second', 'Third', 'Fourth',
@@ -242,7 +245,13 @@ class ChartWidget(QWidget):
 		diagrams = sankey.finish()
 		diagrams[0].texts[-1].set_color('r')
 		diagrams[0].text.set_fontweight('bold')
-		
+
+	def addPieChart(self,labels=['Frogs', 'Hogs', 'Dogs', 'Logs'], sizes=[15, 30, 45, 10]):
+		# Pie chart, where the slices will be ordered and plotted counter-clockwise:
+		self.ax.axis('off')
+		self.ax.pie(sizes, labels=labels)
+		self.ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
 	def addBarPlot(self,x,y,width=1,color='b',name = 'barplot'):
 		
 		# add some text for labels, title and axes ticks
@@ -372,8 +381,5 @@ class ChartWidget(QWidget):
 		
 if __name__ == '__console__':
 	#app = QtGui.QApplication(sys.argv)
-
-	main = Window()
-	main.show()
-
 	#sys.exit(app.exec_())
+	pass
