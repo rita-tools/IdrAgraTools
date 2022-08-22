@@ -459,6 +459,12 @@ class IdrAgraTools():
                          'Sr': self.tr('Root depth')
                          }
 
+        # supported report types
+        self.REPORT_TYPES = {'general': self.tr('Simulation overview'),
+                            'annuals_totals': self.tr('Annual totals'),
+                            'irrunits_totals': self.tr('Irrigation units totals')
+                            }
+
         # enable macro for this session
         s = QgsSettings()
         self.MACROPOLICY = s.value('qgis/enableMacros')
@@ -557,6 +563,22 @@ class IdrAgraTools():
         self.analysisMenu = self._addmenu(self.mainMenu, 'Analysis', self.tr('Analysis'), False)
         #self._addmenuitem(self.analysisMenu, 'ImportControlPointsResults', self.tr('Import control points results'),
         #                  lambda: self.runAsThread(self.importControlPointsResults), False)
+        self.reportMenu = self._addmenu(self.analysisMenu, 'GenerateReport', self.tr('Report for'), False)
+
+        self._addmenuitem(self.reportMenu, 'GenerateReport0', self.tr('Simulation inputs overview'),
+                          lambda: self.runAsThread(self.generateReport, self.showReportExplorer, repIndex=0),
+                          False)
+
+        self._addmenuitem(self.reportMenu, 'GenerateReport1', self.tr('Annual outputs totals'),
+                          lambda: self.runAsThread(self.generateReport, self.showReportExplorer, repIndex=1),
+                          False)
+
+        self._addmenuitem(self.reportMenu, 'GenerateReport2', self.tr('Irrigation units outputs'),
+                          lambda: self.runAsThread(self.generateReport, self.showReportExplorer, repIndex=2),
+                          False)
+
+        self.analysisMenu.addMenu(self.reportMenu)
+
         self._addmenuitem(self.analysisMenu, 'ImportDistrictData', self.tr('Import irrigation units results'),
                           lambda: self.runAsThread(self.importWaterDistrictData), False)
         self._addmenuitem(self.analysisMenu, 'DischargeToNode', self.tr('Node water demand'),
@@ -565,9 +587,9 @@ class IdrAgraTools():
                           self.makeGroupedStats, False)
         self._addmenuitem(self.analysisMenu, 'ManageTimeSerie', self.tr('Explore timeseries'), self.manageTimeSerie,
                           False)
-        self._addmenuitem(self.analysisMenu, 'GenerateReport', self.tr('Generate report'),
-                          lambda: self.runAsThread(self.generateReport,self.showReportExplorer),
-                          False)
+
+
+
 
         self.mainMenu.addMenu(self.analysisMenu)
 
@@ -598,7 +620,11 @@ class IdrAgraTools():
         if self.mainMenu:
             for action,activate in zip(self.actionList,self.actionState):
                 if activate is not None:
-                    ACT = self.mainMenu.findChild(QAction, action)
+                    try:
+                        ACT = self.mainMenu.findChild(QAction, action)
+                    except:
+                        ACT = None
+
                     if ACT: ACT.setEnabled(activate)
                     MENU = self.mainMenu.findChild(QMenu, action)
                     if MENU: MENU.setEnabled(activate)
@@ -3533,10 +3559,12 @@ class IdrAgraTools():
         # cw.addPieChart()
         # cw.saveToFile(fileName,400,400)
 
-    def generateReport(self,progress=None):
+    def generateReport(self,repIndex, progress=None):
         # run algorithm
+        self.HTMLFILE = None
         algResults = processing.run("idragratools:IdragraReportOverview",
-                       {'SIM_FOLDER': self.SIMDIC['OUTPUTPATH'], 'OUTPUT': 'TEMPORARY_OUTPUT'},
+                       {'SIM_FOLDER': self.SIMDIC['OUTPUTPATH'], 'OUTPUT': 'TEMPORARY_OUTPUT',
+                        'REPORT_FORMAT':repIndex},
                                          context=None, feedback=progress, is_child_algorithm=False)
         self.HTMLFILE = algResults['OUTPUT']
         return algResults['OUTPUT']

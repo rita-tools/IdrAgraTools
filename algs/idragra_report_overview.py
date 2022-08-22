@@ -28,18 +28,23 @@ __copyright__ = '(C) 2020 by Enrico A. Chiaradia'
 
 __revision__ = '$Format:%H$'
 
+import qgis
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QCoreApplication
 
 from qgis.core import (QgsProcessingAlgorithm,
 					   QgsProcessingParameterFileDestination,
-					   QgsProcessingParameterFile)
+					   QgsProcessingParameterFile, QgsProcessingParameterEnum)
 						
 
 
 import os
 
+from report.annual_totals_report_builder import AnnualTotalsReportBuilder
+from report.irrunit_totals_report_builder import IrrunitTotalsReportBuilder
+from report.report_builder import ReportBuilder
 from ..report.overview_report_builder import OverviewReportBuilder
+
 
 
 class IdragraReportOverview(QgsProcessingAlgorithm):
@@ -62,6 +67,7 @@ class IdragraReportOverview(QgsProcessingAlgorithm):
 	
 	SIM_FOLDER= 'SIM_FOLDER'
 	OUTPUT = 'OUTPUT'
+	REPORT_FORMAT = 'REPORT_FORMAT'
 	FEEDBACK = None
 
 	def __init__(self):
@@ -138,11 +144,14 @@ class IdragraReportOverview(QgsProcessingAlgorithm):
 		with some other properties.
 		"""
 		#### PARAMETERS ####
+		self.REPORT_TYPES =  qgis.utils.plugins['IdragraTools'].REPORT_TYPES
 
 		self.addParameter(QgsProcessingParameterFile(self.SIM_FOLDER, self.tr('IdrAgra simulation folder'),
 													  QgsProcessingParameterFile.Behavior.Folder,'','',False,''))
 	
 		self.addParameter(QgsProcessingParameterFileDestination (self.OUTPUT, self.tr('Output file'), 'Report file (*.html)', None, False, True))
+		self.addParameter(QgsProcessingParameterEnum(self.REPORT_FORMAT, self.tr('Report type'),
+													 list(self.REPORT_TYPES.values())))
 
 	def processAlgorithm(self, parameters, context, feedback):
 		"""
@@ -153,9 +162,17 @@ class IdragraReportOverview(QgsProcessingAlgorithm):
 		# get params
 		simFolder = self.parameterAsFile(parameters, self.SIM_FOLDER, context)
 		outfile = self.parameterAsFile(parameters, self.OUTPUT, context)
-		#
+		repFrtIdx = self.parameterAsEnum(parameters, self.REPORT_FORMAT, context)
+		repFrt = list(self.REPORT_TYPES.keys())[repFrtIdx]
+		if repFrt=='general':
+			RB = OverviewReportBuilder(self.FEEDBACK,self.tr)
+		elif repFrt=='annuals_totals':
+			RB = AnnualTotalsReportBuilder()
+		elif repFrt == 'irrunits_totals':
+			RB = IrrunitTotalsReportBuilder()
+		else:
+			RB = ReportBuilder()
 
-		RB = OverviewReportBuilder(self.FEEDBACK,self.tr)
 		outfile = RB.makeReport(simFolder, outfile)
 
 		return {'OUTPUT': outfile}
