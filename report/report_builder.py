@@ -10,11 +10,6 @@ import matplotlib
 from report.toc_item import TocItem
 
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib import cm
-import matplotlib.patches as mpatches
-import matplotlib.patheffects as pe
-from matplotlib.gridspec import GridSpec
 
 from datetime import datetime,timedelta
 
@@ -22,8 +17,17 @@ from datetime import datetime,timedelta
 from report.my_progress import MyProgress
 
 class ReportBuilder():
+    """
+       This class represents object to use for report building
+    """
 
     def __init__(self,feedback = None, tr = None):
+        """
+        Initialize the report builder object
+        Parameters:
+            feedback = an object that manage messagge and progression (see my_progress for example)
+            tr = a function that makes string translation. if None, the same string is returned
+        """
         if not feedback:self.FEEDBACK = MyProgress()
         else: self.FEEDBACK = feedback
 
@@ -34,7 +38,26 @@ class ReportBuilder():
 
         self.index_template = os.path.join(self.rb_dir, 'default', 'index_report.html')
 
+        # these properties are for future developments
+        self.name = ''
+        self.description = ''
+
+    def set_title(self, name):
+        """
+        Set report name
+        """
+        self.name = str(name)
+
+    def set_description(self, description):
+        """
+        Set report description
+        """
+        self.description = str(description)
+
     def maskExtent(self,maskData):
+        """
+        Get the extent as cells coordinates of a 2d array mask (1-value area)
+        """
         nrows,ncols = maskData.shape
         rindex = []
         cindex = []
@@ -61,16 +84,23 @@ class ReportBuilder():
         return (cmin,cmax,rmin,rmax)
 
     def calcExtent(self,cmin,cmax,rmin,rmax,xll_ref,yll_ref,cellsize):
-        xll = xll_ref+cmin*cellsize
-        xlr = xll_ref + (cmax +1)* cellsize
-        yll = yll_ref+rmin*cellsize
-        yur = yll_ref + (rmax+1) * cellsize
+       """
+       Calculate extents in geographic projected coordinates from cells coordinates
+       """
+       xll = xll_ref+cmin*cellsize
+       xlr = xll_ref + (cmax +1)* cellsize
+       yll = yll_ref+rmin*cellsize
+       yur = yll_ref + (rmax+1) * cellsize
 
-        return (xll, xlr, yll, yur)
+       return (xll, xlr, yll, yur)
 
 
 
     def dataframeToHtml(self, df, header, subHeader=None, formatList=None, tableClass='statistics', oddClass='odd'):
+        """
+        Convert a pandas dataframe to html table
+        More advanced respected to simple pandas.DataFrame.to_html method
+        """
         nMains = len(header)
         if subHeader:
             nsubs = len(subHeader)
@@ -119,12 +149,19 @@ class ReportBuilder():
         return text
 
     def loadASC(self, filename, val_type=np.int):
-        # ncols 4
-        # nrows 3
-        # xllcorner 520197.5534
-        # yllcorner 5018050.0
-        # cellsize 250.0
-        # nodata_value -9
+        """
+        Open and ascii raster file as dictionary
+        The header structure should be:
+            ncols 4
+            nrows 3
+            xllcorner 520197.5534
+            yllcorner 5018050.0
+            cellsize 250.0
+            nodata_value -9
+
+        Note that data are stored in numpy 2d array of type val_type
+        """
+
         res = {'ncols': 0, 'nrows': 0, 'xllcorner': 0, 'yllcorner': 0, 'cellsize': 0, 'nodata_value': 0,
                'data': np.array([])}
 
@@ -162,7 +199,9 @@ class ReportBuilder():
         return res
 
     def readIdragraParameters(self,idragraFile, feedback, tr):
-
+        """
+        Read (most of) idragra parameters files
+        """
         pars = {}
         rows = []
 
@@ -239,6 +278,9 @@ class ReportBuilder():
         return pars
 
     def writeParsToTemplate(self,outfile, parsDict, templateName):
+        """
+        Replace in a template file the contents assigned to a specific key in the provided dictionary
+        """
         content = ''
         try:
             templateFileName = templateName
@@ -264,6 +306,9 @@ class ReportBuilder():
         return content
 
     def makeImgFolder(self,outfile):
+        """
+        Set the image folder for html output
+        """
         # set default folder
         outImageFolder = outfile[:-5] + '_img'
         if not os.path.exists(outImageFolder):
@@ -278,7 +323,9 @@ class ReportBuilder():
         return outImageFolder
 
     def makeToc(self,text):
-        #
+        """
+        Make a table of cointents, ToC, from an html string
+        """
         searchExp = '<a id="(.*)"><h[0-9]+.*>(.*)</h([0-9]+)></a>'
         result = re.findall(searchExp, text)
         root = TocItem('','')
@@ -289,6 +336,10 @@ class ReportBuilder():
         return root.to_html()
 
     def makeReport(self,simFolder,outfile):
+        """
+        Make an html report file with tables and images
+        It should be overloaded by inheriting class
+        """
         outImageFolder = self.makeImgFolder(outfile)
         # read idragra file
         ### WRITE TO FILE ###
