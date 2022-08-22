@@ -244,7 +244,7 @@ class OverviewReportBuilder(ReportBuilder):
 
         # save to file
         fig.savefig(fileName, format='png')
-        plt.cla()  # clear memory
+        plt.close(fig)
 
     def makeDailyPlot(self, outFile, dataToPlot):
         klist = list(dataToPlot.keys())
@@ -288,7 +288,7 @@ class OverviewReportBuilder(ReportBuilder):
 
         # save to file
         fig.savefig(outFile, format='png')
-        plt.cla()  # clear memory
+        plt.close(fig)
 
     def makePieChart(self, outFile, sizes, labels, colors=None):
         fig, ax1 = plt.subplots()
@@ -297,7 +297,7 @@ class OverviewReportBuilder(ReportBuilder):
         ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
         # save to file
         fig.savefig(outFile, format='png')
-        plt.cla()  # clear memory
+        plt.close(fig)  # clear memory
 
     def plotCatMap(self,outfile,mapFile,domainFile,offset=0.1):
         #
@@ -357,7 +357,7 @@ class OverviewReportBuilder(ReportBuilder):
 
         # save to file
         fig.savefig(outfile, format='png')
-        plt.cla()  # clear memory
+        plt.close(fig)  # clear memory
 
 
 

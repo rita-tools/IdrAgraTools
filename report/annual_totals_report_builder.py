@@ -63,7 +63,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
                 # get year
                 try:
-                    nums = re.findall(r'\d+', outFile)
+                    nums = re.findall(r'\d+', os.path.basename(outFile))
                     y = int(nums[0])
                     if '_month' in os.path.basename(outFile):
                         month = int(nums[1])
@@ -73,7 +73,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                 except:
                     self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name:'), outFile)
 
-#                print(outFile,y,month,step)
+                #print(outFile,y,month,step)
 
                 res['year'].append(y)
                 res['month'].append(month)
@@ -92,8 +92,18 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         #print(res)
         # remove empty month and step
-        if max(res['month'])==0: del res['month']
-        if max(res['step']) == 0: del res['step']
+        if len(res['month']) == 0:
+            del res['month']
+        elif max(res['month'])==0:
+            del res['month']
+        else:
+            pass
+        if len(res['step']) == 0:
+            del res['step']
+        elif max(res['step']) == 0:
+            del res['step']
+
+        #print('res',res)
 
         return pd.DataFrame(res)
 
@@ -113,26 +123,45 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         # sankey = Sankey(ax=self.ax, flows=flows, labels=labels, orientations=orientations)
         diagrams = sankey.finish()
+
         diagrams[0].texts[-1].set_color('r')
         diagrams[0].text.set_fontweight('bold')
 
+
+        # xmin,xmax = ax.get_xlim()
+        # ymin, ymax = ax.get_ylim()
+        #
+        # w = xmax-xmin
+        # h = ymax-ymin
+        #
+        # ax.set_xlim(xmin-0.1*w,xmax+0.1*w)
+        # ax.set_ylim(ymin - 0.1 * h, ymax + 0.1 * h)
+
     def makeFluxPlot(self,outFile, dataToPlot, labels, alias,signs, orientations,pathlengths):
-        nRows = len(dataToPlot.index)
-        nPlot = math.ceil(nRows/2)
-        #print('nRows',nRows,'nPlot',nPlot)
-        fig, axs = plt.subplots(nPlot, 2, figsize=(10,3*nPlot), constrained_layout=True)
-        for n in range(nRows):
+        nPlot = len(dataToPlot.index)
+        nRows = math.ceil(nPlot/2)
+        nCols = 2
+        if nPlot==1: nCols=1
+        # print('nPlot',nPlot,'nRows',nRows,'nCols',nCols)
+        fig, axs = plt.subplots(nRows, nCols, figsize=(10,3.5*nRows))#, constrained_layout=True)
+
+        if nPlot > 1:
+            axsList = axs.flat
+        else:
+            axsList = [axs]
+
+        for n in range(nPlot):
             flows = []
             row = dataToPlot.iloc[[n]]
             for label,sign in zip(labels,signs):
                 #print('row val',float(row[label+'_mean']))
                 flows.append(float(row[label+'_mean'])*sign)
 
-            self.addFluxChart(axs[n],flows,alias,orientations,pathlengths,'year\n%s'%int(row['year']))
+            self.addFluxChart(axsList[n],flows,alias,orientations,pathlengths,'year\n%s'%int(row['year']))
 
         # save to file
         fig.savefig(outFile, format='png')
-        plt.cla()  # clear memory
+        plt.close(fig)
 
     def makeFluxBars(self,ax, dataToPlot, labels, aliases,signs,bar_w=0.35,timeFld = 'year'):
         nRows = len(dataToPlot.index)
@@ -331,7 +360,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder='C:/examples/sim_months'
+    simFolder=r'C:\examples\ex_report_SIM'
     outputFile = 'C:/examples/test_img/test_annual.html'
     RB = AnnualTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)

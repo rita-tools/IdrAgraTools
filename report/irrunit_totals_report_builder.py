@@ -122,7 +122,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
         # save to file
         if outFile: fig.savefig(outFile, format='png')
-        plt.cla()  # clear memory
+
+        plt.close(fig)
 
         return newDf
 
@@ -204,7 +205,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             selIuRL['data'] = np.where(selIuRL['data']==iu,1,np.nan)
 
             ### MAKE LANDUSE STATITICS
-            lu_image = os.path.join(outImageFolder, 'lu_by_year_map.png')
+            lu_image = os.path.join(outImageFolder, 'lu_by_year_map_%s.png'%(iu))
             soiluse_table = self.irrUnitsSummary(baseFN=os.path.join(geodataPath,'soiluse*.asc'),
                                                  mask_rl=selIuRL, values=list(landusePar['id']),
                                                  outFile=lu_image)
@@ -269,7 +270,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                                     len(list(other_soil_par_table.columns)) - 1))
 
             ### MAKE IRRIGATION METHOD STATISTICS
-            im_image = os.path.join(outImageFolder, 'im_by_year_map.png')
+            im_image = os.path.join(outImageFolder, 'im_by_year_map_%s.png'%(iu))
             irrmeth_table = self.irrUnitsSummary(baseFN=os.path.join(geodataPath,'irr_meth*.asc'),
                                                  mask_rl=selIuRL, values=list(irrmethPar['id']),
                                                  outFile=im_image)
@@ -303,7 +304,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             years = waterFlux_table['year'].to_list()
 
             # make flux bar plot for each year
-            temp_png = os.path.join(outImageFolder, 'wat_fluxes.png')
+            temp_png = os.path.join(outImageFolder, 'wat_fluxes_%s.png'%(iu))
             fig, ax = plt.subplots(figsize=(10, 3), constrained_layout=True)
             patches, labels = self.makeFluxBars(ax, waterFlux_table, list(waterFlux.values()),
                                   ['P', 'I', 'L', 'E', 'T', 'R', 'N'],
@@ -312,7 +313,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             fig.legend(patches, labels, loc=7)
             # save to file
             fig.savefig(temp_png, format='png')
-            plt.cla()  # clear memory
+            plt.close(fig)
 
             wat_fluxes_by_year = os.path.relpath(temp_png, os.path.dirname(outfile))
 
@@ -339,10 +340,14 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                 'caprise':self.tr('Capillary rise (mm)')
             }
 
-            temp_png = os.path.join(outImageFolder, 'wat_fluxes_by_step.png')
+            temp_png = os.path.join(outImageFolder, 'wat_fluxes_by_step_%s.png'%(iu))
             fig, axs = plt.subplots(len(years), 1,figsize=(10, 3*len(years)), constrained_layout=True)
 
-            for y,ax in zip(years,axs.flat):
+
+            if len(years)>1: axsList = axs.flat
+            else: axsList = [axs]
+
+            for y,ax in zip(years,axsList):
                 stepWaterFlux_table = self.makeAnnualStats(outputPath, ['%s_%s*_'%(y,stepname) + x for x in list(stepWaterFlux.keys())],
                                                        list(stepWaterFlux.values()), statLabel, selIuRL, 1)
                 # sort by step num
@@ -358,7 +363,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             plt.legend(patches, labels, loc='lower center', bbox_to_anchor=(0.5, -0.3), ncol=len(labels))
             # save to file
             fig.savefig(temp_png, format='png')
-            plt.cla()  # clear memory
+            plt.close(fig)
+
             wat_fluxes_by_step = os.path.relpath(temp_png, os.path.dirname(outfile))
 
             ### ADD WATER MANAGEMENT STATISTICS ###
@@ -459,7 +465,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder='C:/examples/sim_grossirr'
+    simFolder=r'C:\examples\ex_report_SIM'
     outputFile = 'C:/examples/test_img/test_irrigation_units.html'
     RB = IrrunitTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
