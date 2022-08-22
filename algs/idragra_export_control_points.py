@@ -220,25 +220,29 @@ class IdragraExportControlPoints(QgsProcessingAlgorithm):
 		nFeats = vectorLay.featureCount()
 		n = 0
 		for feature in vectorLay.getFeatures():
-			x = feature.geometry().asMultiPoint()[0].x()
-			y = feature.geometry().asMultiPoint()[0].y()
-			c, r = self.aGrid.coordToCell(x, y)
-			# coordinates are one-based
-			c+=1
-			r+=1
-			if (c<1) or (c>ncols) or (r<1) or (r>nrows):
-				self.FEEDBACK.reportError(
-					self.tr('Control point named %s is outside the extension') %
-					(feature['name']))
-			else:
-				newRec = '%s\t%s\t%s'%(n+1,r,c) #flipped
-				if newRec not in recs:
-					recs.append(newRec)
-					nOfCP += 1
-				else:
+			try: geom = feature.geometry().asMultiPoint()[0]
+			except: geom = None
+
+			if geom:
+				x = geom.x()
+				y = geom.y()
+				c, r = self.aGrid.coordToCell(x, y)
+				# coordinates are one-based
+				c+=1
+				r+=1
+				if (c<1) or (c>ncols) or (r<1) or (r>nrows):
 					self.FEEDBACK.reportError(
-						self.tr('More than one control point falls in one computational cell. Only one will be exported. Consider to reduce cell size.') %
+						self.tr('Control point named %s is outside the extension') %
 						(feature['name']))
+				else:
+					newRec = '%s\t%s\t%s'%(n+1,r,c) #flipped
+					if newRec not in recs:
+						recs.append(newRec)
+						nOfCP += 1
+					else:
+						self.FEEDBACK.reportError(
+							self.tr('More than one control point falls in one computational cell. Only one will be exported. Consider to reduce cell size.') %
+							(feature['name']))
 
 
 			n+=1
