@@ -111,7 +111,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                      labels=['', '', '', 'First', 'Second', 'Third', 'Fourth',
                              'Fifth', 'Hurray!'],
                      orientations=[-1, 1, 0, 1, 1, 1, -1, -1, 0],
-                     pathlengths=[0.25, 0.25, 0.25, 0.25, 0.25, 0.6, 0.25, 0.25,
+                     pathlengths=[0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
                                   0.25],
                      patchlabel="Widget\nA"):
 
@@ -247,10 +247,10 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         waterFlux = {
             'prec_tot': self.tr('Cumulative precipitation (mm)'),
-            'irr_tot': self.tr('Cumulative irrigation (mm)'),
-            'irr_loss':self.tr('Irrigation application losses (mm)'),
             'eva_act_agr': self.tr('Cumulative actual evaporation (mm)'),
             'trasp_act_tot': self.tr('Cumulative actual transpiration (mm)'),
+            'irr_tot': self.tr('Cumulative irrigation (mm)'),
+            'irr_loss': self.tr('Irrigation application losses (mm)'),
             'run_tot':self.tr('Cumulative runoff (mm)'),
             'flux_tot': self.tr('Net flux to groundwater (mm)'),
         }
@@ -259,9 +259,9 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                                list(waterFlux.values()), statLabel,domainFile,1)
 
         temp_png = os.path.join(outImageFolder, 'wat_fluxes.png')
-        self.makeFluxPlot(temp_png, waterFlux_table, list(waterFlux.values()),['P','I','L','E','T','R','N'],
-                          [1,1,-1,-1,-1,-1,-1], [1, 1, 1, 1, 1, 0, -1],
-                          [0.25, 0.25, 5., 2., 2.0, 2., 2.])
+        self.makeFluxPlot(temp_png, waterFlux_table, list(waterFlux.values()),['P','E','T','I','L','R','N'],
+                          [1,-1,-1,1,-1,-1,-1], [1, 1, 1, 1, 1, 0, -1],
+                          [0.25, 0.25, 0.25, 2., 0.5, 2., 2.])
 
         temp_png_rel = os.path.relpath(temp_png, os.path.dirname(outfile))
 
