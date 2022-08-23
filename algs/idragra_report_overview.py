@@ -167,11 +167,11 @@ class IdragraReportOverview(QgsProcessingAlgorithm):
 		if repFrt=='general':
 			RB = OverviewReportBuilder(self.FEEDBACK,self.tr)
 		elif repFrt=='annuals_totals':
-			RB = AnnualTotalsReportBuilder()
+			RB = AnnualTotalsReportBuilder(self.FEEDBACK,self.tr)
 		elif repFrt == 'irrunits_totals':
-			RB = IrrunitTotalsReportBuilder()
+			RB = IrrunitTotalsReportBuilder(self.FEEDBACK,self.tr)
 		else:
-			RB = ReportBuilder()
+			RB = ReportBuilder(self.FEEDBACK,self.tr)
 
 		outfile = RB.makeReport(simFolder, outfile)
 
