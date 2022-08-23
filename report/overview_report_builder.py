@@ -314,6 +314,7 @@ class OverviewReportBuilder(ReportBuilder):
 
         map_data = np.where(domain_data != 1, map_rl['nodata_value'], map_data) # apply domain mask
         values = np.unique(map_data.ravel()).tolist()
+        im_values = range(len(values))
         #values = values[~np.isnan(values)] # remove nan from list
         if (map_rl['nodata_value'] in values): values.remove(map_rl['nodata_value'])
 
@@ -324,12 +325,15 @@ class OverviewReportBuilder(ReportBuilder):
         # add map
         ax1 = fig.add_subplot(gs[0, 0:2])
         map_data = np.where(map_data == map_rl['nodata_value'], np.nan, map_data)
+
+        map_data = self.replace_values_by_list(map_data,values,im_values)
+
         im = ax1.imshow(map_data, extent=map_rl['extent'], interpolation='nearest', cmap='tab20')
         # credits: https://stackoverflow.com/questions/25482876/how-to-add-legend-to-imshow-in-matplotlib
         # colormap used by imshow
-        colors = [im.cmap(im.norm(value)) for value in values]
+        colors = [im.cmap(im.norm(value)) for value in im_values]
         # create a patch (proxy artist) for every color
-        patches = [mpatches.Patch(color=colors[i]) for i in range(len(values))]
+        patches = [mpatches.Patch(color=colors[i]) for i in range(len(im_values))]
 
         handles += patches
 
@@ -734,7 +738,7 @@ class OverviewReportBuilder(ReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder='C:/examples/sim_months'
+    simFolder=r'C:\examples\ex_report_SIM'
     outputFile = 'C:/examples/test_img/test_overview.html'
     RB = OverviewReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
