@@ -72,7 +72,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
         extent = self.maskExtent(mask_data)
         extent = self.calcExtent(extent[0], extent[1], extent[2], extent[3], mask_rl['xllcorner'], mask_rl['yllcorner'],
                                  mask_rl['cellsize'])
-        # print('extent', extent)
+        #print('extent', extent)
 
         # search all files that match baseFN
         baseFileList = glob.glob(baseFN)
@@ -102,6 +102,12 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                 base_rl = self.loadASC(baseFile, np.float)
                 base_data = np.where(base_rl['data']==base_rl['nodata_value'],np.nan,base_rl['data'])
                 filtered_data = base_data*mask_data
+
+                # extent = self.maskExtent(filtered_data)
+                # extent = self.calcExtent(extent[0], extent[1], extent[2], extent[3], base_rl['xllcorner'],
+                #                          base_rl['yllcorner'],
+                #                          base_rl['cellsize'])
+
                 # count
                 unique, counts = np.unique(filtered_data[~np.isnan(filtered_data)], return_counts=True)
                 res = pd.DataFrame({y: (counts*mask_rl['cellsize']*mask_rl['cellsize'])}, index=unique)
@@ -331,14 +337,34 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             stepWaterFlux = {
                 'prec': self.tr('Precipitation (mm)'),
                 'irr': self.tr('Irrigation (mm)'),
-                'irr_distr': self.tr('Irrigation from collective wells (mm)'),
-                'irr_privw': self.tr('Irrigation from private wells (mm)'),
                 'irr_loss': self.tr('Irrigation application losses (mm)'),
                 'et_act': self.tr('Actual evapotranspiration (mm)'),
                 'runoff': self.tr('Runoff (mm)'),
                 'flux2': self.tr('Flux to groundwater (mm)'),
-                'caprise':self.tr('Capillary rise (mm)')
+                'caprise': self.tr('Capillary rise (mm)')
             }
+            stepWaterLabel = ['P', 'I', 'L', 'ET', 'R', 'F', 'C']
+            stepWaterSign = [1, 1, -1, -1, -1, -1, -1]
+
+            if simPar['mode']in [0,'0']:
+                stepWaterFlux = {
+                    'prec': self.tr('Precipitation (mm)'),
+                    'irr_distr': self.tr('Irrigation from collective source (mm)'),
+                    'irr_privw': self.tr('Irrigation from private wells (mm)'),
+                    'irr_loss': self.tr('Irrigation application losses (mm)'),
+                    'et_act': self.tr('Actual evapotranspiration (mm)'),
+                    'runoff': self.tr('Runoff (mm)'),
+                    'flux2': self.tr('Flux to groundwater (mm)'),
+                    'caprise': self.tr('Capillary rise (mm)')
+                }
+                stepWaterLabel = ['P', 'Ic', 'Ip', 'L', 'ET', 'R', 'F', 'C']
+                stepWaterSign = [1, 1, 1, -1, -1, -1, -1, -1]
+
+            noteString = []
+            for label,descr in zip(stepWaterLabel,list(stepWaterFlux.values())):
+                noteString.append('%s: %s'%(label,descr))
+
+            noteString = ', '.join(noteString)
 
             temp_png = os.path.join(outImageFolder, 'wat_fluxes_by_step_%s.png'%(iu))
             fig, axs = plt.subplots(len(years), 1,figsize=(10, 3*len(years)), constrained_layout=True)
@@ -355,8 +381,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
                 # make flux bar plot for each year
                 patches, labels = self.makeFluxBars(ax, stepWaterFlux_table, list(stepWaterFlux.values()),
-                                                    ['P', 'I', 'Ic', 'Ip','L', 'ET', 'R', 'F','C'],
-                                                    [1, 1, 1, 1, -1, -1, -1, -1, -1],
+                                                    stepWaterLabel,
+                                                    stepWaterSign,
                                                     bar_w=1.,timeFld=stepname)
                 ax.set_title(str(y))
 
@@ -439,6 +465,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                                'annual_fluxes': wat_fluxes_by_year,
                                                                'stepname':stepname,
                                                                'step_fluxes':wat_fluxes_by_step,
+                                                               'step_notes':noteString,
                                                                'wbf_table': waterFlux_table,
                                                                'wm_table': waterMan_table,
                                                                'fcp_table': first_prod_table,

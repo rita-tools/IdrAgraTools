@@ -1,6 +1,7 @@
 import glob
 import math
 import os
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -209,8 +210,19 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         ax.hlines(0,0.-bar_w,(nRows-1)+bar_w)
         ax.set_xlim([-bar_w,(nRows-1)+bar_w])
 
+        # draw maximum 20+1 labels
+        numTs = len(time_step)
+        skip = int(numTs/20)
+        skip = max(skip,1)
+
+        new_time_step = deepcopy(time_step)
+        for i,ts in enumerate(time_step):
+            f1,f2 = divmod(i, skip)
+            if f2>0:
+                new_time_step[i] =''
+
         ax.set_xticks(range(nRows))
-        ax.set_xticklabels(time_step)
+        ax.set_xticklabels(new_time_step)
 
         ylim = ax.get_ylim()
         max_ylim = max([abs(y) for y in ylim])
