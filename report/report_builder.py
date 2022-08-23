@@ -54,6 +54,16 @@ class ReportBuilder():
         """
         self.description = str(description)
 
+    def replace_values_by_list(self, a, oldVals, newVals):
+        """
+        Replace values contained in val_old with those contained in val_new
+        """
+        #a_new = np.array(a,copy=True)
+        for old,new in zip(oldVals,newVals):
+            np.place(a, a == old, new)
+
+        return a
+
     def maskExtent(self,maskData):
         """
         Get the extent as cells coordinates of a 2d array mask (1-value area)
