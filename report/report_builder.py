@@ -37,6 +37,7 @@ class ReportBuilder():
         self.rb_dir = os.path.dirname(__file__)
 
         self.index_template = os.path.join(self.rb_dir, 'default', 'index_report.html')
+        self.sim_template = os.path.join(self.rb_dir, 'default', 'simulation_report.html')
 
         # these properties are for future developments
         self.name = ''
@@ -244,6 +245,11 @@ class ReportBuilder():
                             pars['monthlyflag'] = False
                         else:
                             pars['monthlyflag'] = True
+                    elif parName == 'capillaryflag':
+                        if l[1] == 'F':
+                            pars['capillaryflag'] = False
+                        else:
+                            pars['capillaryflag'] = True
                     elif parName == 'startdate':
                         pars['startdate'] = int(l[1])
                     elif parName == 'enddate':

@@ -709,7 +709,8 @@ class OverviewReportBuilder(ReportBuilder):
         self.FEEDBACK.setProgress(80.)
 
         ### MAKE REPORT BODY ###
-        report_contents = self.writeParsToTemplate(None, {'ws_overview_map': ws_overview_map,
+        report_contents = self.writeParsToTemplate(None,simPar,self.sim_template)
+        report_contents += self.writeParsToTemplate(None, {'ws_overview_map': ws_overview_map,
                                                      'ws_block': ws_contents,
                                                      'lu_list_table':lu_list_table,
                                                      'crop_list_table':crop_list_table,
