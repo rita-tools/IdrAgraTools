@@ -1000,6 +1000,7 @@ class IdrAgraTools():
                     print("Failed to load layer %s"%a)  # TODO
                 else:
                     groupIndex, mygroup = self.getGroupIndex(self.LYRGRPNAME[n])
+                    print(os.path.join(self.plugin_dir, 'styles', n + '.qml'))
                     vlayer.loadNamedStyle(os.path.join(self.plugin_dir, 'styles', n + '.qml'))
                     QgsProject.instance().addMapLayer(vlayer, False)
                     mygroup.insertChildNode(groupIndex, QgsLayerTreeLayer(vlayer))
@@ -1077,6 +1078,15 @@ class IdrAgraTools():
         vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_soilmap'])
         for vlayer in vlayerList:
             self.setCustomForm(vlayer, 'soil_map_dialog')
+
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_soil_types'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'soil_type_dialog')
+
+
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_soil_profiles'])
+        for vlayer in vlayerList:
+            self.setCustomForm(vlayer, 'soil_profile_dialog')
 
 
     def setupIrrTypesLayer(self):
@@ -2903,10 +2913,16 @@ class IdrAgraTools():
 
     def setCustomForm(self, layer, formNameRoot):
         EFC = QgsEditFormConfig()
-        EFC.setUiForm(self.plugin_dir + '/layerforms/' + formNameRoot + '.ui')
-        EFC.setInitCodeSource(QgsEditFormConfig.PythonInitCodeSource.CodeSourceFile)
-        EFC.setInitFilePath(self.plugin_dir + '/layerforms/' + formNameRoot + '.py')
-        EFC.setInitFunction('formOpen')
+        customDlg = self.plugin_dir + '/layerforms/' + formNameRoot + '.ui'
+        if os.path.exists(customDlg):
+            EFC.setUiForm(customDlg)
+
+        customSource = self.plugin_dir + '/layerforms/' + formNameRoot + '.py'
+        if os.path.exists(customSource):
+            EFC.setInitCodeSource(QgsEditFormConfig.PythonInitCodeSource.CodeSourceFile)
+            EFC.setInitFilePath(customSource)
+            EFC.setInitFunction('formOpen')
+
         layer.setEditFormConfig(EFC)
 
     def getIdNameDict(self, tableName,idFld = 'id',nameFld = 'name',filterName='',filterValues=[]):
