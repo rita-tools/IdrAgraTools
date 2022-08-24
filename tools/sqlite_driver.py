@@ -37,7 +37,7 @@ from datetime import datetime,date
 import pandas as pd
 
 from qgis._core import QgsFeatureRequest
-from qgis.core import QgsVectorLayer,QgsField,QgsVectorFileWriter
+from qgis.core import QgsVectorLayer, QgsField, QgsVectorFileWriter, QgsCoordinateTransformContext
 from qgis.PyQt.QtCore import QVariant, QObject
 
 
@@ -188,7 +188,9 @@ class SQLiteDriver(QObject):
 			options.layerName = lyr.name()
 
 			#print('in init table',gpkgPath)
-			_writer = QgsVectorFileWriter.writeAsVectorFormat(lyr, gpkgPath, options )
+			#_writer = QgsVectorFileWriter.writeAsVectorFormat(lyr, gpkgPath, options ) # deprecated
+			_writer = QgsVectorFileWriter.writeAsVectorFormatV2(lyr, gpkgPath, QgsCoordinateTransformContext(), options)
+
 			#print(options.layerName,_writer)
 
 		# replace id field with constrained by sql command

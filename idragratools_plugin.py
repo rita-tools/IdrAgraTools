@@ -560,10 +560,7 @@ class IdrAgraTools():
 
         self.mainMenu.addMenu(self.simulationMenu)
 
-        self.analysisMenu = self._addmenu(self.mainMenu, 'Analysis', self.tr('Analysis'), False)
-        #self._addmenuitem(self.analysisMenu, 'ImportControlPointsResults', self.tr('Import control points results'),
-        #                  lambda: self.runAsThread(self.importControlPointsResults), False)
-        self.reportMenu = self._addmenu(self.analysisMenu, 'GenerateReport', self.tr('Report for'), False)
+        self.reportMenu = self._addmenu(self.mainMenu, 'GenerateReport', self.tr('Report for'), False)
 
         self._addmenuitem(self.reportMenu, 'GenerateReport0', self.tr('Simulation inputs overview'),
                           lambda: self.runAsThread(self.generateReport, self.showReportExplorer, repIndex=0),
@@ -577,7 +574,11 @@ class IdrAgraTools():
                           lambda: self.runAsThread(self.generateReport, self.showReportExplorer, repIndex=2),
                           False)
 
-        self.analysisMenu.addMenu(self.reportMenu)
+        self.mainMenu.addMenu(self.reportMenu)
+
+        self.analysisMenu = self._addmenu(self.mainMenu, 'Analysis', self.tr('Analysis'), False)
+        #self._addmenuitem(self.analysisMenu, 'ImportControlPointsResults', self.tr('Import control points results'),
+        #                  lambda: self.runAsThread(self.importControlPointsResults), False)
 
         self._addmenuitem(self.analysisMenu, 'ImportDistrictData', self.tr('Import irrigation units results'),
                           lambda: self.runAsThread(self.importWaterDistrictData), False)
@@ -820,7 +821,8 @@ class IdrAgraTools():
         #print('OK update pars',str(self.SIMDIC))
         uri = 'geopackage:'+self.SIMDIC['DBFILE']+'?projectName='+self.PRJNAME
         crs = QgsCoordinateReferenceSystem()
-        crs.createFromSrid(self.SIMDIC['CRS'])
+        # crs.createFromSrid(self.SIMDIC['CRS']) deprecated since 3.10
+        crs.createFromSrsId(self.SIMDIC['CRS'])
         proj.setCrs(crs)
         proj.write(uri)
         proj.writeEntry('Paths', 'Absolute', 'false')
@@ -2024,7 +2026,7 @@ class IdrAgraTools():
             # this output are for matlab cropcoef
             # df = pd.read_csv(fileName, sep='\t', names = soiluseNames+['timestamp'],
             #                  engine='python', skiprows=1)
-            df = pd.read_csv(fileName, sep='\s* \s*', names=soiluseNames + ['timestamp'],
+            df = pd.read_csv(fileName, sep=r'\s* \s*', names=soiluseNames + ['timestamp'],
                              skiprows=1)
 
             df['timestamp']=dateList
@@ -2047,7 +2049,7 @@ class IdrAgraTools():
                                    '%s_cellinfo_%s_%s.csv' % (year, r, c))
             try:
                 # open csv file as dataframe
-                df = pd.read_csv(csvFile, sep='\s*;\s*',names=['pars','value'],
+                df = pd.read_csv(csvFile, sep=r'\s*;\s*',names=['pars','value'],
                                  engine='python',header=0,skiprows=1)
                 res = pd.DataFrame(columns=['timestamp'] + varList)
                 dateList = pd.date_range(datetime.strptime('%s0101' % year, '%Y%m%d'),
@@ -2085,7 +2087,7 @@ class IdrAgraTools():
 
             try:
                 # open csv file as dataframe
-                df = pd.read_csv(csvFile, sep='\s*;\s*',usecols = columList,engine='python')
+                df = pd.read_csv(csvFile, sep=r'\s*;\s*',usecols = columList,engine='python')
                 #print('df',year,df)
                 # replace Giulian_date with date
                 df['Giulian_day'] = df['Giulian_day'].apply(lambda x: datetime.strptime(str(year) + str(x), '%Y%j'))
@@ -2395,7 +2397,7 @@ class IdrAgraTools():
 
             try:
                 # open csv file as dataframe
-                df = pd.read_csv(csvFile, sep='\s*;\s*', usecols=None, engine='python')
+                df = pd.read_csv(csvFile, sep=r'\s*;\s*', usecols=None, engine='python')
                 if colMapper: df.rename(columns=colMapper,inplace=True)
                 # print('df\n',df)
                 # print('DoY\n', df['DoY'])
