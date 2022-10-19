@@ -29,6 +29,8 @@ __copyright__ = '(C) 2020 by Enrico A. Chiaradia'
 __revision__ = '$Format:%H$'
 
 import os
+
+from .speakingName import speakingName
 from .write_pars_to_template import writeParsToTemplate
 
 def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
@@ -40,12 +42,9 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 		irrMethod = DBM.getRecord(tableName = 'idr_irrmet_types',fieldsList='',filterFld='id', filterValue=irrId)[0]
 		irrMethod = irrMethod[1:] #remove first field "fid"
 		feedback.pushInfo(tr('Exporting settings for irrigation method %s - %s') % (irrMethod[0], irrMethod[1]))
-		fileName = irrMethod[1].replace(' ','_')
+		# prepare new file name
+		fileName = '%s_%s.txt'%(irrId,speakingName(irrMethod[1]))
 
-		if len(fileName)>10: fileName = fileName[0:10]
-		else: fileName = fileName + ['_']*(10-len(fileName))
-
-		fileName = '%s_%s.txt'%(irrId,fileName)
 		table = []
 		flowRates = irrMethod[15].split(' ')
 		starList = []
@@ -95,11 +94,11 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 		
 		#loop in used crop and export
 		# save to file
-		writeParsToTemplate(outfile=os.path.join(outPath,'%s.txt'%irrId),
+		writeParsToTemplate(outfile=os.path.join(outPath,fileName),
 									parsDict =  irrDict,
 									templateName='irrigation_par.txt')
 									
-		irrRecs.append('%s.txt'%irrId)
+		irrRecs.append(fileName)
 		
 	nOfFile = len(irrRecs)
 	fileList = '\n'.join(irrRecs)

@@ -31,11 +31,13 @@ __revision__ = '$Format:%H$'
 import os
 import shutil
 
+from .speakingName import speakingName
 from .write_pars_to_template import writeParsToTemplate
 
 def exportLandUse(DBM,outPath, feedback = None,tr=None):
 	# export crop params
-	listOfCrops = []
+	allCropsDict = {}
+
 	maxCropId = DBM.getMax('idr_crop_types','id')
 	if maxCropId is None:
 		feedback.reportError('No crop parameters to be processed. Exiting...',True)
@@ -90,7 +92,6 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 		if len(soiluse)>0:
 			soiluse = soiluse[0] # get first element in the list
 			soiluse = soiluse[1:]  # remove first field "fid"
-			listOfCrops.append(soiluse[0])
 
 			aZip = zip(soiluse[34].split(' '), soiluse[35].split(' '), soiluse[36].split(' '), soiluse[37].split(' '),
 					   soiluse[38].split(' '))
@@ -134,11 +135,16 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 			cropDict['IRRIGATION'] = soiluse[33]
 			cropDict['CROPTABLE'] = table
 
+		# prepare new file name
+		cropFileName = '%s_%s.tab' % (cropId, speakingName(soiluse[1]))
+
 		# loop in used crop and export
 		# save to file
-		writeParsToTemplate(outfile=os.path.join(path2croppar, '%s.tab' % cropId),
+		writeParsToTemplate(outfile=os.path.join(path2croppar,cropFileName),
 							parsDict=cropDict,
 							templateName='crop_par.txt')
+
+		allCropsDict[str(cropId)]=cropFileName
 
 
 	soiluseList = DBM.getRecord(tableName = 'idr_soiluses',fieldsList='',filterFld='', filterValue=None, orderBy='id')
@@ -166,30 +172,30 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 
 		
 		if len(cropIdList)==1:
-			if int(cropIdList[0]) not in listOfCrops:
+			if cropIdList[0] not in list(allCropsDict.keys()):
 				feedback.reportError(
 					'Land use "%s" (id=%s) has an un-parametrized crop in the list.' % (
 					landuseName, i),
 					False)
-			firstCrop = '%s.tab'%cropIdList[0]
+			firstCrop = allCropsDict[cropIdList[0]]
 		else:
 			if len(cropIdList)>2:
 				feedback.reportError(
 					'Land use "%s" (id=%s) has more than two crops found. Only the first two will be considered'% (landuseName,i),
 					False)
 
-			if int(cropIdList[0]) not in listOfCrops:
+			if cropIdList[0] not in list(allCropsDict.keys()):
 				feedback.reportError(
 					'Land use "%s" (id=%s) has an un-parametrized crop in the list.' % (
 					landuseName, i),
 					False)
-			firstCrop = '%s.tab'%cropIdList[0]
-			if int(cropIdList[1]) not in listOfCrops:
+			firstCrop = allCropsDict[cropIdList[0]]
+			if cropIdList[1] not in list(allCropsDict.keys()):
 				feedback.reportError(
 					'Land use "%s" (id=%s) has an un-parametrized crop in the list.' % (
 					landuseName, i),
 					False)
-			secondCrop = '%s.tab'%cropIdList[1]
+			secondCrop = allCropsDict[cropIdList[1]]
 
 		soiluseRecs.append(recTemplate%(i,firstCrop,secondCrop,landuseName))
 		
