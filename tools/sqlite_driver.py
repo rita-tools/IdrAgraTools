@@ -305,6 +305,7 @@ class SQLiteDriver(QObject):
 																qadaq double,
 																k_stress double,
 																k_stresswells double,
+																fw double,
 																min_a double,
 																max_a double,
 																min_b double,

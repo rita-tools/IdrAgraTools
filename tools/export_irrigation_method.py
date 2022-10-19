@@ -40,8 +40,14 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 		irrMethod = DBM.getRecord(tableName = 'idr_irrmet_types',fieldsList='',filterFld='id', filterValue=irrId)[0]
 		irrMethod = irrMethod[1:] #remove first field "fid"
 		feedback.pushInfo(tr('Exporting settings for irrigation method %s - %s') % (irrMethod[0], irrMethod[1]))
+		fileName = irrMethod[1].replace(' ','_')
+
+		if len(fileName)>10: fileName = fileName[0:10]
+		else: fileName = fileName + ['_']*(10-len(fileName))
+
+		fileName = '%s_%s.txt'%(irrId,fileName)
 		table = []
-		flowRates = irrMethod[14].split(' ')
+		flowRates = irrMethod[15].split(' ')
 		starList = []
 		totFract = 0.0
 
@@ -60,14 +66,14 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 			for i in starList:
 				flowRates[i] = str((1.0-totFract)/numOfStar)
 
-		aZip = zip(irrMethod[13].split(' '),flowRates)
+		aZip = zip(irrMethod[14].split(' '),flowRates)
 		for z in aZip:
 			table.append('%s = %s # Irrigation between %s:00 and %s:59'%(z[0],z[1],str(int(z[0])-1).zfill(2),str(int(z[0])-1).zfill(2)))
 			
 		table = '\n'.join(table)
 		
 		f_int = 'T'
-		if irrMethod[12] in ['0',0,'F','FALSE','false','False']:
+		if irrMethod[13] in ['0',0,'F','FALSE','false','False']:
 			f_int = 'F'
 		
 		irrDict = {'ID':irrMethod[0],
@@ -75,13 +81,14 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 						'QADAQ':irrMethod[2],
 						'KSTRESS':irrMethod[3],
 						'KSTRESSWELL':irrMethod[4],
-						'AMIN':irrMethod[5],
-						'AMAX':irrMethod[6],
-						'BMIN':irrMethod[7],
-						'BMAX':irrMethod[8],
-						'ALOSSES':irrMethod[9],
-						'BLOSSES':irrMethod[10],
-						'CLOSSES':irrMethod[11],
+				   		'FW':irrMethod[5],
+						'AMIN':irrMethod[6],
+						'AMAX':irrMethod[7],
+						'BMIN':irrMethod[8],
+						'BMAX':irrMethod[9],
+						'ALOSSES':irrMethod[10],
+						'BLOSSES':irrMethod[11],
+						'CLOSSES':irrMethod[12],
 						'FINTERCEPTION':f_int,
 						'IRRTIMETABLE':table
 				}

@@ -104,6 +104,7 @@ class Exporter(QObject):
 		# make aggregate parameters
 		sourceTable = DBM.DBName + '|layername=idr_soil_profiles'
 		depths = ' '.join([str(x) for x in depthList])
+		print('depths:',depths)
 		# make aggregate soil params
 		self.algResults = processing.run("idragratools:IdragraSoilParams",
 									{'SOURCE_TABLE':sourceTable,

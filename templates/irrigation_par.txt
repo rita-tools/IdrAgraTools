@@ -17,6 +17,9 @@ K_stress = [%KSTRESS%]
 # K_stresspozzi: water stress coefficient for the activation of irrigation from private wells
 K_stresswells = [%KSTRESSWELL%]
 
+# fw: exposed and wetted soil fraction
+fw = [%FW%]
+
 # Min_a & Max_a: parameters of percolation model
 Min_a = [%AMIN%]
 Max_a = [%AMAX%]
