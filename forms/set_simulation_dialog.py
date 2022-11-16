@@ -138,13 +138,14 @@ class SetSimulationDialog(QMainWindow):
 		if simSettings['DEFAULT_IM'] in list(self.defImDict.keys()):
 			self.DEF_IM_CB.setCurrentText(self.defImDict[simSettings['DEFAULT_IM']])
 
+		# sowing window
+		self.RANDWIND_SB.setValue(simSettings['RANDWIND'])
+
 		# yearly maps
 		if simSettings['SOILUSEVARFLAG'] == 'T':
 			self.SOILUSEVARFLAG_CB.setChecked(True)
 		else:
 			self.SOILUSEVARFLAG_CB.setChecked(False)
-
-
 
 		### set output path
 		self.OUTFOLDER_FW.setFilePath(simSettings['OUTPUTPATH'])
@@ -384,6 +385,8 @@ class SetSimulationDialog(QMainWindow):
 		### get output path
 		outfolder = self.OUTFOLDER_FW.filePath()
 		useYearlyMaps = ['F', 'T'][int(self.SOILUSEVARFLAG_CB.isChecked())]
+		### get options
+		randWind = self.RANDWIND_SB.value()
 		### get simulation period
 		fromYear = int(self.FROM_CB.currentText())
 		toYear = int(self.TO_CB.currentText())
@@ -410,7 +413,7 @@ class SetSimulationDialog(QMainWindow):
 		defLU = list(self.defLuDict.keys())[self.DEF_LU_CB.currentIndex()]
 		defIM = list(self.defImDict.keys())[self.DEF_IM_CB.currentIndex()]
 
-		return {'outfolder':outfolder,'simMode':simMode,
+		return {'outfolder':outfolder,'simMode':simMode,'randWind':randWind,
 				'defLU': defLU, 'defIM':defIM,
 				'useyearlymaps':useYearlyMaps, 'from':fromYear, 'to':toYear,
 				'extent':dtmExtent, 'crs':crs, 'cellsize':cellsize,

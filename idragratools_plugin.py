@@ -1630,6 +1630,8 @@ class IdrAgraTools():
             ### set output path
             self.SIMDIC['OUTPUTPATH'] = res['outfolder']
             self.SIMDIC['SOILUSEVARFLAG'] = res['useyearlymaps']
+            ### set simulation options
+            self.SIMDIC['RANDWIND'] = res['randWind']
             ### set simulation period
             self.SIMDIC['STARTYEAR'] = res['from']
             self.SIMDIC['ENDYEAR'] = res['to']
