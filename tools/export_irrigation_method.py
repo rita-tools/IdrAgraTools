@@ -74,7 +74,13 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 		f_int = 'T'
 		if irrMethod[13] in ['0',0,'F','FALSE','false','False']:
 			f_int = 'F'
-		
+
+		adv_opts = ''
+		if len(irrMethod) > 17:  # for legacy db structure
+			adv_opts = irrMethod[17].split(';')
+			adv_opts = [opt.strip() for opt in adv_opts]
+			adv_opts = '\n'.join(adv_opts)
+
 		irrDict = {'ID':irrMethod[0],
 						'NAME':irrMethod[1],
 						'QADAQ':irrMethod[2],
@@ -89,7 +95,8 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 						'BLOSSES':irrMethod[11],
 						'CLOSSES':irrMethod[12],
 						'FINTERCEPTION':f_int,
-						'IRRTIMETABLE':table
+						'IRRTIMETABLE':table,
+				   		'ADV_OPTS': adv_opts
 				}
 		
 		#loop in used crop and export

@@ -20,7 +20,7 @@
    <item>
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
-      <number>3</number>
+      <number>0</number>
      </property>
      <widget class="QWidget" name="tab_4">
       <attribute name="title">
@@ -620,6 +620,27 @@
        </item>
        <item row="1" column="2">
         <widget class="QComboBox" name="cl_cn_CB"/>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab">
+      <attribute name="title">
+       <string>Advanced</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <item>
+        <widget class="QLabel" name="adv_opts_lbl">
+         <property name="text">
+          <string>Advanced text option</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTextEdit" name="adv_opts">
+         <property name="placeholderText">
+          <string>add here advanced simulation options ad par_nane = value couples separated by semicolon (e.g. PAR1=VAL1, PAR2 = VAL2, ecc.).</string>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>

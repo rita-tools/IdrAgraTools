@@ -95,6 +95,13 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 
 			aZip = zip(soiluse[34].split(' '), soiluse[35].split(' '), soiluse[36].split(' '), soiluse[37].split(' '),
 					   soiluse[38].split(' '))
+
+			adv_opts = ''
+			if len(soiluse)>39: # for legacy db structure
+				adv_opts = soiluse[39].split(';')
+				adv_opts = [opt.strip() for opt in adv_opts]
+				adv_opts = '\n'.join(adv_opts)
+
 			for z in aZip:
 				table.append(' '.join(z))
 
@@ -134,6 +141,7 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 			cropDict['CL_CN'] = soiluse[32]
 			cropDict['IRRIGATION'] = soiluse[33]
 			cropDict['CROPTABLE'] = table
+			cropDict['ADV_OPTS'] = adv_opts
 
 		# prepare new file name
 		cropFileName = '%s_%s.tab' % (cropId, speakingName(soiluse[1]))

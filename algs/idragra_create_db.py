@@ -221,6 +221,7 @@ class IdragraCreateDB(QgsProcessingAlgorithm):
 		for f in fileList:
 			cropDict = parseParFile(filename=os.path.join(path2crop, f), parSep='=', colSep=' ', feedback=self.FEEDBACK, tr=self.tr)
 			cropValues = list(cropDict.values())
+			cropValues += [''] # add option pars
 			sql = "INSERT INTO idr_crop_types VALUES (null,'%s');" % ("','".join(cropValues))
 			msg = self.DBM.executeSQL(sql)
 
@@ -233,6 +234,7 @@ class IdragraCreateDB(QgsProcessingAlgorithm):
 			irrDict = parseParFile(filename=os.path.join(path2irrmethod, f), parSep='=', colSep=' ', feedback=self.FEEDBACK,
 								   tr=self.tr)
 			irrValues = list(irrDict.values())
+			irrValues += ['']  # add option pars
 			sql = "INSERT INTO idr_irrmet_types VALUES (null,'%s');" % ("','".join(irrValues))
 			msg = self.DBM.executeSQL(sql)
 
