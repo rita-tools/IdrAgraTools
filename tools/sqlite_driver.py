@@ -55,11 +55,26 @@ def convert_array(text):
 	out.seek(0)
 	return np.load(out)
 
+def null_date_converter(value):
+	"""
+	https://github.com/mkleehammer/pyodbc/issues/475
+	"""
+	try:
+		# test if it is a valid date string
+		valueStr = value.decode('utf-8')
+		valueStr = datetime.strptime(valueStr, "%Y-%m-%d").date().strftime("%Y-%m-%d")
+	except:
+		valueStr = 'NULL'
+
+	return valueStr
+
+
 # Converts np.array to TEXT when inserting
 sqlite.register_adapter(np.ndarray, adapt_array)
 
 # Converts TEXT to np.array when selecting
 sqlite.register_converter("ARRAY", convert_array)
+sqlite.register_converter("DATE", null_date_converter)
 
 class MyProgress():
 	
@@ -294,7 +309,8 @@ class SQLiteDriver(QObject):
 																kcb text,
 																lai text,
 																hc text,
-																sr text
+																sr text,
+																adv_opts text
 																);
 					
 								DROP TABLE IF EXISTS  idr_irrmet_types;
@@ -316,7 +332,8 @@ class SQLiteDriver(QObject):
 																f_interception integer,
 																irr_time text,
 																irr_fraction text,
-																irr_eff double
+																irr_eff double,
+																adv_opts text
 																);
 							"""
 		self.executeSQL(initTableSQL)
