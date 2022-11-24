@@ -139,6 +139,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         # ax.set_ylim(ymin - 0.1 * h, ymax + 0.1 * h)
 
     def makeFluxPlot(self,outFile, dataToPlot, labels, alias,signs, orientations,pathlengths):
+        dataToPlot = dataToPlot.fillna(0.)
+        #print(dataToPlot.to_string())
         nPlot = len(dataToPlot.index)
         nRows = math.ceil(nPlot/2)
         nCols = 2
