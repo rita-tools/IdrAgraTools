@@ -88,17 +88,19 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 					'IRRIGATION': 0,
 					'CROPTABLE': 'GDD Kcb LAI Hc Sr\n0 0 0 0 0\n0 0 0 0 0'
 					}
-		soiluse = DBM.getRecord(tableName='idr_crop_types', fieldsList='', filterFld='id', filterValue=cropId)
-		if len(soiluse)>0:
-			soiluse = soiluse[0] # get first element in the list
-			soiluse = soiluse[1:]  # remove first field "fid"
+		soiluse = DBM.getRecordAsDict(tableName='idr_crop_types', fieldsList='', filterFld='id', filterValue=cropId)
 
-			aZip = zip(soiluse[34].split(' '), soiluse[35].split(' '), soiluse[36].split(' '), soiluse[37].split(' '),
-					   soiluse[38].split(' '))
+		if len(soiluse)>0:
+			soiluse = soiluse[0]
+
+			feedback.pushInfo(tr('Exporting settings for crop %s') % (soiluse['name']))
+
+			aZip = zip(soiluse['gdd'].split(' '), soiluse['kcb'].split(' '), soiluse['lai'].split(' '), soiluse['hc'].split(' '),
+					   soiluse['sr'].split(' '))
 
 			adv_opts = ''
-			if len(soiluse)>39: # for legacy db structure
-				adv_opts = soiluse[39].split(';')
+			if len(list(soiluse.keys()))>40: # for legacy db structure
+				adv_opts = soiluse['adv_opts'].split(';')
 				adv_opts = [opt.strip() for opt in adv_opts]
 				adv_opts = '\n'.join(adv_opts)
 
@@ -107,44 +109,44 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 
 			table = '\n'.join(table)
 
-			cropDict['NAME'] = soiluse[1]
-			cropDict['SOWINGDATE_MIN'] = soiluse[2]
-			cropDict['SOWINGDATE_MAX'] = soiluse[3]
-			cropDict['HARVESTDATE_MAX'] = soiluse[4]
-			cropDict['HARVNUM_MAX'] = soiluse[5]
-			cropDict['CROPSOVERLAP'] = soiluse[6]
-			cropDict['TSOWING'] = soiluse[7]
-			cropDict['TDAYBASE'] = soiluse[8]
-			cropDict['TCUTOFF'] = soiluse[9]
-			cropDict['VERN'] = soiluse[10]
-			cropDict['TV_MIN'] = soiluse[11]
-			cropDict['TV_MAX'] = soiluse[12]
-			cropDict['VFMIN'] = soiluse[13]
-			cropDict['VSTART'] = soiluse[14]
-			cropDict['VEND'] = soiluse[15]
-			cropDict['VSLOPE'] = soiluse[16]
-			cropDict['PH_R'] = soiluse[17]
-			cropDict['DAYLENGTH_IF'] = soiluse[18]
-			cropDict['DAYLENGTH_INS'] = soiluse[19]
-			cropDict['WP'] = soiluse[20]
-			cropDict['FSINK'] = soiluse[21]
-			cropDict['TCRIT_HS'] = soiluse[22]
-			cropDict['TLIM_HS'] = soiluse[23]
-			cropDict['HI'] = soiluse[24]
-			cropDict['KYT'] = soiluse[25]
-			cropDict['KY1'] = soiluse[26]
-			cropDict['KY2'] = soiluse[27]
-			cropDict['KY3'] = soiluse[28]
-			cropDict['KY4'] = soiluse[29]
-			cropDict['PRAW'] = soiluse[30]
-			cropDict['AINTERCEPTION'] = soiluse[31]
-			cropDict['CL_CN'] = soiluse[32]
-			cropDict['IRRIGATION'] = soiluse[33]
+			cropDict['NAME'] = soiluse['name']
+			cropDict['SOWINGDATE_MIN'] = soiluse['sowingdate_min']
+			cropDict['SOWINGDATE_MAX'] = soiluse['sowingdelay_max']
+			cropDict['HARVESTDATE_MAX'] = soiluse['harvestdate_max']
+			cropDict['HARVNUM_MAX'] = soiluse['harvnum_max']
+			cropDict['CROPSOVERLAP'] = soiluse['cropsoverlap']
+			cropDict['TSOWING'] = soiluse['tsowing']
+			cropDict['TDAYBASE'] = soiluse['tdaybase']
+			cropDict['TCUTOFF'] = soiluse['tcutoff']
+			cropDict['VERN'] = soiluse['vern']
+			cropDict['TV_MIN'] = soiluse['tv_min']
+			cropDict['TV_MAX'] = soiluse['tv_max']
+			cropDict['VFMIN'] = soiluse['vfmin']
+			cropDict['VSTART'] = soiluse['vstart']
+			cropDict['VEND'] = soiluse['vend']
+			cropDict['VSLOPE'] = soiluse['vslope']
+			cropDict['PH_R'] = soiluse['ph_r']
+			cropDict['DAYLENGTH_IF'] = soiluse['daylength_if']
+			cropDict['DAYLENGTH_INS'] = soiluse['daylength_ins']
+			cropDict['WP'] = soiluse['wp']
+			cropDict['FSINK'] = soiluse['fsink']
+			cropDict['TCRIT_HS'] = soiluse['tcrit_hs']
+			cropDict['TLIM_HS'] = soiluse['tlim_hs']
+			cropDict['HI'] = soiluse['hi']
+			cropDict['KYT'] = soiluse['kyT']
+			cropDict['KY1'] = soiluse['ky1']
+			cropDict['KY2'] = soiluse['ky2']
+			cropDict['KY3'] = soiluse['ky3']
+			cropDict['KY4'] = soiluse['ky4']
+			cropDict['PRAW'] = soiluse['praw']
+			cropDict['AINTERCEPTION'] = soiluse['ainterception']
+			cropDict['CL_CN'] = soiluse['cl_cn']
+			cropDict['IRRIGATION'] = soiluse['irrigation']
 			cropDict['CROPTABLE'] = table
 			cropDict['ADV_OPTS'] = adv_opts
 
 		# prepare new file name
-		cropFileName = '%s_%s.tab' % (cropId, speakingName(soiluse[1]))
+		cropFileName = '%s_%s.tab' % (cropId, speakingName(soiluse['name']))
 
 		# loop in used crop and export
 		# save to file

@@ -1010,7 +1010,35 @@ class SQLiteDriver(QObject):
 			self.stopConnection()
 
 		return data
-		
+
+	def getRecordAsDict(self,tableName,fieldsList,filterFld='', filterValue = None,orderBy = ''):
+		data = {}
+		if isinstance(fieldsList, list):
+			fieldsList = ','.join(fieldsList)
+
+		if fieldsList == '': fieldsList = '*'
+
+		try:
+			self.startConnection()
+			if filterFld == '':
+				sql = "SELECT %s FROM %s" % (fieldsList, tableName)
+			else:
+				sql = "SELECT %s FROM %s WHERE %s = '%s'" % (fieldsList, tableName, filterFld, filterValue)
+			if orderBy != '': sql += ' ORDER BY ' + orderBy
+			sql += ';'  # close query
+			# TODO: check the use of apex in sql formula. It seems to not have effect on type of value filtered
+			# print('sql',sql)
+			df = pd.read_sql_query(sql, self.conn)
+			data = df.to_dict(orient='records')
+		# data = self.cur.fetchone()
+
+		except Exception as e:
+			self.progress.setInfo('SQL error %s at %s' % (str(e), sql), True)
+		finally:
+			self.stopConnection()
+
+		return data
+
 	def getRecord(self,tableName,fieldsList,filterFld='', filterValue = None,orderBy = ''):
 		data = []
 		if isinstance(fieldsList,list):
