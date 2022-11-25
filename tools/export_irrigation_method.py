@@ -41,8 +41,17 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 	irrRecs = []
 		
 	for irrId in range(1, maxIrrMethId + 1):
+		# make empty table
+		aZip = zip(list(range(1,25)), [0.]*24)
+		table = []
+		for z in aZip:
+			table.append('%s = %s # Irrigation between %s:00 and %s:59' % (
+			z[0], z[1], str(int(z[0]) - 1).zfill(2), str(int(z[0]) - 1).zfill(2)))
+
+		table = '\n'.join(table)
+
 		# make default parameters with empty values
-		irrDict = {'ID': 0,
+		irrDict = {'ID': irrId,
 				   'NAME': 'not implemented',
 				   'QADAQ': 0,
 				   'KSTRESS': 0,
@@ -56,7 +65,7 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 				   'BLOSSES': 0,
 				   'CLOSSES': 0,
 				   'FINTERCEPTION': 0,
-				   'IRRTIMETABLE': '',
+				   'IRRTIMETABLE': table,
 				   'ADV_OPTS': ''
 				   }
 
@@ -188,7 +197,8 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 
 		#loop in used crop and export
 		# save to file
-		fileName = '%s_%s.txt' % (irrDict['ID'], speakingName(irrDict['NAME']))
+		#fileName = '%s_%s.txt' % (irrDict['ID'], speakingName(irrDict['NAME']))
+		fileName = '%s_%s.txt' % (irrId, speakingName(irrDict['NAME']))
 
 		writeParsToTemplate(outfile=os.path.join(outPath,fileName),
 									parsDict =  irrDict,
