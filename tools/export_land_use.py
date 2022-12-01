@@ -146,7 +146,7 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 			cropDict['ADV_OPTS'] = adv_opts
 
 		# prepare new file name
-		cropFileName = '%s_%s.tab' % (cropId, speakingName(cropDict['name']))
+		cropFileName = '%s_%s.tab' % (cropId, speakingName(cropDict['NAME']))
 
 		# loop in used crop and export
 		# save to file
