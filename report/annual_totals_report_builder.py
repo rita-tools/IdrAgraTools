@@ -153,14 +153,17 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         else:
             axsList = [axs]
 
-        for n in range(nPlot):
-            flows = []
-            row = dataToPlot.iloc[[n]]
-            for label,sign in zip(labels,signs):
-                #print('row val',float(row[label+'_mean']))
-                flows.append(float(row[label+'_mean'])*sign)
+        for n in range(nRows * nCols):
+            if n<nPlot:
+                flows = []
+                row = dataToPlot.iloc[[n]]
+                for label,sign in zip(labels,signs):
+                    #print('row val',float(row[label+'_mean']))
+                    flows.append(float(row[label+'_mean'])*sign)
 
-            self.addFluxChart(axsList[n],flows,alias,orientations,pathlengths,'year\n%s'%int(row['year']))
+                self.addFluxChart(axsList[n],flows,alias,orientations,pathlengths,'year\n%s'%int(row['year']))
+            else:
+                axsList[n].set_axis_off()
 
         # save to file
         fig.savefig(outFile, format='png')
