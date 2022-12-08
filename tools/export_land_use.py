@@ -86,6 +86,7 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 					'AINTERCEPTION': 0,
 					'CL_CN': 0,
 					'IRRIGATION': 0,
+					'ADV_OPTS':'',
 					'CROPTABLE': 'GDD Kcb LAI Hc Sr\n0 0 0 0 0\n0 0 0 0 0'
 					}
 		soiluse = DBM.getRecordAsDict(tableName='idr_crop_types', fieldsList='', filterFld='id', filterValue=cropId)
