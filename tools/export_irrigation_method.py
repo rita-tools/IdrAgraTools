@@ -111,7 +111,13 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 				f_int = 'F'
 
 			adv_opts = ''
+			fw = 1.
 			if len(irrMethod) > 18:  # for legacy db structure
+				fw = irrMethod['fw']
+				if fw in ['',0, 0.,None]:
+					feedback.reportError(tr('Null or zero wetted fraction parameter (fw) will be set to 1.0'), False)
+					fw = 1.0
+
 				adv_opts = irrMethod['adv_opts'].split(';')
 				adv_opts = [opt.strip() for opt in adv_opts]
 				adv_opts = '\n'.join(adv_opts)
@@ -122,7 +128,7 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 							'QADAQ':irrMethod['qadaq'],
 							'KSTRESS':irrMethod['k_stress'],
 							'KSTRESSWELL':irrMethod['k_stresswells'],
-							'FW':irrMethod['fw'],
+							'FW':fw,
 							'AMIN':irrMethod['min_a'],
 							'AMAX':irrMethod['max_a'],
 							'BMIN':irrMethod['min_b'],
@@ -198,6 +204,7 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 		#loop in used crop and export
 		# save to file
 		#fileName = '%s_%s.txt' % (irrDict['ID'], speakingName(irrDict['NAME']))
+		#print('irrDict',irrDict)
 		fileName = '%s_%s.txt' % (irrId, speakingName(irrDict['NAME']))
 
 		writeParsToTemplate(outfile=os.path.join(outPath,fileName),

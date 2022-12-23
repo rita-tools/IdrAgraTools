@@ -49,7 +49,8 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 
 	os.makedirs(path2croppar)
 
-	for cropId in range(1, maxCropId + 1):
+	fakeFileName = '*'
+	for cropId in range(0, maxCropId + 1):
 		# create crop params folder
 
 		table = ['GDD	Kcb LAI	Hc	Sr']
@@ -96,8 +97,11 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 
 			feedback.pushInfo(tr('Exporting settings for crop %s') % (soiluse['name']))
 
-			aZip = zip(soiluse['gdd'].split(' '), soiluse['kcb'].split(' '), soiluse['lai'].split(' '), soiluse['hc'].split(' '),
-					   soiluse['sr'].split(' '))
+			aZip = zip(soiluse['gdd'].rstrip('\r\n').split(' '),
+					   soiluse['kcb'].rstrip('\r\n').split(' '),
+					   soiluse['lai'].rstrip('\r\n').split(' '),
+					   soiluse['hc'].rstrip('\r\n').split(' '),
+					   soiluse['sr'].rstrip('\r\n').split(' '))
 
 			adv_opts = ''
 			if len(list(soiluse.keys()))>40: # for legacy db structure
@@ -148,6 +152,7 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 
 		# prepare new file name
 		cropFileName = '%s_%s.tab' % (cropId, speakingName(cropDict['NAME']))
+		if cropId ==0: fakeFileName = cropFileName
 
 		# loop in used crop and export
 		# save to file
@@ -157,8 +162,14 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 
 		allCropsDict[str(cropId)]=cropFileName
 
+	# FIX: adjust gaps between soil use ids
+	# get maximum num of soil uses
+	maxSoilUseId = DBM.getMax('idr_soiluses', 'id')
+	print('maxSoilUseId',maxSoilUseId)
+	if maxSoilUseId is None:
+		feedback.reportError('No aoil uses to be processed. Exiting...', True)
 
-	soiluseList = DBM.getRecord(tableName = 'idr_soiluses',fieldsList='',filterFld='', filterValue=None, orderBy='id')
+	#soiluseList = DBM.getRecord(tableName = 'idr_soiluses',fieldsList='',filterFld='', filterValue=None, orderBy='id')
 
 	#recTemplate = '%-8s %-24s %-24s # %s'
 	recTemplate = '%s\t%s\t%s\t# %s'
@@ -167,46 +178,51 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 	soiluseIds = []
 
 	# export soil uses
-	for soiluse in soiluseList:
-		soiluse = soiluse[1:]  # remove first field "fid"
-		i = soiluse[0]
-		landuseName = soiluse[1]
-		cropIdList = soiluse[3].split(' ')
-		if len(cropIdList) ==0:
-			feedback.reportError('Land use "%s" (id=%s) has empty crop list and will not be processed' % (landuseName,i),
-								 False)
-			continue
-
+	#for soiluse in soiluseList:
+	for i in range(1,maxSoilUseId+1):
+		#
+		#soiluse = soiluse[1:]  # remove first field "fid"
+		#i = soiluse[0]
+		landuseName = 'Fake soil use'
 		soiluseIds.append(str(i))
-		firstCrop = '*'
+		firstCrop = fakeFileName
 		secondCrop = '*'
 
-		
-		if len(cropIdList)==1:
-			if cropIdList[0] not in list(allCropsDict.keys()):
-				feedback.reportError(
-					'Land use "%s" (id=%s) has an un-parametrized crop in the list.' % (
-					landuseName, i),
-					False)
-			firstCrop = allCropsDict[cropIdList[0]]
-		else:
-			if len(cropIdList)>2:
-				feedback.reportError(
-					'Land use "%s" (id=%s) has more than two crops found. Only the first two will be considered'% (landuseName,i),
-					False)
+		soiluse = DBM.getRecordAsDict(tableName='idr_soiluses', fieldsList='', filterFld='id', filterValue=i)
+		#print(soiluse)
+		if len(soiluse)>0:
+			soiluse = soiluse[0]
 
-			if cropIdList[0] not in list(allCropsDict.keys()):
-				feedback.reportError(
-					'Land use "%s" (id=%s) has an un-parametrized crop in the list.' % (
-					landuseName, i),
-					False)
-			firstCrop = allCropsDict[cropIdList[0]]
-			if cropIdList[1] not in list(allCropsDict.keys()):
-				feedback.reportError(
-					'Land use "%s" (id=%s) has an un-parametrized crop in the list.' % (
-					landuseName, i),
-					False)
-			secondCrop = allCropsDict[cropIdList[1]]
+			landuseName = soiluse['name']
+			cropIdList = soiluse['croplist'].split(' ')
+			if len(cropIdList) ==0:
+				feedback.reportError('Land use "%s" (id=%s) has empty crop list and will not be processed' % (landuseName,i),
+									 False)
+			elif len(cropIdList)==1:
+				if cropIdList[0] not in list(allCropsDict.keys()):
+					feedback.reportError(
+						'Land use "%s" (id=%s) has an un-parametrized crop in the list.' % (
+						landuseName, i),
+						False)
+				firstCrop = allCropsDict[cropIdList[0]]
+			else:
+				if len(cropIdList)>2:
+					feedback.reportError(
+						'Land use "%s" (id=%s) has more than two crops found. Only the first two will be considered'% (landuseName,i),
+						False)
+
+				if cropIdList[0] not in list(allCropsDict.keys()):
+					feedback.reportError(
+						'Land use "%s" (id=%s) has an un-parametrized crop in the list.' % (
+						landuseName, i),
+						False)
+				firstCrop = allCropsDict[cropIdList[0]]
+				if cropIdList[1] not in list(allCropsDict.keys()):
+					feedback.reportError(
+						'Land use "%s" (id=%s) has an un-parametrized crop in the list.' % (
+						landuseName, i),
+						False)
+				secondCrop = allCropsDict[cropIdList[1]]
 
 		soiluseRecs.append(recTemplate%(i,firstCrop,secondCrop,landuseName))
 		
