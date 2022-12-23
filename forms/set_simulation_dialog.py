@@ -171,14 +171,18 @@ class SetSimulationDialog(QMainWindow):
 
 		### set spatial resolution
 		self.DOMAINEXT.setMapCanvas(self.canvas)
+		#print('Set_simulation, CRS', simSettings['CRS'])
 		try:
 			crsCode = float(simSettings['CRS'])
+			crs = QgsCoordinateReferenceSystem()
+			# crs.createFromSrid(self.SIMDIC['CRS']) deprecated since 3.10
+			crs.createFromSrsId(crsCode)
 		except:
-			print('CRS', simSettings['CRS'])
-			crsCode = 32632
+			crsCode = simSettings['CRS']
+			crs = QgsCoordinateReferenceSystem(crsCode)
 
-		crs = QgsCoordinateReferenceSystem()
-		crs.createFromSrsId(crsCode)
+		#crs = QgsCoordinateReferenceSystem()
+		#crs.createFromSrsId(crsCode)
 
 		# xmin,ymin : xmax,ymax
 		extStr = simSettings['EXTENT']
@@ -393,6 +397,7 @@ class SetSimulationDialog(QMainWindow):
 		### get spatial resolution
 		dtmExtent = self.DOMAINEXT.outputExtent()
 		crs = self.DOMAINEXT.outputCrs()
+		#print('crs_from get',crs)
 		cellsize = self.CELLSIZE_SB.value()
 		### get hydrological model
 		zevalay = self.EVALAY_SB.value()

@@ -820,9 +820,17 @@ class IdrAgraTools():
         proj.writeEntry('IdrAgraTools', 'simsettings', str(self.SIMDIC))
         #print('OK update pars',str(self.SIMDIC))
         uri = 'geopackage:'+self.SIMDIC['DBFILE']+'?projectName='+self.PRJNAME
-        crs = QgsCoordinateReferenceSystem()
-        # crs.createFromSrid(self.SIMDIC['CRS']) deprecated since 3.10
-        crs.createFromSrsId(self.SIMDIC['CRS'])
+        #print('updatePars, CRS', self.SIMDIC['CRS'])
+        try:
+            crsCode = float(self.SIMDIC['CRS'])
+            crs = QgsCoordinateReferenceSystem()
+            # crs.createFromSrid(self.SIMDIC['CRS']) deprecated since 3.10
+            crs.createFromSrsId(crsCode)
+        except:
+            crsCode = self.SIMDIC['CRS']
+            crs = QgsCoordinateReferenceSystem(crsCode)
+
+
         proj.setCrs(crs)
         proj.write(uri)
         proj.writeEntry('Paths', 'Absolute', 'false')
@@ -1605,8 +1613,14 @@ class IdrAgraTools():
     def setSimulation(self, callback = None):
         tNameList = list(self.METEONAME.keys()) + list(self.WATERSOURCENAME.keys())
         startDate, endDate = self.DBM.getMultiMinMax(tNameList, 'timestamp')
-        yearList = range(startDate, endDate + 1)
-        yearList = [str(y) for y in yearList]
+        # fix bug when no time series are imported
+        yearList = []
+        if (startDate and endDate):
+            yearList = range(startDate, endDate + 1)
+            yearList = [str(y) for y in yearList]
+        else:
+            showCriticalMessageBox(self.tr('Missing data'),self.tr('No time data to use'),self.tr('It is necessary to complete the database with time series'))
+            return
 
         # get dictionary of landuses
         luDict = {0:self.tr('Not selected')}
@@ -1638,7 +1652,9 @@ class IdrAgraTools():
             self.SIMDIC['YEARS'] = list(range(res['from'], res['to'] + 1))
             ### set spatial resolution
             self.SIMDIC['EXTENT'] = res['extent'].toString(4)
-            self.SIMDIC['CRS'] = res['crs'].postgisSrid()
+            # fix proj issues
+            self.SIMDIC['CRS'] = res['crs'].authid()
+
             self.SIMDIC['CELLSIZE'] = res['cellsize']
             ### set hydrological model
             self.SIMDIC['ZEVALAY'] = res['zevalay']
