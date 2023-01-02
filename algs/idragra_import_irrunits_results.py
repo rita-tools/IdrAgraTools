@@ -271,7 +271,7 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 		# create a grid file
 		baseData = np.loadtxt(baseFileName,dtype=np.int,skiprows=6)
 		baseList = list(np.unique(baseData))
-		baseList.remove(nodata)
+		if nodata in baseList: baseList.remove(nodata)
 
 		# get the list of the output for the selected variable
 
