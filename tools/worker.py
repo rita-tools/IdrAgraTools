@@ -73,15 +73,17 @@ class Worker(QgsProcessingFeedback):#(QtCore.QObject):
 		self.reportMessage.emit(self.decode(text), 'gray')
 
 	def setConsoleInfo(self,text):
-		self.reportMessage.emit(self.decode(text) ,'blue')
+		self.reportMessage.emit(self.decode(text) ,'gray')
 		
 	def error(self,text):
 		self.reportMessage.emit(self.decode(text) ,'red')
 		
 	def reportError(self,text,stopFlag =False):
-		self.reportMessage.emit(self.decode(text) ,'red')
 		if stopFlag:
+			self.reportMessage.emit(self.decode(text), 'red')
 			self.stop()
+		else:
+			self.reportMessage.emit(self.decode(text), 'blue')
 	
 	def setText(self, text):
 		self.reportMessage.emit(self.decode(text) ,'gray')
