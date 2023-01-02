@@ -31,8 +31,58 @@ __revision__ = '$Format:%H$'
 import os
 import shutil
 
-from .speakingName import speakingName
+from .check_value import checkValue
+from .speaking_name import speakingName
 from .write_pars_to_template import writeParsToTemplate
+
+def checkCropPars(crop,feedback,tr):
+	messageList = []
+	# uses_map@exid %in% soil_uses@id
+	# soil_uses@croplist %in% crop_types@id
+	# sowingdate_min [1-366]
+	checkValue('sowingdate_min',crop['sowingdate_min'],[1,366],'>=<=',tr,feedback)
+	# sowingdelay_max	[1-366]
+	checkValue('sowingdelay_max', crop['sowingdelay_max'], [0, 365], '>=<=', tr, feedback)
+	# sowingdate_min+sowingdelay_max < 366
+	checkValue('sowingdate_min+sowingdelay_max', crop['sowingdate_min']+crop['sowingdelay_max'], 366, '<', tr, feedback)
+	# harvestdate_max
+	checkValue('harvestdate_max', crop['harvestdate_max'], [1, 366], '>=<=', tr, feedback)
+	# harvnum_max > 1
+	checkValue('harvnum_max', crop['harvnum_max'], 1, '>=', tr, feedback)
+	# cropsoverlap [1-366]
+	checkValue('cropsoverlap', crop['cropsoverlap'], [0, 366], '>=<=', tr, feedback)
+	# tsowing, tdaybase, tcutoff ?
+	# vern [0,1]
+	checkValue('vern', crop['vern'], [0,1], 'in', tr, feedback)
+	# if vern == 1:
+	if crop['vern'] == 1:
+		# tv_min < tv_max
+		checkValue('tv_min minor tv_max', crop['tv_min'], crop['tv_max'], '<', tr, feedback)
+
+		# vstart, vend [1-366]
+		checkValue('vstart', crop['vstart'], [1, 366], '>=<=', tr, feedback)
+		checkValue('vend', crop['vend'], [1, 366], '>=<=', tr, feedback)
+		# vstart < vend
+		checkValue('vstart < vend', crop['vstart'], crop['vend'], '<', tr, feedback)
+		# vfmin, , vslope ?
+
+	# ph_r, daylength_if, daylength_ins ?
+	checkValue('ph_r', crop['ph_r'], [0, 1], 'in', tr, feedback)
+	# wp ?
+	# fsink ?
+	# tcrit_hs, tlim_hs, hi
+
+	# kyT,ky1,ky2,ky3,ky4,praw,ainterception [0-1]
+	for k in ['kyT','ky1','ky2','ky3','ky4','praw','ainterception']:
+		checkValue(k, crop[k], 0., '>=', tr, feedback)
+
+	# cl_cn [1,2,3,4,5]
+	checkValue('cl_cn', crop['cl_cn'], [1,2,3,4,5,6], 'in', tr, feedback)
+	# irrigation [0,1]
+	checkValue('irrigation', crop['irrigation'], [0,1], 'in', tr, feedback)
+	# gdd %ASC&
+	gdd = [float(x) for x in crop['gdd'].rstrip('\r\n').split(' ')]
+	checkValue('gdd',gdd, None, 'asc', tr, feedback)
 
 def exportLandUse(DBM,outPath, feedback = None,tr=None):
 	# export crop params
@@ -51,6 +101,7 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 
 	fakeFileName = '*'
 	for cropId in range(0, maxCropId + 1):
+		if not feedback._flag: return -1
 		# create crop params folder
 
 		table = ['GDD	Kcb LAI	Hc	Sr']
@@ -96,6 +147,8 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 			soiluse = soiluse[0]
 
 			feedback.pushInfo(tr('Exporting settings for crop %s') % (soiluse['name']))
+
+			checkCropPars(soiluse, feedback, tr)
 
 			aZip = zip(soiluse['gdd'].rstrip('\r\n').split(' '),
 					   soiluse['kcb'].rstrip('\r\n').split(' '),

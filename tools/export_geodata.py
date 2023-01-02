@@ -35,6 +35,7 @@ from PyQt5.QtCore import QObject
 from qgis import processing
 from qgis._core import QgsVectorLayer, QgsFeatureRequest
 
+from .check_value import checkValue
 from .compact_dataset import save2idragra
 from .gis_grid import GisGrid
 from .utils import returnExtent
@@ -88,7 +89,30 @@ class Exporter(QObject):
 		self.feedback.pushInfo(self.tr('Exporting soils parameters'))
 		self.feedback.setProgress(50.0)
 		# SOIL PARAMETERS MAP
+		# check soil params
+		soil_prof = DBM.getRecordAsDict(tableName='idr_soil_profiles',fieldsList='')
+		#print('soil_prof',soil_prof)
+		for sp in soil_prof:
+			check_flag = 1
+			# maxdepth, ksat >0
+			check_flag*=checkValue('maxdepth', sp['maxdepth'], 0, '>=', self.tr, self.feedback)
+			check_flag*=checkValue('ksat', sp['ksat'], 0, '>=', self.tr, self.feedback)
+			# theta_fc,theta_wp,theta_r,theta_sat > 0 & <= 1
+			check_flag*=checkValue('theta_fc', sp['theta_fc'], [0., 1.], '>=<=', self.tr, self.feedback)
+			check_flag*=checkValue('theta_wp', sp['theta_wp'], [0., 1.], '>=<=', self.tr, self.feedback)
+			check_flag*=checkValue('theta_r', sp['theta_r'], [0., 1.], '>=<=', self.tr, self.feedback)
+			check_flag*=checkValue('theta_sat', sp['theta_sat'], [0., 1.], '>=<=', self.tr, self.feedback)
+			# theta_sat>theta_fc>theta_wp>theta_r
+			check_flag *= checkValue('theta_sat>theta_fc', sp['theta_sat'], sp['theta_fc'], '>', self.tr,
+									 self.feedback)
+			check_flag *= checkValue('theta_fc>theta_wp', sp['theta_fc'], sp['theta_wp'], '>', self.tr,
+									 self.feedback)
+			check_flag *= checkValue('theta_wp>theta_r', sp['theta_wp'], sp['theta_r'], '>', self.tr,
+									 self.feedback)
+			# txtr_code in 1 - 12
+			check_flag *= checkValue('txtr_code', sp['txtr_code'], list(range(1,13)), 'in', self.tr, self.feedback)
 
+			if check_flag == 0: return -1
 
 		# export soil ids. Actually not used by IdrAgra but needed to test cell dimension
 		fileName = os.path.join(outPath, 'soilid' + '.asc')

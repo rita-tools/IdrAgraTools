@@ -30,8 +30,30 @@ __revision__ = '$Format:%H$'
 
 import os
 
-from .speakingName import speakingName
+from .check_value import checkValue
+from .speaking_name import speakingName
 from .write_pars_to_template import writeParsToTemplate
+
+def checkIrrMethodPars(irrmeth,feedback,tr):
+	# k_stress, k_stresswells, irr_eff [0-1]
+	checkValue('k_stress', irrmeth['k_stress'], 0, '>=', tr, feedback)
+	checkValue('k_stresswells', irrmeth['k_stresswells'], 0, '>=', tr, feedback)
+	checkValue('irr_eff', irrmeth['irr_eff'], [0.,1.], '>=<=', tr, feedback)
+	checkValue('fw', irrmeth['fw'], [0.,1.], '>=<=', tr, feedback)
+
+	# TODO: check comparison
+	# min_a,max_a,min_b,max_b ?
+	#checkValue('min_a <= max_a', irrmeth['min_a'], irrmeth['max_a'], '<=', tr, feedback)
+	#checkValue('min_b <= max_b', irrmeth['min_b'], irrmeth['max_b'], '<=', tr, feedback)
+
+	# losses_a,losses_b,losses_c ?
+	# f_interception [0,1]
+	checkValue('f_interception', irrmeth['f_interception'], [0,1], 'in', tr, feedback)
+
+	irr_time = [int(x) for x in irrmeth['irr_time'].split(' ')]
+	checkValue('n of irr_time', len(irr_time), [24], 'in', tr, feedback)
+	if irr_time != list(range(1,25)):
+		feedback.reportError(tr('Not admissible value error: irr_time is not a list of ordered values from 1 to 24'),True)
 
 def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 	maxIrrMethId = DBM.getMax('idr_irrmet_types', 'id')
@@ -41,6 +63,7 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 	irrRecs = []
 		
 	for irrId in range(1, maxIrrMethId + 1):
+		if not feedback._flag: return -1
 		# make empty table
 		aZip = zip(list(range(1,25)), [0.]*24)
 		table = []
@@ -75,10 +98,9 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 		#print(irrMethod)
 		if len(irrMethod) > 0:
 			irrMethod = irrMethod[0]
-
 			feedback.pushInfo(tr('Exporting settings for irrigation method %s - %s') % (irrMethod['id'], irrMethod['name']))
 
-
+			checkIrrMethodPars(irrMethod, feedback, tr)
 
 			table = []
 			flowRates = irrMethod['irr_fraction'].split(' ')

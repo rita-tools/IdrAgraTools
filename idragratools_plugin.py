@@ -108,10 +108,6 @@ else:
         return t.isAlive()
 
 
-# TODO:
-# soilmap for each year
-# id field nell'algoritmo dei pesi
-
 class Feedback():
     def __init__(self, iface):
         self.iface = iface
@@ -2824,8 +2820,9 @@ class IdrAgraTools():
     def stopThread(self):
         self.thread.quit()
         self.thread.wait()
-        self.progressDlg.setText(self.tr('** Process stopped before finished! **'), 'red')
         self.threadIsConcludedWithError = True
+        self.progressDlg.setText(self.tr('** Process stopped before finished! **'), 'red')
+
         if not self.threadIsConcluded:
             showCriticalMessageBox(self.tr('Process stopped before finished'),
                                         self.tr('Output may not be completed'),
