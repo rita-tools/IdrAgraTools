@@ -178,7 +178,7 @@ class Exporter(QObject):
 									{'INPUT': soilMap, 'FIELD': 'extid', 'BURN': 0,
 									 'UNITS': 1, 'WIDTH': cellSize, 'HEIGHT': cellSize,
 									 'EXTENT': extent,
-									 'NODATA': -9, 'OPTIONS': '', 'DATA_TYPE': 4, 'INIT': -9, 'INVERT': False,
+									 'NODATA': -9999, 'OPTIONS': '', 'DATA_TYPE': 4, 'INIT': -9999, 'INVERT': False,
 									 'EXTRA': '',
 									 'OUTPUT': 'TEMPORARY_OUTPUT'},
 									context=None, feedback=self.feedback, is_child_algorithm=False
@@ -209,7 +209,7 @@ class Exporter(QObject):
 		# LANDUSE maps (time)
 		# TODO: check if time is always necessary
 		landuseMap = DBM.DBName + '|layername=idr_usemap'
-		defaultValue = -9
+		defaultValue = -9999
 		if self.simdic['DEFAULT_LU']: defaultValue = self.simdic['DEFAULT_LU']
 		processing.run("idragratools:IdragraRasterizeTimeMap",
 					   {'VECTOR_LAY': landuseMap, 'DATA_FLD': 'extid',
@@ -225,7 +225,7 @@ class Exporter(QObject):
 		self.feedback.setProgress(90.0)
 		irrMethodsMap = DBM.DBName + '|layername=idr_irrmap'
 
-		defaultValue = -9
+		defaultValue = -9999
 		if self.simdic['DEFAULT_IM']: defaultValue = self.simdic['DEFAULT_IM']
 
 		processing.run("idragratools:IdragraRasterizeTimeMap",
@@ -243,7 +243,7 @@ class Exporter(QObject):
 
 		# get irrigation efficiency for default method
 		parTable = QgsVectorLayer(irrMethodsPars,'irrmethods')
-		defaultValue = -9
+		defaultValue = -9999
 		if self.simdic['DEFAULT_IM']:
 			req = QgsFeatureRequest().setFilterExpression('"id" = %s'%(self.simdic['DEFAULT_IM']))
 			for feat in parTable.getFeatures(req):

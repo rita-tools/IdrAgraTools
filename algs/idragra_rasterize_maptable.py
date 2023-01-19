@@ -274,7 +274,7 @@ class IdragraRasterizeMaptable(QgsProcessingAlgorithm):
 								'WIDTH':dx,
 								'HEIGHT':dy,
 								'EXTENT':rasterExt,
-								'NODATA':-9,
+								'NODATA':-9999,
 								'OPTIONS':'',
 								'DATA_TYPE':fldType,
 								'INIT':None,

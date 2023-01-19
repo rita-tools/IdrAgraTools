@@ -205,7 +205,7 @@ class IdragraGroupStatsByRaster(QgsProcessingAlgorithm):
 		"""
 		self.FEEDBACK = feedback
 
-		nodata = -9
+		nodata = -9999
 		# get params
 		idragraFile = self.parameterAsFile(parameters, self.IDRAGRAFILE, context)
 
@@ -387,7 +387,7 @@ class IdragraGroupStatsByRaster(QgsProcessingAlgorithm):
 	def arrayOfDays(self,startDate, endDate):
 		return np.arange(startDate, endDate+timedelta(days=1), timedelta(days=1)).astype(datetime)
 
-	def dayValueArray(self,table,sensorId, yearList, startDay, nodata = -999):
+	def dayValueArray(self,table,sensorId, yearList, startDay, nodata = -9999):
 		# create an empty time series
 		firstDate = datetime(yearList[0],1,1)
 		endDay = datetime(yearList[-1],12,31)

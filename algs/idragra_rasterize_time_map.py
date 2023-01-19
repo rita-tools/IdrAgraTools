@@ -193,7 +193,7 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 
 		self.addParameter(QgsProcessingParameterNumber(self.CELLDIM, self.tr('Raster cell dimension')))
 
-		self.addParameter(QgsProcessingParameterNumber(self.INITVALUE, self.tr('Init value'),defaultValue = -9))
+		self.addParameter(QgsProcessingParameterNumber(self.INITVALUE, self.tr('Init value'),defaultValue = -9999))
 
 		self.addParameter(QgsProcessingParameterString(self.YEARLIST, self.tr('Year list'),'', False, True))
 
@@ -283,7 +283,7 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 										{'INPUT': vectorLay, 'FIELD': '', 'BURN': initValue,
 										 'UNITS': 1, 'WIDTH': cellDim, 'HEIGHT': cellDim,
 										 'EXTENT': rasterExt,
-										 'NODATA': -9, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': -9,
+										 'NODATA': -9999, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': -9999,
 										 'INVERT': False,
 										 'EXTRA': '',
 										 'OUTPUT': 'TEMPORARY_OUTPUT'},

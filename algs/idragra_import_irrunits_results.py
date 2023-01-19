@@ -203,7 +203,7 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 		"""
 		self.FEEDBACK = feedback
 
-		nodata = -9
+		nodata = -9999
 		# get params
 		idragraFile = self.parameterAsFile(parameters, self.IDRAGRAFILE, context)
 

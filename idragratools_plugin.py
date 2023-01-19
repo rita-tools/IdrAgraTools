@@ -47,6 +47,7 @@ from PyQt5 import QtSql
 from PyQt5.QtXml import QDomDocument
 from qgis import processing
 
+from tools.export_geodata_vector import ExportGeodataVector
 from .forms.report_view import ReportDialog
 from .tools.show_message import showInfoMessageBox, showCriticalMessageBox
 from .tools.network_analyst import NetworkAnalyst
@@ -75,7 +76,6 @@ if cmd_folder not in sys.path:
 from qgis.core import QgsProcessingAlgorithm, QgsApplication, QgsProject, QgsVectorLayer, QgsGeometry, QgsFeature, \
     QgsFeatureRequest, QgsExpression
 from qgis.PyQt.QtCore import QVariant, QUrl
-from processing import execAlgorithmDialog
 
 from PyQt5.QtCore import qVersion, QCoreApplication, QLocale, QSettings, QTranslator, QThread, Qt, QTimer
 from PyQt5.QtGui import QIcon, QColor, QPixmap
@@ -472,8 +472,8 @@ class IdrAgraTools():
 
         # force activation state for specific names
         # None means always set as initialization
-        self.actionList = ['Advanced','Options','testexport']
-        self.actionState = [None,None,None]
+        self.actionList = ['Advanced','Options','testexport','Test']
+        self.actionState = [None,None,None,None]
 
         self.mainMenu = None
         self.iface.projectRead.connect(self.loadFromProject)
@@ -592,8 +592,7 @@ class IdrAgraTools():
 
         self.advancedMenu = self._addmenu(self.mainMenu, 'Advanced', self.tr('Advanced'), True)
         self._addmenuitem(self.advancedMenu, 'Options', self.tr('Options'), self.setOptions,True)
-        #self._addmenuitem(self.advancedMenu, 'Test', self.tr('test'), self.test,
-        #                  False)
+        self._addmenuitem(self.advancedMenu, 'Test', self.tr('test'), lambda: self.runAsThread(self.test),True)
         #self._addmenuitem(self.advancedMenu, 'testexport', self.tr('Test esport'), self.createImageMap, True)
 
 
@@ -1982,7 +1981,7 @@ class IdrAgraTools():
                 try:
                     line = q.get(timeout=.1)  # q.get_nowait() # or #TODO_check performance
                     #line = q.get_nowait()
-                    line = line.decode('utf-8')
+                    line = line.decode('utf-8','ignore')
                     line = line.strip()
                 except Empty:
                     # do nothing
@@ -3540,8 +3539,9 @@ class IdrAgraTools():
         print('Simulation options')
         print(self.SIMDIC)
 
-    def test(self):
-        pass
+    def test(self,progress):
+        EGV = ExportGeodataVector(None,self.SIMDIC,progress,self.tr)
+        EGV.exportGeodata()
 
     def test2(self):
         from .tools.get_timeseries_consistency import getTimeSeriesConsistency

@@ -261,11 +261,11 @@ class IdragraExportWeights(QgsProcessingAlgorithm):
 		
 		# get matrix
 		wMatrixList = makeWeightMatrix_WW(xllcorner, xurcorner, yllcorner, yurcorner, outputCellSize,
-										  xList, yList, fidList, maxNum, feedback, self.tr)
+										  xList, yList, fidList, maxNum, feedback =feedback, tr = self.tr)
 		
 		# save matrix in folder
 		aGrid = GisGrid(ncols=ncols, nrows=nrows, xcell=xllcorner, ycell=yllcorner,
-						dx=dx, dy=dy,nodata = -9,EPSGid = crs.postgisSrid (),progress = None)
+						dx=dx, dy=dy,nodata = -9999,EPSGid = crs.postgisSrid (),progress = None)
 		
 		n = 0
 		for wMatrix in wMatrixList:

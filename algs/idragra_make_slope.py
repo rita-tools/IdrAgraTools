@@ -33,7 +33,8 @@ from math import tan, radians
 
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QCoreApplication,QVariant
-from processing.algs.gdal import GdalUtils
+from plugins.processing.algs.gdal import GdalUtils
+from qgis import processing
 from qgis._analysis import QgsZonalStatistics, QgsRasterCalculatorEntry, QgsRasterCalculator
 from qgis.core import (QgsProcessing,
 					   QgsFeatureSink,
@@ -67,8 +68,7 @@ from qgis.core import (QgsProcessing,
 					   QgsRasterLayer,
 					   QgsProject,
 					   NULL, QgsFeature, edit, QgsRaster, QgsRectangle)
-						
-import processing
+
 
 from numpy import array
 

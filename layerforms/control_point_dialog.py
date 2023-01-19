@@ -156,7 +156,6 @@ def plotTransWC(wsId,name):
 						yaxis=1,
 						shadow=False)
 
-
 	if pars is not None:
 		cw.addTimeSerie(pars['timestamp'], pars['ThetaII_wp'], lineType='-', color='#BE4B48',
 						name=tr('Wilting point (-)'), yaxis=1, shadow=False)

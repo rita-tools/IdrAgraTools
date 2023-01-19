@@ -204,7 +204,7 @@ class IdragraSaveAscii(QgsProcessingAlgorithm):
 		self.nrows = geoDict['nrows']
 		self.xllcorner = geoDict['xllcorner']
 		self.yllcorner = geoDict['yllcorner']
-		self.nodata = -9
+		self.nodata = -9999
 
 		# xurcorner = geoDict['xllcorner'] + self.ncols * geoDict['dx']
 		# yurcorner = geoDict['yllcorner'] - self.nrows * geoDict['dy']

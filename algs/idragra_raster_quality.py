@@ -260,7 +260,7 @@ class IdragraRasterQuality(QgsProcessingAlgorithm):
 									{'INPUT': vectorLay, 'FIELD': fieldName, 'BURN': 0,
 									 'UNITS': 1, 'WIDTH': cellDim, 'HEIGHT': cellDim,
 									 'EXTENT': rasterExt,
-									 'NODATA': -9, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': -9, 'INVERT': False,
+									 'NODATA': -9999, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': -9999, 'INVERT': False,
 									 'EXTRA': '',
 									 'OUTPUT': 'TEMPORARY_OUTPUT'},
 									context=None, feedback=feedback, is_child_algorithm=False
@@ -274,7 +274,7 @@ class IdragraRasterQuality(QgsProcessingAlgorithm):
 					   				{'INPUT': maskLay, 'FIELD': '', 'BURN': 1,
 									'UNITS': 1, 'WIDTH': cellDim, 'HEIGHT': cellDim,
 									'EXTENT': rasterExt,
-									'NODATA': -9, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': -9, 'INVERT': False, 'EXTRA': '',
+									'NODATA': -9999, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': -9999, 'INVERT': False, 'EXTRA': '',
 									'OUTPUT': 'TEMPORARY_OUTPUT'},
 									context=None, feedback=feedback, is_child_algorithm=False
 									)
