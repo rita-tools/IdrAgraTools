@@ -20,7 +20,7 @@
    <item>
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
-      <number>0</number>
+      <number>3</number>
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
@@ -337,7 +337,7 @@
        <item>
         <widget class="QTextEdit" name="adv_opts">
          <property name="placeholderText">
-          <string>add here advanced simulation options ad par_nane = value couples separated by semicolon (e.g. PAR1=VAL1, PAR2 = VAL2, ecc.).</string>
+          <string>add here advanced simulation options ad par_nane = value couples separated by semicolon (e.g. PAR1=VAL1; PAR2 = VAL2; ecc.).</string>
          </property>
         </widget>
        </item>
