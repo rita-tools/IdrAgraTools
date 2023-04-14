@@ -170,7 +170,11 @@ class SQLiteDriver(QObject):
 						{'type': 'MultiPolygon',
 							'name': 'idr_distrmap',
 							'fldNames': ['id', 'name','inlet_node','outlet_node','distr_eff','expl_factor','wat_shift'],
-							'fldTypes': [QVariant.Int,QVariant.String,QVariant.Int,QVariant.Int,QVariant.Double,QVariant.Int,QVariant.Int]}
+							'fldTypes': [QVariant.Int,QVariant.String,QVariant.Int,QVariant.Int,QVariant.Double,QVariant.Int,QVariant.Int]},
+						{'type': 'MultiPolygon',
+							'name': 'idr_domainmap',
+							'fldNames': ['id', 'name', 'def_land_use', 'def_irr_meth', 'area_m2'],
+							'fldTypes': [QVariant.Int, QVariant.String, QVariant.Int, QVariant.Int, QVariant.Double]}
 					 ]
 		
 		firstt = True

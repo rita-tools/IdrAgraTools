@@ -270,7 +270,8 @@ class IdragraCreateDB(QgsProcessingAlgorithm):
 			self.FEEDBACK.setProgress(60.0)
 			path2geodata = os.path.join(self.plugin_dir, 'sample', 'geodata')
 			# TODO: next release, 'idr_gw_wells'
-			listOfFile = ['idr_weather_stations', 'idr_nodes', 'idr_links','idr_soilmap','idr_usemap','idr_irrmap','idr_distrmap','idr_control_points']
+			listOfFile = ['idr_weather_stations', 'idr_nodes', 'idr_links','idr_soilmap','idr_usemap',
+						  'idr_irrmap','idr_distrmap','idr_control_points','idr_domainmap']
 			for f in listOfFile:
 				# load crop field
 				gpkg_layer = self.DBM.DBName + '|layername=' + f

@@ -176,6 +176,7 @@ class IdrAgraTools():
         # init table and layer names and labels
         # TODO: for the next release 'idr_gw_wells': self.tr('Ground water wells'),
         self.LYRNAME = {'idr_control_points':self.tr('Control points'),
+                        'idr_domainmap':self.tr('Domain'),
                         'idr_nodes': self.tr('Nodes'),
                         'idr_links': self.tr('Links'),
                         'idr_distrmap': self.tr('Irrigation units'),
@@ -232,6 +233,9 @@ class IdrAgraTools():
                            'node_disc': self.tr('Network'),
                             'idr_nodes': self.tr('Network'), 'idr_links': self.tr('Network'),
                             'idr_distrmap': self.tr('Network'),
+
+                            'idr_domainmap': self.tr('Computing'),
+
                             'idr_control_points': self.tr('Analysis')
                             }
 
@@ -437,6 +441,8 @@ class IdrAgraTools():
                         'CELLSIZE': 250,
                         'WATERTABLEMAP': {},
                         'ELEVMAP': {},
+                        'LANDUSEMAP':{},
+                        'IRRMETHMAP': {},
                         'STARTOUTPUT':105,
                         'ENDOUTPUT': 273,
                         'STEPOUTPUT': 10,
@@ -536,6 +542,11 @@ class IdrAgraTools():
         self.wtMenu = self._addmenu(self.mainMenu, 'WaterTable', self.tr('Ground water'), False)
         self._addmenuitem(self.wtMenu, 'SetWT', self.tr('Set/edit water table'), self.setWaterTable, False)
         self.mainMenu.addMenu(self.wtMenu)
+
+        self.cptMenu = self._addmenu(self.mainMenu, 'Computing', self.tr('Computing'), False)
+        self._addmenuitem(self.cptMenu, 'ImportDomain', self.tr('Import domain'), self.importDomainMap, False)
+        self._addmenuitem(self.cptMenu, 'CreateDomain', self.tr('Create domain'), self.createDomainMap, False)
+        self.mainMenu.addMenu(self.cptMenu)
 
         self.simulationMenu = self._addmenu(self.mainMenu, 'Simulation', self.tr('IdrAgra'), False)
         self._addmenuitem(self.simulationMenu, 'RunAll', self.tr('Run all'), self.runAll, False)
@@ -922,76 +933,6 @@ class IdrAgraTools():
         # remove preprocessor
         QgsPathResolver.removePathPreprocessor(idProc)
 
-    def loadDemoData(self, fGeodata=True):
-        # load crop types
-        path2crop = os.path.join(self.plugin_dir, 'sample', 'crop')
-        fileList = os.listdir(path2crop)
-        for f in fileList:
-            cropDict = parseParFile(filename=os.path.join(path2crop, f), parSep='=', colSep=' ', feedback=None, tr=None)
-            cropValues = list(cropDict.values())
-            sql = "INSERT INTO idr_crop_types VALUES (null,'%s');" % ("','".join(cropValues))
-            msg = self.DBM.executeSQL(sql)
-
-        # load irrigation methods
-        path2irrmethod = os.path.join(self.plugin_dir, 'sample', 'irr_method')
-        fileList = os.listdir(path2irrmethod)
-        for f in fileList:
-            irrDict = parseParFile(filename=os.path.join(path2irrmethod, f), parSep='=', colSep=' ', feedback=None,
-                                   tr=None)
-            irrValues = list(irrDict.values())
-            sql = "INSERT INTO idr_irrmet_types VALUES (null,'%s');" % ("','".join(irrValues))
-            msg = self.DBM.executeSQL(sql)
-
-        # load soil types
-        path2soil = os.path.join(self.plugin_dir, 'sample', 'soil')
-        fileList = os.listdir(path2soil)
-        for f in fileList:
-            soilDict = parseParFile(filename=os.path.join(path2soil, f), parSep='=', colSep=' ', feedback=None, tr=None)
-            soilValues = list(soilDict.values())
-            sql = "INSERT INTO idr_soil_types VALUES (null,'%s');" % ("','".join(soilValues))
-            msg = self.DBM.executeSQL(sql)
-
-        # load soil uses
-        path2soiluse = os.path.join(self.plugin_dir, 'sample', 'soiluse')
-        fileList = os.listdir(path2soiluse)
-        for f in fileList:
-            soiluseDict = parseParFile(filename=os.path.join(path2soiluse, f), parSep='=', colSep=' ', feedback=None,
-                                       tr=None)
-            soiluseValues = list(soiluseDict.values())
-            sql = "INSERT INTO idr_soiluses VALUES (null,'%s');" % ("','".join(soiluseValues))
-            msg = self.DBM.executeSQL(sql)
-
-        if (fGeodata == True):
-            # load geometries
-            path2geodata = os.path.join(self.plugin_dir, 'sample', 'geodata')
-            listOfFile = ['idr_weather_stations', 'idr_gw_wells', 'idr_nodes', 'idr_links', 'idr_crop_fields']
-            for f in listOfFile:
-                # load crop field
-                gpkg_layer = self.DBM.DBName + '|layername=' + f
-                print('gpkg_layer:',gpkg_layer)
-                csvFile = os.path.join(path2geodata, f + '.csv')
-                addFeaturesFromCSV(gpkg_layer, csvFile)
-
-            # load meteo data
-            path2weather = os.path.join(self.plugin_dir, 'sample', 'weather')
-            fileList = os.listdir(path2weather)
-            varList = ['ws_tmax', 'ws_tmin', 'ws_ptot', 'ws_umax', 'ws_umin', 'ws_vmed', 'ws_rgcorr']
-            for c, f in enumerate(fileList):
-                for i, var in enumerate(varList):
-                    self.importDataFromCSV(filename=os.path.join(path2weather, f), tablename=var, timeFldIdx=0,
-                                           valueFldIdx=i + 1, sensorId=c + 1, skip=1, timeFormat='%Y/%m/%d',
-                                           column_sep=',', progress=None)
-
-            # load discharge data
-            path2disch = os.path.join(self.plugin_dir, 'sample', 'discharge')
-            fileList = os.listdir(path2disch)
-            varList = ['node_act_disc']
-            for c, f in enumerate(fileList):
-                for i, var in enumerate(varList):
-                    self.importDataFromCSV(filename=os.path.join(path2disch, f), tablename=var, timeFldIdx=0,
-                                           valueFldIdx=i + 1, sensorId=c + 1, skip=1, timeFormat='%d/%m/%Y',
-                                           column_sep=';', progress=None)
-
     def loadLayer(self):
         lyrSourcesList = [layer.source().replace('\\','/') for layer in QgsProject.instance().mapLayers().values()]
         for n, a in self.LYRNAME.items():
@@ -1097,6 +1038,11 @@ class IdrAgraTools():
         for vlayer in vlayerList:
             self.setFieldCheckable(vlayer, 'f_interception')
             self.setCustomForm(vlayer, 'irrigation_method_dialog')
+
+    def setupDomainLayer(self):
+        vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_domainmap'])
+        for vlayer in vlayerList:
+            self.printMsg('domain map: %s'%vlayer.name())
 
     def importMeteoData(self):
         # get meteo id,name
@@ -1319,6 +1265,12 @@ class IdrAgraTools():
                 fromLay=res['lay'], toLay=wsLay, fieldDict=res['fieldDict'], assignDate=None,
                 saveEdit=res['saveEdit'],
                 progress=progress)
+
+    def importDomainMap(self):
+        pass
+
+    def createDomainMap(self):
+        pass
 
 
     def getVectorLayerByName(self, tablename):
