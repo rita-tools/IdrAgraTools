@@ -92,7 +92,8 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 	# calling from the QGIS console.
 
 	FIELD_LAY = 'FIELD_LAY'
-	FIELD_COL = 'FIELD_COL'
+
+	LU_LAY = 'LU_LAY'
 	LU_COL = 'LU_COL'
 
 	SOIL_LAY = 'SOIL_LAY'
@@ -108,11 +109,8 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 	WSTAT_COL = 'WSTAT_COL'
 	WSTAT_NUM = 'WSTAT_NUM'
 
-	DTM_LAY = 'DTM_LAY'
-	WT_ELEV = 'WT_ELEV'
-
-	LOWER_LIM = 'LOWER_LIM'
-	UPPER_LIM = 'UPPER_LIM'
+	START_YR = 'START_YR'
+	END_YR = 'END_YR'
 
 	OUT_LAY = 'OUT_LAY'
 
@@ -173,7 +171,7 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 						The algorithm create a new table with data referred to each field.
 						<b>Parameters:</b>
 						Fields: the field map [FIELD_LAY]
-						Field id: the column with the id of the field [FIELD_COL]
+						Land uses: the soil map [LU_LAY]
 						Land use id: the column with the id of the landuse [LU_COL]
 						Soils: the soil map [SOIL_LAY]
 						Soil id: the column with the id of the soil [SOIL_COL]
@@ -203,9 +201,10 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 
 		self.addParameter(QgsProcessingParameterFeatureSource(self.FIELD_LAY, self.tr('Fields'),
 															  [QgsProcessing.TypeVectorPolygon], None, False))
-		self.addParameter(QgsProcessingParameterField(self.FIELD_COL, self.tr('Field id'), 'id', self.FIELD_LAY,
-													  QgsProcessingParameterField.Numeric))
-		self.addParameter(QgsProcessingParameterField(self.LU_COL, self.tr('Land use id'), 'extid', self.FIELD_LAY,
+
+		self.addParameter(QgsProcessingParameterFeatureSource(self.LU_LAY, self.tr('Land uses'),
+															  [QgsProcessing.TypeVectorPolygon], None, False))
+		self.addParameter(QgsProcessingParameterField(self.LU_COL, self.tr('Land use id'), 'extid', self.LU_LAY,
 													  QgsProcessingParameterField.Numeric))
 
 		self.addParameter(QgsProcessingParameterFeatureSource(self.SOIL_LAY, self.tr('Soils'),
@@ -231,6 +230,12 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 		self.addParameter(QgsProcessingParameterNumber(self.WSTAT_NUM, self.tr('Number of station to use'),
 													   QgsProcessingParameterNumber.Integer, 5))
 
+		self.addParameter(QgsProcessingParameterNumber(self.START_YR, self.tr('Start year'),
+													   QgsProcessingParameterNumber.Integer),0)
+
+		self.addParameter(QgsProcessingParameterNumber(self.END_YR, self.tr('End year'),
+													   QgsProcessingParameterNumber.Integer),0)
+
 		self.addParameter(
 			QgsProcessingParameterFeatureSink(self.OUT_LAY, self.tr('Output layer'), QgsProcessing.TypeVectorPolygon))
 
@@ -241,7 +246,8 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 		self.FEEDBACK = feedback
 		# get params
 		field_lay = self.parameterAsVectorLayer(parameters, self.FIELD_LAY, context)
-		field_col = self.parameterAsFields(parameters, self.FIELD_COL, context)[0]
+
+		lu_lay = self.parameterAsVectorLayer(parameters, self.LU_LAY, context)
 		lu_col = self.parameterAsFields(parameters, self.LU_COL, context)[0]
 
 		soil_lay = self.parameterAsVectorLayer(parameters, self.SOIL_LAY, context)
@@ -257,7 +263,12 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 		wstat_col = self.parameterAsFields(parameters, self.WSTAT_COL, context)[0]
 		wstat_num = self.parameterAsInt(parameters, self.WSTAT_NUM, context)
 
-		wt_lay_list = self.parameterAsLayerList(parameters, self.WT_ELEV, context)
+		start_yr = self.parameterAsInt(parameters, self.START_YR, context)
+		end_yr = self.parameterAsInt(parameters, self.END_YR, context)
+
+		year_seq = []
+		if ((start_yr <= end_yr) and (start_yr and end_yr)):
+			year_seq = list(range(start_yr,end_yr+1))
 
 		# TODO: needs optimization
 		# get the list of weather stations
@@ -280,15 +291,20 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 		fldList.append(QgsField('shape_area', QVariant.Double))
 
 		fldList.append(QgsField('land_use', QVariant.Int))
+		for yr in year_seq:
+			fldList.append(QgsField('land_use_%s' % yr, QVariant.Int))
 
 		fldList.append(QgsField('soil_id', QVariant.Int))
-		fldList.append(QgsField('soil_gidx', QVariant.Double))
+		#fldList.append(QgsField('soil_gidx', QVariant.Double))
 
 		fldList.append(QgsField('irrmeth_id', QVariant.Int))
-		fldList.append(QgsField('irrmeth_gidx', QVariant.Double))
+		#fldList.append(QgsField('irrmeth_gidx', QVariant.Double))
 
 		fldList.append(QgsField('irrunit_id', QVariant.Int))
-		fldList.append(QgsField('irrunit_gidx', QVariant.Double))
+		#fldList.append(QgsField('irrunit_gidx', QVariant.Double))
+
+		for yr in year_seq:
+			fldList.append(QgsField('irrmeth_id_%s'%yr, QVariant.Int))
 
 		# add meteo fields
 		for n in range(wstat_num):
@@ -313,16 +329,37 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 			# get geometry and geometry data
 			id = feat['id']
 			geom = feat.geometry()
-			shape_area = float(geom.area())
+			try:
+				shape_area = feat['area_m2']
+			except:
+				shape_area = float(geom.area())
+
 			x_c = geom.centroid().asPoint().x()
 			y_c = geom.centroid().asPoint().y()
 
-			# get landuse id
-			lu_id = feat[lu_col]
-
 			# get id from other maps (maximum covered area)
+			lu_id, lu_gidx = self.selectByLocation(inputLayer=lu_lay, refGeom=geom, inputFld=lu_col)
+			if not lu_id: lu_id = -9999
+
+			lu_id_list = [lu_id]
+			for yr in year_seq:
+				lu_id_year, lu_gidx_year = self.selectByLocation(inputLayer=lu_lay, refGeom=geom, inputFld=lu_col,
+																 filter_string=' year("date")=%s '%yr)
+				if not lu_id_year: lu_id_year = lu_id
+				lu_id_list.append(lu_id_year)
+
 			soil_id, soil_gidx = self.selectByLocation(inputLayer=soil_lay, refGeom=geom, inputFld=soil_col)
+
 			irrmeth_id, irrmeth_gidx = self.selectByLocation(inputLayer=irrmeth_lay, refGeom=geom, inputFld=irrmeth_col)
+			if not irrmeth_id: irrmeth_id = -9999
+
+			irrmeth_list = [irrmeth_id]
+			for yr in year_seq:
+				irrmeth_id_year, irrmeth_gidx_year = self.selectByLocation(inputLayer=irrmeth_lay, refGeom=geom, inputFld=irrmeth_col,
+															 filter_string=' year("date")=%s '%yr)
+				if not irrmeth_id_year: irrmeth_id_year = irrmeth_id
+				irrmeth_list.append(irrmeth_id_year)
+
 			irrunit_id, irrunit_gidx = self.selectByLocation(inputLayer=irrunit_lay, refGeom=geom, inputFld=irrunit_col)
 
 			# calculate weather weights matrix
@@ -331,9 +368,15 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 								xc_list=[x_c], yc_list=[y_c],
 								feedback=self.FEEDBACK, tr=None)
 
-			attr_list =feat.attributes()+[x_c,y_c,shape_area,lu_id,soil_id,soil_gidx,irrmeth_id,irrmeth_gidx,irrunit_id,irrunit_gidx]
+			attr_list =feat.attributes()+\
+					   [x_c,y_c,shape_area]+\
+						lu_id_list+\
+						[soil_id]+\
+						irrmeth_list+\
+						[irrunit_id]
+
 			for x in ws_ww:
-				if np.isnan(x[0]): x_val = -9.0
+				if np.isnan(x[0]): x_val = -9999.0
 				else: x_val = float(x[0])
 
 				attr_list.append(x_val)
@@ -368,13 +411,19 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 		return geomIndex
 
 
-	def selectByLocation(self, inputLayer, refGeom, inputFld):
+	def selectByLocation(self, inputLayer, refGeom, inputFld,filter_string = ''):
+
 		# set a filter
 		refArea = refGeom.area()
 		refLen = 0  # unused
 		max_gidx = 0
 		target_id = None
-		for feature in inputLayer.getFeatures(QgsFeatureRequest().setFilterRect(refGeom.boundingBox())):
+		if filter_string:
+			req = QgsFeatureRequest().setFilterRect(refGeom.boundingBox()).setFilterExpression(filter_string)
+		else:
+			req = QgsFeatureRequest().setFilterRect(refGeom.boundingBox())
+
+		for feature in inputLayer.getFeatures(req):
 			aGeom = feature.geometry()
 			geomIndex = self.calcGeomIndex(aGeom, refGeom, refArea, refLen)
 			if geomIndex > max_gidx:

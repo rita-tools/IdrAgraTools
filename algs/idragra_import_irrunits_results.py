@@ -318,7 +318,9 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 				varData = np.loadtxt(f, dtype=np.float, skiprows=6)
 
 				for i in baseList:
-					mask = np.where(np.logical_and(baseData[:,:] == i,varData[:,:] != nodata))
+					print('varData shape',np.shape(varData))
+					#mask = np.where(np.logical_and(baseData[:,:] == i,varData[:,:] != nodata))
+					mask = np.where(np.logical_and(baseData == i, varData != nodata))
 					calcVal = (np.mean(varData[mask]))
 					countVal = (np.count_nonzero(mask))
 					# store data

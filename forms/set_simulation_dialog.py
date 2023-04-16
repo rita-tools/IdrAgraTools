@@ -170,6 +170,17 @@ class SetSimulationDialog(QMainWindow):
 		self.updateLastYear()
 
 		### set spatial resolution
+		print('simSettings:',simSettings)
+		if simSettings['VECTOR_MODE']:
+			print('vector mode is selected')
+			self.VECTOR_MODE.setChecked(True)
+			self.enableGridDomain()
+		else:
+			print('grid mode is selected')
+			self.GRID_MODE.setChecked(True)
+			self.enableGridDomain()
+
+
 		self.DOMAINEXT.setMapCanvas(self.canvas)
 		#print('Set_simulation, CRS', simSettings['CRS'])
 		try:
@@ -232,6 +243,9 @@ class SetSimulationDialog(QMainWindow):
 		self.STEPDATE_SB.setValue(simSettings['STEPOUTPUT'])
 
 		self.FROM_CB.currentTextChanged.connect(self.updateLastYear)
+
+		# connect gridded domain options
+		self.GRID_MODE.toggled.connect(self.enableGridDomain)
 
 		# connect preview function
 		self.conn_canvas = self.canvas.extentsChanged.connect(self.drawGrid)
@@ -300,6 +314,13 @@ class SetSimulationDialog(QMainWindow):
 		# self.disconnect(self.conn_canvas)
 		# self.deleteGrid()
 		self.closed.emit()
+
+	def enableGridDomain(self):
+		if self.GRID_MODE.isChecked():
+			self.SETDOMAIN_GB.setEnabled(True)
+		else:
+			self.SETDOMAIN_GB.setEnabled(False)
+			self.DRAW_GRID_CB.setChecked(False)
 
 	def drawGrid(self,val=None):
 		self.deleteGrid()
@@ -395,6 +416,8 @@ class SetSimulationDialog(QMainWindow):
 		fromYear = int(self.FROM_CB.currentText())
 		toYear = int(self.TO_CB.currentText())
 		### get spatial resolution
+		vector_mode = 0
+		if self.VECTOR_MODE.isChecked(): vector_mode = 1
 		dtmExtent = self.DOMAINEXT.outputExtent()
 		crs = self.DOMAINEXT.outputCrs()
 		#print('crs_from get',crs)
@@ -421,7 +444,7 @@ class SetSimulationDialog(QMainWindow):
 		return {'outfolder':outfolder,'simMode':simMode,'randWind':randWind,
 				'defLU': defLU, 'defIM':defIM,
 				'useyearlymaps':useYearlyMaps, 'from':fromYear, 'to':toYear,
-				'extent':dtmExtent, 'crs':crs, 'cellsize':cellsize,
+				'vectorMode':vector_mode,'extent':dtmExtent, 'crs':crs, 'cellsize':cellsize,
 				'zevalay':zevalay,'ztranslay':ztranslay,'capRise':capRise,'minSlope':minSlope, 'maxSlope':maxSlope,
 				'irrStart':irrStart, 'irrEnd':irrEnd,
 				'outMonth':outMonth, 'outStartDate': outStartDate, 'outEndDate': outEndDate, 'outStep': outStep

@@ -121,8 +121,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>717</width>
-         <height>457</height>
+         <width>171</width>
+         <height>119</height>
         </rect>
        </property>
        <attribute name="label">
@@ -188,39 +188,68 @@
        <attribute name="label">
         <string>Spatial resolution</string>
        </attribute>
-       <layout class="QFormLayout" name="formLayout_3">
-        <item row="0" column="0">
-         <widget class="QLabel" name="label_3">
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <widget class="QRadioButton" name="VECTOR_MODE">
           <property name="text">
-           <string>Cell dimension</string>
+           <string>Use domain shape(s) as computing element(s)</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
           </property>
          </widget>
         </item>
-        <item row="0" column="1">
-         <widget class="QDoubleSpinBox" name="CELLSIZE_SB">
-          <property name="maximum">
-           <double>1000.000000000000000</double>
-          </property>
-          <property name="value">
-           <double>0.000000000000000</double>
+        <item>
+         <widget class="QRadioButton" name="GRID_MODE">
+          <property name="text">
+           <string>Create regular grid from domain estents and cell size</string>
           </property>
          </widget>
         </item>
-        <item row="2" column="0" colspan="2">
-         <widget class="QLabel" name="DOMAINEXT_LB">
-          <property name="text">
-           <string>Set domain extension</string>
+        <item>
+         <widget class="QGroupBox" name="SETDOMAIN_GB">
+          <property name="enabled">
+           <bool>false</bool>
           </property>
-         </widget>
-        </item>
-        <item row="3" column="0" colspan="2">
-         <widget class="QgsExtentGroupBox" name="DOMAINEXT"/>
-        </item>
-        <item row="4" column="0">
-         <widget class="QCheckBox" name="DRAW_GRID_CB">
-          <property name="text">
-           <string>Draw preview grid</string>
+          <property name="title">
+           <string/>
           </property>
+          <layout class="QFormLayout" name="formLayout_3">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_3">
+             <property name="text">
+              <string>Cell dimension</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="CELLSIZE_SB">
+             <property name="maximum">
+              <double>1000.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="DOMAINEXT_LB">
+             <property name="text">
+              <string>Set domain extension</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QgsExtentGroupBox" name="DOMAINEXT"/>
+           </item>
+           <item row="3" column="0" colspan="2">
+            <widget class="QCheckBox" name="DRAW_GRID_CB">
+             <property name="text">
+              <string>Draw preview grid</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
         </item>
        </layout>
@@ -230,8 +259,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>717</width>
-         <height>457</height>
+         <width>206</width>
+         <height>135</height>
         </rect>
        </property>
        <attribute name="label">
@@ -320,8 +349,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>717</width>
-         <height>457</height>
+         <width>136</width>
+         <height>49</height>
         </rect>
        </property>
        <attribute name="label">
@@ -356,8 +385,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>717</width>
-         <height>457</height>
+         <width>98</width>
+         <height>28</height>
         </rect>
        </property>
        <attribute name="label">

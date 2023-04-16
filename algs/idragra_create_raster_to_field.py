@@ -214,63 +214,69 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 		# get params
 		field_lay = self.parameterAsVectorLayer(parameters, self.FIELD_LAY, context)
 
-		elev_lay = self.parameterAsRasterLayer(parameters, self.ELEV_LAY, context)
-		wt_lay_list = self.parameterAsLayerList(parameters, self.WT_ELEV_LAY, context)
+		try:
+			elev_lay = self.parameterAsRasterLayer(parameters, self.ELEV_LAY, context)
+			wt_lay_list = self.parameterAsLayerList(parameters, self.WT_ELEV_LAY, context)
+		except:
+			elev_lay = None
+			wt_lay_list = []
 
 		slp_min = self.parameterAsDouble(parameters, self.SLP_MIN, context)
 		slp_max = self.parameterAsDouble(parameters, self.SLP_MAX, context)
 		wtd_min = self.parameterAsDouble(parameters, self.WTD_MIN, context)
 
 		# TODO: check if elev and/or water table is missing
-
-		# make zonal statistics
-		self.alg_result = processing.run("native:zonalstatisticsfb",
-										  {'INPUT': field_lay,
-										   'INPUT_RASTER': elev_lay, 'RASTER_BAND': 1,
-										   'COLUMN_PREFIX': 'elev_', 'STATISTICS': [2],
-										   'OUTPUT': 'TEMPORARY_OUTPUT'},
-						  					context = context, feedback = self.FEEDBACK, is_child_algorithm = True
-											)
-
 		# store elevation col name
 		elev_col = 'elev_mean'
-
-		# make slope map
-		self.algresult1 = processing.run("native:slope",
-								   {'INPUT': elev_lay,
-									'Z_FACTOR': 1,
-									'OUTPUT': 'TEMPORARY_OUTPUT'},
-						  					context = context, feedback = self.FEEDBACK, is_child_algorithm = True
-											)
-
 		# store slope col name
 		slp_col = 'slp_mean'
 
-		self.alg_result = processing.run("native:zonalstatisticsfb",
-									   {'INPUT': self.alg_result['OUTPUT'],
-										'INPUT_RASTER': self.algresult1['OUTPUT'], 'RASTER_BAND': 1,
-										'COLUMN_PREFIX': 'slp_', 'STATISTICS': [2],
-										'OUTPUT': 'TEMPORARY_OUTPUT'},
-						  					context = context, feedback = self.FEEDBACK, is_child_algorithm = True
-											)
-
-		# store slope col name
-		wt_col_list = []
-
-		# get water table elevation
-		for wt_lay in wt_lay_list:
+		if elev_lay:
+			# make zonal statistics
 			self.alg_result = processing.run("native:zonalstatisticsfb",
-											 {'INPUT': self.alg_result['OUTPUT'],
-											  'INPUT_RASTER': wt_lay, 'RASTER_BAND': 1,
-											  'COLUMN_PREFIX': wt_lay.name()+'_', 'STATISTICS': [2],
-											  'OUTPUT': 'TEMPORARY_OUTPUT'},
-						  					context = context, feedback = self.FEEDBACK, is_child_algorithm = False
-											)
+											  {'INPUT': field_lay,
+											   'INPUT_RASTER': elev_lay, 'RASTER_BAND': 1,
+											   'COLUMN_PREFIX': 'elev_', 'STATISTICS': [2],
+											   'OUTPUT': 'TEMPORARY_OUTPUT'},
+												context = context, feedback = self.FEEDBACK, is_child_algorithm = True
+												)
 
-			wt_col_list.append(wt_lay.name()+'_mean')
+
+			# make slope map
+			self.algresult1 = processing.run("native:slope",
+									   {'INPUT': elev_lay,
+										'Z_FACTOR': 1,
+										'OUTPUT': 'TEMPORARY_OUTPUT'},
+												context = context, feedback = self.FEEDBACK, is_child_algorithm = True
+												)
+
+			self.alg_result = processing.run("native:zonalstatisticsfb",
+										   {'INPUT': self.alg_result['OUTPUT'],
+											'INPUT_RASTER': self.algresult1['OUTPUT'], 'RASTER_BAND': 1,
+											'COLUMN_PREFIX': 'slp_', 'STATISTICS': [2],
+											'OUTPUT': 'TEMPORARY_OUTPUT'},
+												context = context, feedback = self.FEEDBACK, is_child_algorithm = True
+												)
+
+			# store slope col name
+			wt_col_list = []
+
+			# get water table elevation
+			for wt_lay in wt_lay_list:
+				self.alg_result = processing.run("native:zonalstatisticsfb",
+												 {'INPUT': self.alg_result['OUTPUT'],
+												  'INPUT_RASTER': wt_lay, 'RASTER_BAND': 1,
+												  'COLUMN_PREFIX': wt_lay.name()+'_', 'STATISTICS': [2],
+												  'OUTPUT': 'TEMPORARY_OUTPUT'},
+												context = context, feedback = self.FEEDBACK, is_child_algorithm = False
+												)
+
+				wt_col_list.append(wt_lay.name()+'_mean')
 
 		# copy feature to sink and parse results
 		fldList = self.alg_result['OUTPUT'].fields()
+		#if not (slp_col in fldList.names()):
+		#	fldList.append(QgsField(slp_col,QVariant.Double))
 
 		(sink, dest_id) = self.parameterAsSink(
 			parameters,
@@ -289,23 +295,26 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 			self.FEEDBACK.setProgress(100.0 * c / nFeat)
 
 			new_feat = QgsFeature(feat)
-			elev = new_feat[elev_col]
+			if elev_lay:
+				elev = new_feat[elev_col]
 
-			# transform slope from degree to tangent
-			slp_deg = new_feat[slp_col]
-			slp_tan = 100*tan(slp_deg/180)
-			slp_tan = max(slp_tan,slp_min)
-			slp_tan = min(slp_tan, slp_max)
-			# save results
-			new_feat[slp_col] = slp_tan
-
-			# transform watertable elev to water table depth
-			for wt_col in wt_col_list:
-				wt_elev = new_feat[wt_col]
-				wt_depth = elev-wt_elev
-				wt_depth = max(wt_depth, wtd_min)
+				# transform slope from degree to tangent
+				slp_deg = new_feat[slp_col]
+				slp_tan = 100*tan(slp_deg/180)
+				slp_tan = max(slp_tan,slp_min)
+				slp_tan = min(slp_tan, slp_max)
 				# save results
-				new_feat[wt_col] = wt_depth
+				new_feat[slp_col] = slp_tan
+
+				# transform watertable elev to water table depth
+				for wt_col in wt_col_list:
+					wt_elev = new_feat[wt_col]
+					wt_depth = elev-wt_elev
+					wt_depth = max(wt_depth, wtd_min)
+					# save results
+					new_feat[wt_col] = wt_depth
+			else:
+				new_feat[slp_col] = slp_min
 
 			sink.addFeature(new_feat, QgsFeatureSink.FastInsert)
 

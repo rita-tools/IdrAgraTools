@@ -31,7 +31,7 @@ __revision__ = '$Format:%H$'
 import os
 from PyQt5.QtCore import QObject
 from qgis import processing
-
+from qgis._core import QgsRasterLayer
 
 from tools.write_pars_to_template import writeParsToTemplate
 
@@ -51,7 +51,7 @@ class ExportGeodataVector(QObject):
     def exportGeodata(self):
         db_name = self.sim_dict['DBFILE']
 
-        outPath = os.path.join(self.sim_dict['OUTPUTPATH'],'geodata_v')
+        outPath = os.path.join(self.sim_dict['OUTPUTPATH'],'geodata')
         if not os.path.exists(outPath): os.makedirs(outPath)
 
         depthList = [self.sim_dict['ZEVALAY'],self.sim_dict['ZTRANSLAY']]
@@ -59,33 +59,45 @@ class ExportGeodataVector(QObject):
         self.feedback.pushInfo(self.tr('Get slope and water table depth'))
         self.feedback.setProgress(10.0)
 
-        # make a new shapefile with elev,slope and water table depth
-        wt_lay_list = []
+        elev_name = 'GPKG:' + db_name + ':elevation'
+        aRaster = QgsRasterLayer(elev_name, 'elevation', 'gdal')  # check if dtm file exists
+
         wt_map = None
-        for wt_map in list(self.sim_dict['WATERTABLEMAP'].keys()):
-            wt_lay_list.append('GPKG:'+db_name +':'+wt_map)
 
-        self.algResults = processing.run("idragratools:IdragraCreateRasterToField",
-                            {'FIELD_LAY': db_name + '|layername=idr_usemap',
-                            'ELEV_LAY': 'GPKG:'+db_name +':elevation',
-                            'WT_ELEV_LAY': wt_lay_list,
-                            'SLP_MIN': 0,
-                            'SLP_MAX': 1000, 'WTD_MIN': 0.5,
-                             'OUT_LAY': 'TEMPORARY_OUTPUT'},
-                                         context=None, feedback=self.feedback, is_child_algorithm=False)
+        if not aRaster.isValid():
+            self.feedback.pushInfo(self.tr('Elevation layer is not available'))
+            elev_name = None
+            self.algResults = {'OUT_LAY':db_name + '|layername=idr_domainmap'}
+        else:
+            # make a new shapefile with elev,slope and water table depth
+            wt_lay_list = []
+            for wt_map in list(self.sim_dict['WATERTABLEMAP'].keys()):
+                wt_lay_list.append('GPKG:'+db_name +':'+wt_map)
 
-        print('1',self.algResults['OUT_LAY'].fields().names())
+            self.algResults = processing.run("idragratools:IdragraCreateRasterToField",
+                                {'FIELD_LAY': db_name + '|layername=idr_domainmap',
+                                'ELEV_LAY': elev_name,
+                                'WT_ELEV_LAY': wt_lay_list,
+                                'SLP_MIN': 0,
+                                'SLP_MAX': 1000, 'WTD_MIN': 0.5,
+                                 'OUT_LAY': 'TEMPORARY_OUTPUT'},
+                                             context=None, feedback=self.feedback, is_child_algorithm=False)
+
+            print('1',self.algResults['OUT_LAY'].fields().names())
 
         self.feedback.pushInfo(self.tr('Get land use, irrigation methods, irrigation units and meteo weights'))
         self.feedback.setProgress(20.0)
 
         # make a new shapefile with main landuse, soil, irrigation methods, irrigation units and meteo weights
+        #print('self.sim_dict',self.sim_dict)
         self.algResults = processing.run("idragratools:IdragraCreateFieldTable",
-                       {'FIELD_LAY': self.algResults['OUT_LAY'], 'FIELD_COL': 'id', 'LU_COL': 'extid',
+                       {'FIELD_LAY': self.algResults['OUT_LAY'],
+                        'LU_LAY': db_name + '|layername=idr_usemap', 'LU_COL': 'extid',
                         'SOIL_LAY': db_name + '|layername=idr_soilmap', 'SOIL_COL': 'extid',
                         'IRRMETH_LAY': db_name + '|layername=idr_irrmap','IRRMETH_COL': 'extid',
                         'IRRUNIT_LAY': db_name + '|layername=idr_distrmap','IRRUNIT_COL': 'id',
                         'WSTAT_LAY': db_name + '|layername=idr_weather_stations','WSTAT_COL': 'id',
+                        'START_YR':self.sim_dict['STARTYEAR'], 'END_YR':self.sim_dict['ENDYEAR'],
                         'OUT_LAY': 'TEMPORARY_OUTPUT'},
                                          context=None, feedback=self.feedback, is_child_algorithm=False)
 
@@ -114,6 +126,15 @@ class ExportGeodataVector(QObject):
             'FIELD_2': 'id', 'FIELDS_TO_COPY': ['irr_eff'], 'METHOD': 1,
             'DISCARD_NONMATCHING': False, 'PREFIX': '', 'OUTPUT': 'TEMPORARY_OUTPUT'},
                                          context=None, feedback=self.feedback, is_child_algorithm=False)
+
+        for yr in self.sim_dict['YEARS']:
+
+            self.algResults = processing.run("native:joinattributestable", {
+                'INPUT': self.algResults['OUTPUT'],
+                'FIELD': 'irrmeth_id_%s'%yr, 'INPUT_2': db_name + '|layername=idr_irrmet_types',
+                'FIELD_2': 'id', 'FIELDS_TO_COPY': ['irr_eff'], 'METHOD': 1,
+                'DISCARD_NONMATCHING': False, 'PREFIX': '%s_'%yr, 'OUTPUT': 'TEMPORARY_OUTPUT'},
+                                             context=None, feedback=self.feedback, is_child_algorithm=False)
 
         print('3', self.algResults['OUTPUT'].fields().names())
 
@@ -238,6 +259,10 @@ class ExportGeodataVector(QObject):
         data['hydr_cond']=[1]*n_feat
         # add domain
         data['domain'] = [1] * n_feat
+        # add slope if missing
+        if not ('slp' in list(data.keys())):
+            data['slp'] = [self.sim_dict['MINSLOPE']] * n_feat
+
         # save single file asc file
 
         # TODO: export output columns to rasters
@@ -277,21 +302,51 @@ class ExportGeodataVector(QObject):
                        }
 
         for k,v_list in data.items():
+            v_str = '\n'.join([str(v) for v in v_list])
+            v_str = v_str.replace('NULL','-9999')
+
             asc_dict = {'n_cols':1,
                         'n_rows':n_feat,
                         'xll_corner':-1.0,
                         'yll_corner':-1.0,
                         'cell_size':mean_cell_size,
                         'nodata_value':-9999,
-                        'data':'\n'.join([str(v) for v in v_list])
+                        'data':v_str
                         }
 
             out_file = k
             out_file = out_file.replace('_mean','')
 
+            if out_file.startswith('land_use_'):
+                #get the last numeric part
+                out_file = out_file.replace('land_use_','soiluse_')
+                writeParsToTemplate(outfile=os.path.join(outPath, out_file + '.asc'),
+                                    parsDict=asc_dict,
+                                    templateName='asc_grid.txt')
+
+            if out_file.startswith('irrmeth_id_'):
+                # get the last numeric part
+                out_file = out_file.replace('irrmeth_id_', 'irr_meth_')
+                writeParsToTemplate(outfile=os.path.join(outPath, out_file + '.asc'),
+                                    parsDict=asc_dict,
+                                    templateName='asc_grid.txt')
+
+            # beacuse join needs unique fields, the name of irr_eff differs from irr_meth
+            if out_file.endswith('_irr_eff'):
+                #get the last numeric part
+                out_file = out_file.replace('_irr_eff','')
+                out_file = 'appl_eff_'+out_file
+                writeParsToTemplate(outfile=os.path.join(outPath, out_file + '.asc'),
+                                    parsDict=asc_dict,
+                                    templateName='asc_grid.txt')
+
+
             if out_file.startswith('watertable_'):
                 #get the last numeric part
-                out_file = 'watertable' # TODO: fix multiple year
+                out_file = out_file.replace('watertable_','waterdepth_')
+                writeParsToTemplate(outfile=os.path.join(outPath, out_file + '.asc'),
+                                    parsDict=asc_dict,
+                                    templateName='asc_grid.txt')
 
             if out_file in list(replaceDict.keys()):
                 out_file = replaceDict[out_file]

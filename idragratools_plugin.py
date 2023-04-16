@@ -451,7 +451,8 @@ class IdrAgraTools():
                         'MAXSLOPE':1000,
                         'SOURCE_DB':'',
                         'DEFAULT_LU':0,
-                        'DEFAULT_IM':0
+                        'DEFAULT_IM':0,
+                        'VECTOR_MODE':0
                        }
 
         self.PHENOVARS = {'CNvalue':self.tr('CN value'),
@@ -1598,6 +1599,7 @@ class IdrAgraTools():
             self.SIMDIC['ENDYEAR'] = res['to']
             self.SIMDIC['YEARS'] = list(range(res['from'], res['to'] + 1))
             ### set spatial resolution
+            self.SIMDIC['VECTOR_MODE'] = res['vectorMode']
             self.SIMDIC['EXTENT'] = res['extent'].toString(4)
             # fix proj issues
             self.SIMDIC['CRS'] = res['crs'].authid()
@@ -1837,22 +1839,29 @@ class IdrAgraTools():
 
         progress.setProgress(50.0)
 
-        ext = returnExtent(self.SIMDIC['EXTENT'])
-        self.EXP = Exporter(parent = QgsProject.instance(), simdic = self.SIMDIC, feedback=progress, tr=self.tr)
-        self.EXP.exportGeodata(self.DBM, path2Geodata, ext, self.SIMDIC['CELLSIZE'], dtmLay,
-                      wtLayDic, [self.SIMDIC['ZEVALAY'],self.SIMDIC['ZTRANSLAY']],
-                      list(range(int(self.SIMDIC['STARTYEAR']),int(self.SIMDIC['ENDYEAR'])+1))
-                      )
+        # TODO: choose type of exporter (regular, vector)
+        if self.SIMDIC['VECTOR_MODE']:
+            self.EXP = ExportGeodataVector(parent = QgsProject.instance(), sim_dict = self.SIMDIC,
+                                           feedback=progress, tr=self.tr)
+            self.EXP.exportGeodata()
+        else:
+            ext = returnExtent(self.SIMDIC['EXTENT'])
 
-        # export control points
-        cellListFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'cells.txt')
-        controlPointMap = self.DBM.DBName + '|layername=idr_control_points'
+            self.EXP = Exporter(parent = QgsProject.instance(), simdic = self.SIMDIC, feedback=progress, tr=self.tr)
+            self.EXP.exportGeodata(self.DBM, path2Geodata, ext, self.SIMDIC['CELLSIZE'], dtmLay,
+                          wtLayDic, [self.SIMDIC['ZEVALAY'],self.SIMDIC['ZTRANSLAY']],
+                          list(range(int(self.SIMDIC['STARTYEAR']),int(self.SIMDIC['ENDYEAR'])+1))
+                          )
 
-        processing.run("idragratools:IdragraExportControlPoints",
-                       {'VECTOR_LAY': controlPointMap,
-                        'RASTER_EXT': ext,
-                        'CELL_DIM': self.SIMDIC['CELLSIZE'], 'DEST_FILE': cellListFile},
-                       context=None, feedback=progress, is_child_algorithm=False)
+            # export control points
+            cellListFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'cells.txt')
+            controlPointMap = self.DBM.DBName + '|layername=idr_control_points'
+
+            processing.run("idragratools:IdragraExportControlPoints",
+                           {'VECTOR_LAY': controlPointMap,
+                            'RASTER_EXT': ext,
+                            'CELL_DIM': self.SIMDIC['CELLSIZE'], 'DEST_FILE': cellListFile},
+                           context=None, feedback=progress, is_child_algorithm=False)
 
         progress.setProgress(100.0)
 
