@@ -222,6 +222,15 @@ class ExportGeodataVector(QObject):
             print(feat.attributes())
             break
 
+        # export control points
+        cellListFile = os.path.join(self.sim_dict['OUTPUTPATH'], 'cells.txt')
+        controlPointMap = db_name + '|layername=idr_control_points'
+
+        processing.run("idragratools:IdragraExportControlPointsVector",
+                       {'DOMAIN_LAY': self.algResults['OUTPUT'], 'ROW_COL': 'row_count',
+                        'CP_LAY': controlPointMap, 'ID_COL': 'id',
+                        'DEST_FILE': cellListFile})
+
         # make a data dictionary
         data = {}
         col_list = self.algResults['OUTPUT'].fields().names()
@@ -298,7 +307,9 @@ class ExportGeodataVector(QObject):
                        'CapRisePar_b4': 'CapRisePar_b4',
                        'hydr_cond':'hydr_cond',
                        'hydr_group':'hydr_group',
-                       'main_txtr':'main_txtr'
+                       'main_txtr':'main_txtr',
+                       'id':'id',
+                       'row_count':'row_count'
                        }
 
         for k,v_list in data.items():
@@ -364,6 +375,7 @@ class ExportGeodataVector(QObject):
         writeParsToTemplate(outfile=os.path.join(outPath, 'rice_soilparam.txt'),
                             parsDict={},
                             templateName='rice_soilparam.txt')
+
 
         self.feedback.setPercentage(100.0)
         

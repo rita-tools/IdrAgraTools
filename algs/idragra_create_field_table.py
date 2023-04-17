@@ -289,6 +289,7 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 		fldList.append(QgsField('x_c', QVariant.Double))
 		fldList.append(QgsField('y_c', QVariant.Double))
 		fldList.append(QgsField('shape_area', QVariant.Double))
+		fldList.append(QgsField('row_count', QVariant.Int))
 
 		fldList.append(QgsField('land_use', QVariant.Int))
 		for yr in year_seq:
@@ -369,7 +370,7 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 								feedback=self.FEEDBACK, tr=None)
 
 			attr_list =feat.attributes()+\
-					   [x_c,y_c,shape_area]+\
+					   [x_c,y_c,shape_area,c]+\
 						lu_id_list+\
 						[soil_id]+\
 						irrmeth_list+\

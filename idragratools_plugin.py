@@ -1840,6 +1840,8 @@ class IdrAgraTools():
         progress.setProgress(50.0)
 
         # TODO: choose type of exporter (regular, vector)
+
+
         if self.SIMDIC['VECTOR_MODE']:
             self.EXP = ExportGeodataVector(parent = QgsProject.instance(), sim_dict = self.SIMDIC,
                                            feedback=progress, tr=self.tr)
