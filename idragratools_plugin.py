@@ -1859,7 +1859,7 @@ class IdrAgraTools():
             cellListFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'cells.txt')
             controlPointMap = self.DBM.DBName + '|layername=idr_control_points'
 
-            processing.run("idragratools:IdragraExportControlPoints",
+            processing.run("idragratools:IdragraExportControlPointsGrid",
                            {'VECTOR_LAY': controlPointMap,
                             'RASTER_EXT': ext,
                             'CELL_DIM': self.SIMDIC['CELLSIZE'], 'DEST_FILE': cellListFile},
@@ -2089,6 +2089,27 @@ class IdrAgraTools():
         return finalDF,msg
 
     def getRowCol(self,feature):
+        c = -1
+        r = -1
+        cp_id = feature['id']
+
+        # open cells.txt and get c,r
+        # ncells = 2
+        # table =
+        # ID	X	Y
+        # 100	7	1
+        # 21	19	1
+        # endtable =
+        cells_fn = os.path.join(self.SIMDIC['OUTPUTPATH'],'cells.txt')
+        with open(cells_fn) as f:
+            for line in f:
+                if line.startswith(str(cp_id)+'\t'):
+                    id,r,c = line.split('\t')
+                    break
+
+        return int(r), int(c)
+
+    def getRowCol_OLD(self,feature):
         rasterExt = returnExtent(self.SIMDIC['EXTENT'])
         c=-1
         r=-1

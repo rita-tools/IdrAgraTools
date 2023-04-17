@@ -47,7 +47,7 @@ from .algs.idragra_raster_groupstats import IdragraRasterGroupStats
 from .algs.idragra_import_crop_par import IdragraImportCropPar
 from .algs.idragra_bulk_import_timeserie import IdragraBulkImportTimeserie
 from .algs.idragra_statserie import IdragraStatserie
-from .algs.idragra_export_control_points import IdragraExportControlPoints
+from .algs.idragra_export_control_points_grid import IdragraExportControlPointsGrid
 from .algs.idragra_calc_waterdepth import IdragraCalcWaterDepth
 from .algs.idragra_rasterize_time_map import IdragraRasterizeTimeMap
 from .algs.idragra_rasterize_map import IdragraRasterizeMap
@@ -95,7 +95,7 @@ class IdrAgraToolsProvider(QgsProcessingProvider):
 						IdragraRasterizeMap(),
 						IdragraRasterizeTimeMap(),
 						IdragraCalcWaterDepth(),
-						IdragraExportControlPoints(),
+						IdragraExportControlPointsGrid(),
 						IdragraStatserie(),
 						IdragraBulkImportTimeserie(),
 						IdragraImportCropPar(),

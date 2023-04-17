@@ -62,12 +62,6 @@ from qgis.core import (QgsProcessing,
 					   QgsRasterLayer,
 					   QgsProject,
 					   NULL, QgsRectangle)
-						
-import processing
-
-from numpy import array
-
-from datetime import datetime
 
 import os
 
@@ -75,7 +69,7 @@ from ..tools.write_pars_to_template import writeParsToTemplate
 from ..tools.gis_grid import GisGrid
 
 
-class IdragraExportControlPoints(QgsProcessingAlgorithm):
+class IdragraExportControlPointsGrid(QgsProcessingAlgorithm):
 	"""
 	This is an example algorithm that takes a vector layer and
 	creates a new identical one.
@@ -108,7 +102,7 @@ class IdragraExportControlPoints(QgsProcessingAlgorithm):
 		return QCoreApplication.translate('Processing', string)
 
 	def createInstance(self):
-		return IdragraExportControlPoints()
+		return IdragraExportControlPointsGrid()
 
 	def name(self):
 		"""
@@ -118,7 +112,7 @@ class IdragraExportControlPoints(QgsProcessingAlgorithm):
 		lowercase alphanumeric characters only and no spaces or other
 		formatting characters.
 		"""
-		return 'IdragraExportControlPoints'
+		return 'IdragraExportControlPointsGrid'
 
 	def displayName(self):
 		"""
@@ -215,8 +209,8 @@ class IdragraExportControlPoints(QgsProcessingAlgorithm):
 		self.aGrid.fitToExtent(newExt,cellDim,cellDim)
 
 		# loop in layer and get point coordinates
-		nOfCP = 0
 		recs = ['ID\tX\tY']
+		dummy = []
 		nFeats = vectorLay.featureCount()
 		n = 0
 		for feature in vectorLay.getFeatures():
@@ -235,10 +229,11 @@ class IdragraExportControlPoints(QgsProcessingAlgorithm):
 						self.tr('Control point named %s is outside the extension') %
 						(feature['name']))
 				else:
-					newRec = '%s\t%s\t%s'%(n+1,r,c) #flipped
-					if newRec not in recs:
+					row_col = '%s\t%s' % (r, c)  # flipped
+					if row_col not in dummy:
+						dummy.append(row_col)
+						newRec = '%s\t%s' % (feature['id'], row_col)  # flipped
 						recs.append(newRec)
-						nOfCP += 1
 					else:
 						self.FEEDBACK.reportError(
 							self.tr('More than one control point falls in one computational cell. Only one will be exported. Consider to reduce cell size.') %
@@ -249,7 +244,7 @@ class IdragraExportControlPoints(QgsProcessingAlgorithm):
 			self.FEEDBACK.setProgress(100. * n / nFeats)
 
 		tableTxt = '\n'.join(recs)
-		cpDict = {'NUMCELL':nOfCP, 'CELLTABLE':tableTxt}
+		cpDict = {'NUMCELL':len(dummy), 'CELLTABLE':tableTxt}
 
 		writeParsToTemplate(outfile=filename,
 							parsDict=cpDict,

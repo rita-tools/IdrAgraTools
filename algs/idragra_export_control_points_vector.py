@@ -213,7 +213,7 @@ class IdragraExportControlPointsVector(QgsProcessingAlgorithm):
 					if geom.intersects(domShape.geometry()):
 						row_col = '%s\t%s'% (domShape[rowCol], 1)# flipped
 						if not row_col in dummy:
-							newRec = '%s\t%s' % (n + 1,row_col)
+							newRec = '%s\t%s' % (feature['id'],row_col)#(n + 1,row_col)
 							dummy.append(row_col)
 							recs.append(newRec)
 						else:
