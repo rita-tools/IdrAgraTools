@@ -30,6 +30,7 @@ __revision__ = '$Format:%H$'
 
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QCoreApplication,QVariant
+from plugins import processing
 from qgis.core import (QgsProcessing,
 						QgsFeatureSink,
 						QgsProcessingException,
@@ -62,12 +63,6 @@ from qgis.core import (QgsProcessing,
 						QgsRasterLayer,
 						QgsProject,
 						NULL)
-
-import processing
-
-from numpy import array
-
-from datetime import datetime
 
 import os
 
@@ -237,6 +232,7 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 		# loop in yearList and make a selection of elements
 		res = []
 		yearList.sort()
+		algResults = None
 
 		for y in yearList:
 			feedback.pushInfo(self.tr('Processing year: %s' % y))
@@ -255,9 +251,12 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 				selection = vectorLay.getFeatures(QgsFeatureRequest(yearQuery))
 				ids = ([k.id() for k in selection])
 
+			use_default = False
 			if len(ids)==0:
 				# stop algorithm because missing data
-				self.FEEDBACK.reportError (self.tr('Unable to find undateable shapes too ... map will be set as empty!'),False)
+				self.FEEDBACK.reportError (self.tr('Unable to find undateable shapes too ... map will be set to default value!'),False)
+				yearQuery = QgsExpression("True") # seleziona tutto
+				if not algResults: use_default = True #use default value only if it is the first year
 
 			newLayName = processing.QgsProcessingUtils.generateTempFilename('%s_%s.gpkg' %(nameFormat,y))
 
@@ -268,8 +267,13 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 			else:
 				# loop and write
 				selection = vectorLay.getFeatures(QgsFeatureRequest(yearQuery))
-				for s in selection:
-					writer.addFeature(s)
+				if use_default:
+					for s in selection:
+						s[dataFld] = initValue
+						writer.addFeature(s)
+				else:
+					for s in selection:
+						writer.addFeature(s)
 
 			del writer
 
@@ -278,41 +282,47 @@ class IdragraRasterizeTimeMap(QgsProcessingAlgorithm):
 			else:
 				destFile = os.path.join(destFolder, nameFormat + '_%s.asc'%y)
 
-			# first rasterization with initValue all the covered area
-			algResults = processing.run("gdal:rasterize",
-										{'INPUT': vectorLay, 'FIELD': '', 'BURN': initValue,
-										 'UNITS': 1, 'WIDTH': cellDim, 'HEIGHT': cellDim,
-										 'EXTENT': rasterExt,
-										 'NODATA': -9999, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': -9999,
-										 'INVERT': False,
-										 'EXTRA': '',
-										 'OUTPUT': 'TEMPORARY_OUTPUT'},
-										context=None, feedback=feedback, is_child_algorithm=False
-										)
+			# first year rasterization
+			if not algResults:
+				algResults = processing.run("gdal:rasterize",
+											{'INPUT': newLayName, 'FIELD': dataFld, 'BURN': 0,
+											 'UNITS': 1, 'WIDTH': cellDim, 'HEIGHT': cellDim,
+											 'EXTENT': rasterExt,
+											 'NODATA': -9999, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': -9999,
+											 'INVERT': False,
+											 'EXTRA': '',
+											 'OUTPUT': 'TEMPORARY_OUTPUT'},
+											context=None, feedback=feedback, is_child_algorithm=False
+											)
+			else:
+				# replace first year value for the following years
+				algResults = processing.run("gdal:rasterize_over",
+											{'INPUT': newLayName,
+											 'INPUT_RASTER': algResults['OUTPUT'],
+											 'FIELD': dataFld, 'ADD': False, 'EXTRA': ''},
+											context=None, feedback=feedback, is_child_algorithm=False)
 
+			# export to ascii
+			processing.run("idragratools:IdragraSaveAscii",
+							{'INPUT': algResults['OUTPUT'], 'DIGITS': digits,
+							 'OUTPUT': destFile},
+							context=None, feedback=feedback, is_child_algorithm=False)
 			# replace rasterization with over burn
 
 			# algResults = processing.run("gdal:rasterize",
 			# 							{'INPUT': newLayName, 'FIELD': dataFld, 'BURN': 0,
 			# 							 'UNITS': 1, 'WIDTH': cellDim, 'HEIGHT': cellDim,
 			# 							 'EXTENT': rasterExt,
-			# 							 'NODATA': -9, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': initValue,
+			# 							 'NODATA': -9999, 'OPTIONS': '', 'DATA_TYPE': fieldType, 'INIT': initValue,
 			# 							 'INVERT': False,
 			# 							 'EXTRA': '',
 			# 							 'OUTPUT': 'TEMPORARY_OUTPUT'},
 			# 							context=None, feedback=feedback, is_child_algorithm=False
 			# 							)
 
-			processing.run("gdal:rasterize_over",
-										{'INPUT': newLayName,
-										 'INPUT_RASTER': algResults['OUTPUT'],
-										 'FIELD': dataFld, 'ADD': False, 'EXTRA': ''},
-										context=None, feedback=feedback, is_child_algorithm=False)
 
-			processing.run("idragratools:IdragraSaveAscii",
-						   {'INPUT': algResults['OUTPUT'], 'DIGITS': digits,
-							'OUTPUT': destFile},
-						   context=None, feedback=feedback, is_child_algorithm=False)
+
+
 
 			res.append(destFile)
 
