@@ -1855,16 +1855,6 @@ class IdrAgraTools():
                           list(range(int(self.SIMDIC['STARTYEAR']),int(self.SIMDIC['ENDYEAR'])+1))
                           )
 
-            # export control points
-            cellListFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'cells.txt')
-            controlPointMap = self.DBM.DBName + '|layername=idr_control_points'
-
-            processing.run("idragratools:IdragraExportControlPointsGrid",
-                           {'VECTOR_LAY': controlPointMap,
-                            'RASTER_EXT': ext,
-                            'CELL_DIM': self.SIMDIC['CELLSIZE'], 'DEST_FILE': cellListFile},
-                           context=None, feedback=progress, is_child_algorithm=False)
-
         progress.setProgress(100.0)
 
     def execBatFile(self, batFile, progress=None):

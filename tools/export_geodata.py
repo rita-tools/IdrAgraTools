@@ -56,7 +56,7 @@ class Exporter(QObject):
 		self.algResults2 = None  # store temporary outputs
 
 	def exportGeodata(self,DBM,outPath, extent, cellSize, dtm, watertableDict, depthList,yearList,):
-		yearList = [str(x) for x in yearList] # make a list of strings
+		yearList = ['']+[str(x) for x in yearList] # make a list of strings, add first empty year for default values
 		# TODO: fix output digits
 		# export water district map
 		# DISTRICT SOURCE
@@ -424,6 +424,15 @@ class Exporter(QObject):
 
 			os.rename(f, newName)
 
+		# export control points
+		self.feedback.setText(self.tr('Export control points'))
+		cellListFile = os.path.join(self.simdic['OUTPUTPATH'], 'cells.txt')
+		controlPointMap = DBM.DBName + '|layername=idr_control_points'
 
+		processing.run("idragratools:IdragraExportControlPointsGrid",
+					   {'VECTOR_LAY': controlPointMap,
+						'RASTER_EXT': extent,
+						'CELL_DIM': self.simdic['CELLSIZE'], 'DEST_FILE': cellListFile},
+					   context=None, feedback=self.feedback, is_child_algorithm=False)
 
 		self.feedback.setPercentage(100.0)
