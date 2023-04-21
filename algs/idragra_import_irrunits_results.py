@@ -99,6 +99,7 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 	IDRAGRAFILE= 'IDRAGRA_FILE'
 	AGGRVAR = 'AGGR_VAR'
 	DB_FILENAME = 'DB_FILENAME'
+	VOLUME = 'VOLUME'
 	FEEDBACK = None
 
 	def __init__(self):
@@ -161,6 +162,7 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 						IdrAgra file: the parameters file used for the IdrAgra simulation (*.txt) [IDRAGRA_FILE]
 						Aggregation raster map: the raster layer that define aggregation areas [AGGR_LAY]
 						Aggregation variable: the variable to be aggregated [AGGR_VAR]
+						Calculate volume: calculate volume (true) or specific volume (false) [VOLUME]
 						Aggregation function: the function to use for aggregation [AGGR_FUN]
 						Output table: the resultant table [OUTPUT_TABLE]
 						"""
@@ -193,6 +195,8 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 		self.addParameter(QgsProcessingParameterEnum(self.AGGRVAR, self.tr('Aggregation variable'),
 													 list(self.STEPNAME.values())))
 
+		self.addParameter(QgsProcessingParameterBoolean(self.VOLUME, self.tr('Calculate volume'),False, True))
+
 		self.addParameter(QgsProcessingParameterFile(self.DB_FILENAME, self.tr('DB filename'),
 													 QgsProcessingParameterFile.Behavior.File, '*.*', '', False,
 													 self.tr('Geopackage (*.gpkg);;All files (*.*)')))
@@ -210,13 +214,10 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 		varIdx = self.parameterAsEnum(parameters, self.AGGRVAR, context)
 		varToUse = list(self.STEPNAME.keys())[varIdx]
 
+		returnVolume = self.parameterAsBoolean(parameters, self.VOLUME, context)
+
 		dbFilename = self.parameterAsFile(parameters, self.DB_FILENAME, context)
 		self.DBM = SQLiteDriver(dbFilename, False, None, self.FEEDBACK, self.tr, QgsProject.instance())
-
-		layToUse = 'irr_units'
-
-		# TODO: explode over days in period
-
 
 		# init table
 		resTable = {
@@ -267,11 +268,20 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 		# TODO: get raster base map
 		rootSimPath = os.path.dirname(idragraFile)
 
-		baseFileName = os.path.join(rootSimPath,inputPath,layToUse+'.asc')
+		baseFileName = os.path.join(rootSimPath,inputPath,'irr_units.asc')
 		# create a grid file
 		baseData = np.loadtxt(baseFileName,dtype=np.int,skiprows=6)
 		baseList = list(np.unique(baseData))
 		if nodata in baseList: baseList.remove(nodata)
+
+		areaFileName = os.path.join(rootSimPath, inputPath, 'shapearea.asc')
+		try:
+			areaData = np.loadtxt(areaFileName, dtype=np.float, skiprows=6)
+		except:
+			self.FEEDBACK.reportError(self.tr('Cannot parse area file %s. Regular grid is used for calculation') %
+									  (areaFileName), False)
+
+			areaData = np.ones(np.shape(baseData))
 
 		# get the list of the output for the selected variable
 
@@ -318,11 +328,21 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 				varData = np.loadtxt(f, dtype=np.float, skiprows=6)
 
 				for i in baseList:
-					print('varData shape',np.shape(varData))
+					#print('varData shape',np.shape(varData))
 					#mask = np.where(np.logical_and(baseData[:,:] == i,varData[:,:] != nodata))
+					# mask where there are valid values for the selected district
 					mask = np.where(np.logical_and(baseData == i, varData != nodata))
-					calcVal = (np.mean(varData[mask]))
+
+					# make the products for mean value calculation
+					prodData = areaData * varData # volume in liters beacuse m2*mm = 0.001 m3 = l
+					if returnVolume:
+						calcVal = np.sum(prodData[mask])/1000
+					else:
+						calcVal = np.sum(prodData[mask])/np.sum(areaData[mask]) # specific volume in mm (per unit area)
 					countVal = (np.count_nonzero(mask))
+
+					print('distr. n.',i,'area:', np.sum(areaData[mask]))
+
 					# store data
 					resTable['wsid'].append(i.item())
 					resTable['recval'].append(calcVal.item())

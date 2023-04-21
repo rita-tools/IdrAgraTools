@@ -544,7 +544,7 @@ class IdrAgraTools():
         self._addmenuitem(self.wtMenu, 'SetWT', self.tr('Set/edit water table'), self.setWaterTable, False)
         self.mainMenu.addMenu(self.wtMenu)
 
-        self.cptMenu = self._addmenu(self.mainMenu, 'Computing', self.tr('Computing'), False)
+        self.cptMenu = self._addmenu(self.mainMenu, 'Domain', self.tr('Domain'), False)
         self._addmenuitem(self.cptMenu, 'ImportDomain', self.tr('Import domain'), self.importDomainMap, False)
         self._addmenuitem(self.cptMenu, 'CreateDomain', self.tr('Create domain'), self.createDomainMap, False)
         self.mainMenu.addMenu(self.cptMenu)
@@ -971,6 +971,7 @@ class IdrAgraTools():
         self.setupIrrTypesLayer()
         self.setupIrrigationUnitLayer()
         self.setupControlPointLayer()
+        self.setupDomainLayer()
 
     def setupControlPointLayer(self):
         vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_control_points'])
@@ -1043,7 +1044,7 @@ class IdrAgraTools():
     def setupDomainLayer(self):
         vlayerList = QgsProject.instance().mapLayersByName(self.LYRNAME['idr_domainmap'])
         for vlayer in vlayerList:
-            self.printMsg('domain map: %s'%vlayer.name())
+            print('domain map: %s'%vlayer.name())
 
     def importMeteoData(self):
         # get meteo id,name
@@ -1567,7 +1568,9 @@ class IdrAgraTools():
             yearList = range(startDate, endDate + 1)
             yearList = [str(y) for y in yearList]
         else:
-            showCriticalMessageBox(self.tr('Missing data'),self.tr('No time data to use'),self.tr('It is necessary to complete the database with time series'))
+            showCriticalMessageBox(self.tr('Missing data'),
+                                   self.tr('No time data to use'),
+                                   self.tr('It is necessary to complete the database with time series'))
             return
 
         # get dictionary of landuses
@@ -1582,6 +1585,11 @@ class IdrAgraTools():
 
         # show dialog to choose folder and set simulation parameters
         from .forms.set_simulation_dialog import SetSimulationDialog
+        # update extent and crs from domain map
+        self.SIMDIC['EXTENT'] = self.getVectorLayerByName('idr_domainmap').extent().toString(4)
+        # fix proj issues
+        self.SIMDIC['CRS'] = self.getVectorLayerByName('idr_domainmap').crs().authid()
+
         dlg = SetSimulationDialog(self.iface, yearList, list(self.SIMMODE.values()),self.SIMDIC, luDict,imDict)
         result = 1
         #result = dlg.exec_()
@@ -2323,6 +2331,8 @@ class IdrAgraTools():
         # calculate irrigation district areas
         areaTable = self.calculateDistrictArea(progress)
 
+        print('areaTable',areaTable)
+
         if (self.SIMDIC['MODE'] in [1,'1']):
             # get consume table
             irrFromDiversionDF = self.getDischargeFromCSV(yearList, '%s_Qirr.csv',progress,replaceFieldTableIN)
@@ -2445,7 +2455,33 @@ class IdrAgraTools():
         if colMapper: tableDF.rename(columns=colMapper, inplace=True)
         return tableDF
 
-    def calculateDistrictArea(self,progress):
+    def calculateDistrictArea(self,progress,nodata=9999):
+        resDict = {}
+
+        areaFile = os.path.join(self.SIMDIC['OUTPUTPATH'],self.SIMDIC['SPATIALFOLDER'], 'shapearea.asc')
+        irrUnitsFile = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['SPATIALFOLDER'], 'irr_units.asc')
+
+        irrUnitData = np.loadtxt(irrUnitsFile, dtype=np.int, skiprows=6)
+        irrUnitList = list(np.unique(irrUnitData))
+
+        try:
+            areaData = np.loadtxt(areaFile, dtype=np.float, skiprows=6)
+
+            for i in irrUnitList:
+                # print('varData shape',np.shape(varData))
+                # mask = np.where(np.logical_and(baseData[:,:] == i,varData[:,:] != nodata))
+                # mask where there are valid values for the selected district
+                mask = np.where(np.logical_and(irrUnitData == i, areaData != float(nodata)))
+
+                calcVal = np.sum(areaData[mask])
+                resDict[str(i)] = calcVal
+
+            return resDict
+        except:
+            progress.reportError(self.tr('Unable to open %s, using vector data') % areaFile, False)
+            return self.calculateDistrictArea_OLD(progress)
+
+    def calculateDistrictArea_OLD(self,progress):
         resDict = {}
         domainFile = os.path.join(self.SIMDIC['OUTPUTPATH'],self.SIMDIC['SPATIALFOLDER'], 'domain.asc')
         gpkg_layer = self.DBM.DBName + '|layername=' + 'idr_distrmap'
@@ -2476,6 +2512,7 @@ class IdrAgraTools():
         tempFile = QgsProcessingUtils.generateTempFilename('aggrOutput.gpkg')
         algResults = processing.run("idragratools:IdragraImportIrrUnitsResults",
                                     {'IDRAGRA_FILE':idragraFile,'AGGR_VAR':varIndex,
+                                     'VOLUME':False,
                                      'DB_FILENAME':self.DBM.DBName},
                                    context=None,
                                    feedback=progress,

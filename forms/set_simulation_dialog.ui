@@ -36,7 +36,7 @@
     <item>
      <widget class="QToolBox" name="toolBox">
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="IRRIGATION_PG">
        <property name="geometry">
@@ -44,7 +44,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>457</height>
+         <height>435</height>
         </rect>
        </property>
        <attribute name="label">
@@ -121,8 +121,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>171</width>
-         <height>119</height>
+         <width>717</width>
+         <height>435</height>
         </rect>
        </property>
        <attribute name="label">
@@ -182,7 +182,7 @@
          <x>0</x>
          <y>0</y>
          <width>717</width>
-         <height>457</height>
+         <height>435</height>
         </rect>
        </property>
        <attribute name="label">
@@ -240,7 +240,11 @@
             </widget>
            </item>
            <item row="2" column="0" colspan="2">
-            <widget class="QgsExtentGroupBox" name="DOMAINEXT"/>
+            <widget class="QgsExtentGroupBox" name="DOMAINEXT">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+            </widget>
            </item>
            <item row="3" column="0" colspan="2">
             <widget class="QCheckBox" name="DRAW_GRID_CB">
@@ -259,8 +263,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>206</width>
-         <height>135</height>
+         <width>717</width>
+         <height>435</height>
         </rect>
        </property>
        <attribute name="label">
@@ -349,8 +353,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>136</width>
-         <height>49</height>
+         <width>717</width>
+         <height>435</height>
         </rect>
        </property>
        <attribute name="label">
@@ -385,8 +389,8 @@
         <rect>
          <x>0</x>
          <y>0</y>
-         <width>98</width>
-         <height>28</height>
+         <width>717</width>
+         <height>435</height>
         </rect>
        </property>
        <attribute name="label">

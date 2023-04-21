@@ -29,9 +29,9 @@ __copyright__ = '(C) 2020 by Enrico A. Chiaradia'
 __revision__ = '$Format:%H$'
 
 import os
-from PyQt5.QtCore import QObject
+from PyQt5.QtCore import QObject, QVariant
 from qgis import processing
-from qgis._core import QgsRasterLayer
+from qgis._core import QgsRasterLayer, QgsVectorLayer, QgsField
 
 from tools.write_pars_to_template import writeParsToTemplate
 
@@ -208,41 +208,35 @@ class ExportGeodataVector(QObject):
                                           context=None, feedback=self.feedback, is_child_algorithm=False)
 
         # link to table
+        # save output to file
+        final_file = os.path.join(outPath, 'domain.gpkg')
+        final_url = 'ogr:dbname=\'%s\' table="%s" (geom)'%(final_file,'domain')
         self.algResults = processing.run("native:joinattributestable", {
             'INPUT': self.algResults['OUTPUT'],
             'FIELD': 'soil_id', 'INPUT_2': self.algResults2['OUT_TABLE'],
             'FIELD_2': 'soilid',
             'FIELDS_TO_COPY': ['maxsoildepth', 'minksat50', 'minksat60', 'minksat100'],
             'METHOD': 1,
-            'DISCARD_NONMATCHING': False, 'PREFIX': '', 'OUTPUT': 'TEMPORARY_OUTPUT'},
+            'DISCARD_NONMATCHING': False, 'PREFIX': '', 'OUTPUT': final_url},
                                          context=None, feedback=self.feedback, is_child_algorithm=False)
 
-        print('6', self.algResults['OUTPUT'].fields().names())
-        for feat in self.algResults['OUTPUT'].getFeatures():
-            print(feat.attributes())
-            break
-
-        # export control points
-        cellListFile = os.path.join(self.sim_dict['OUTPUTPATH'], 'cells.txt')
-        controlPointMap = db_name + '|layername=idr_control_points'
-
-        processing.run("idragratools:IdragraExportControlPointsVector",
-                       {'DOMAIN_LAY': self.algResults['OUTPUT'], 'ROW_COL': 'row_count',
-                        'CP_LAY': controlPointMap, 'ID_COL': 'id',
-                        'DEST_FILE': cellListFile})
+        # add hydrological group
+        layer = QgsVectorLayer(final_file, "Domain", "ogr")
+        layer.startEditing()
+        layer.addAttribute(QgsField('hydr_group', QVariant.Int))
+        layer.updateFields()
+        print('names:',layer.fields().names())
 
         # make a data dictionary
         data = {}
-        col_list = self.algResults['OUTPUT'].fields().names()
-        # add HSG
-        col_list.append('hydr_group')
+        col_list = layer.fields().names()
 
         for col in col_list:
             data[col] = []
 
         n_feat = 0
         mean_area = 0
-        for feat in self.algResults['OUTPUT'].getFeatures():
+        for feat in layer.getFeatures():
             n_feat+=1
 
             # calculate mean feat area to use as reference cell dimension
@@ -258,9 +252,12 @@ class ExportGeodataVector(QObject):
                                              wt_depth = wt_depth,
                                              min_ksat50 = feat['minksat50'],
                                              min_ksat100 = feat['minksat100'])
-                    data[col].append(hsg)
-                else:
-                    data[col].append(feat[col])
+                    feat['hydr_group']=hsg
+                    layer.updateFeature(feat)
+
+                data[col].append(feat[col])
+
+        layer.commitChanges(True)
 
         mean_area = mean_area/n_feat
         mean_cell_size = round(mean_area**0.5,2)
@@ -376,6 +373,14 @@ class ExportGeodataVector(QObject):
                             parsDict={},
                             templateName='rice_soilparam.txt')
 
+        # export control points
+        cellListFile = os.path.join(self.sim_dict['OUTPUTPATH'], 'cells.txt')
+        controlPointMap = db_name + '|layername=idr_control_points'
+
+        processing.run("idragratools:IdragraExportControlPointsVector",
+                       {'DOMAIN_LAY': final_file, 'ROW_COL': 'row_count',
+                        'CP_LAY': controlPointMap, 'ID_COL': 'id',
+                        'DEST_FILE': cellListFile})
 
         self.feedback.setPercentage(100.0)
         

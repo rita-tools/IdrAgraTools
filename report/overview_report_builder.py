@@ -6,6 +6,8 @@ import pandas as pd
 import re
 
 import matplotlib
+from qgis._core import QgsVectorLayer
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -197,27 +199,72 @@ class OverviewReportBuilder(ReportBuilder):
 
         gs = GridSpec(1, 4, figure=fig)
 
-        rl = self.loadASC(domainFile, val_type=np.int)
-        data = rl['data']
+        ax1 = fig.add_subplot(gs[0, :-1])
 
-        values = np.unique(data.ravel()).tolist()
-        if rl['nodata_value'] in values: values.remove(rl['nodata_value'])
-
-        data = np.where(data == rl['nodata_value'], np.nan, data)
-
-        # save to file
         handles = []
         labels = []
-        ax1 = fig.add_subplot(gs[0, :-1])
-        im = ax1.imshow(data, extent=rl['extent'], interpolation='nearest', cmap='gray')
-        # credits: https://stackoverflow.com/questions/25482876/how-to-add-legend-to-imshow-in-matplotlib
-        # colormap used by imshow
-        colors = [im.cmap(im.norm(value)) for value in values]
-        # create a patch (proxy artist) for every color
-        patches = [mpatches.Patch(color=colors[i]) for i in range(len(values))]
+
+        if domainFile.endswith('.asc'):
+            rl = self.loadASC(domainFile, val_type=np.int)
+            data = rl['data']
+
+            values = np.unique(data.ravel()).tolist()
+            if rl['nodata_value'] in values: values.remove(rl['nodata_value'])
+
+            data = np.where(data == rl['nodata_value'], np.nan, data)
+
+            # save to file
+            im = ax1.imshow(data, extent=rl['extent'], interpolation='nearest', cmap='gray')
+            # credits: https://stackoverflow.com/questions/25482876/how-to-add-legend-to-imshow-in-matplotlib
+            # colormap used by imshow
+            colors = [im.cmap(im.norm(value)) for value in values]
+            # create a patch (proxy artist) for every color
+            patches = [mpatches.Patch(color=colors[i]) for i in range(len(values))]
+
+            handles += patches
+            labels.append('domain')
+
+            # set axes extent
+            xmin = min(xs + [rl['xll']]) - offset * rl['width']
+            xmax = max(xs + [rl['xlr']]) + offset * rl['width']
+            ymin = min(ys + [rl['yll']]) - offset * rl['height']
+            ymax = max(ys + [rl['yur']]) + offset * rl['height']
+
+        else:
+            domain_lay = QgsVectorLayer(domainFile, 'domain', 'ogr')
+            ext = domain_lay.extent()
+            # set axes extent
+            xmean = 0.5 *(ext.xMinimum() + ext.xMaximum())
+            ymean = 0.5 * (ext.yMinimum() + ext.yMaximum())
+
+            # TODO: check map extentions
+            max_edge =0.5* (1+offset)*max(ext.width(),ext.height())
+
+            xmin = xmean - max_edge
+            xmax = xmean + max_edge
+            ymin = ymean - max_edge
+            ymax = ymean + max_edge
+
+            x = []
+            y = []
+
+            for feat in domain_lay.getFeatures():
+                v_list = feat.geometry().vertices()
+                for v in v_list:
+                    x.append(v.x())
+                    y.append(v.y())
+
+                # add empty point to break polygon
+                x.append(None)
+                y.append(None)
+
+            plt.plot(x, y)
+
+            patches = []
 
         handles += patches
         labels.append('domain')
+
         # ax1.plot([xll,xlr],[yll,yur],'or')
         lay = ax1.scatter(xs, ys, edgecolors='white')
         handles.append(lay)
@@ -227,11 +274,6 @@ class OverviewReportBuilder(ReportBuilder):
             ax1.text(x + 10, y + 10, id, fontsize=10,
                      path_effects=[pe.withStroke(linewidth=2, foreground="white")])
 
-        # set axes extent
-        xmin = min(xs + [rl['xll']]) - offset * rl['width']
-        xmax = max(xs + [rl['xlr']]) + offset * rl['width']
-        ymin = min(ys + [rl['yll']]) - offset * rl['height']
-        ymax = max(ys + [rl['yur']]) + offset * rl['height']
 
         ax1.set_xlim([xmin, xmax])
         ax1.set_ylim([ymin, ymax])
@@ -299,65 +341,72 @@ class OverviewReportBuilder(ReportBuilder):
         fig.savefig(outFile, format='png')
         plt.close(fig)  # clear memory
 
+
+
     def plotCatMap(self,outfile,mapFile,domainFile,offset=0.1):
         #
         fig = plt.figure(figsize=(10, 3), constrained_layout=True)
         gs = GridSpec(1, 4, figure=fig)
 
-        map_rl = self.loadASC(mapFile, val_type=np.int)
-        if not map_rl: return # exit if file not loaded
-        map_data = map_rl['data']
-
-        domain_rl = self.loadASC(domainFile, val_type=np.int)
-        if not domain_rl: return  # exit if file not loaded
-        domain_data = domain_rl['data']
-
-        map_data = np.where(domain_data != 1, map_rl['nodata_value'], map_data) # apply domain mask
-        values = np.unique(map_data.ravel()).tolist()
-        im_values = range(len(values))
-        #values = values[~np.isnan(values)] # remove nan from list
-        if (map_rl['nodata_value'] in values): values.remove(map_rl['nodata_value'])
-
-        # save to file
-        handles = []
-        labels = ['{:.0f}'.format(x) for x in values]
-
         # add map
         ax1 = fig.add_subplot(gs[0, 0:2])
-        map_data = np.where(map_data == map_rl['nodata_value'], np.nan, map_data)
 
-        map_data = self.replace_values_by_list(map_data,values,im_values)
+        handles = []
+        patches = []
 
-        im = ax1.imshow(map_data, extent=map_rl['extent'], interpolation='nearest', cmap='tab20')
-        # credits: https://stackoverflow.com/questions/25482876/how-to-add-legend-to-imshow-in-matplotlib
-        # colormap used by imshow
-        colors = [im.cmap(im.norm(value)) for value in im_values]
-        # create a patch (proxy artist) for every color
-        patches = [mpatches.Patch(color=colors[i]) for i in range(len(im_values))]
+        if domainFile.endswith('.asc'):
+            map_rl = self.loadASC(mapFile, val_type=np.int)
+            if not map_rl: return # exit if file not loaded
+            map_data = map_rl['data']
 
-        handles += patches
+            domain_rl = self.loadASC(domainFile, val_type=np.int)
+            if not domain_rl: return  # exit if file not loaded
+            domain_data = domain_rl['data']
 
-        # set axes extent
-        xmin = map_rl['xll'] - offset * map_rl['width']
-        xmax = map_rl['xlr'] + offset * map_rl['width']
-        ymin = map_rl['yll'] - offset * map_rl['height']
-        ymax = map_rl['yur'] + offset * map_rl['height']
+            map_data = np.where(domain_data != 1, map_rl['nodata_value'], map_data) # apply domain mask
+            values = np.unique(map_data.ravel()).tolist()
+            im_values = range(len(values))
+            #values = values[~np.isnan(values)] # remove nan from list
+            if (map_rl['nodata_value'] in values): values.remove(map_rl['nodata_value'])
 
-        ax1.set_xlim([xmin, xmax])
-        ax1.set_ylim([ymin, ymax])
-        ax1.ticklabel_format(axis='both', style='sci', scilimits=(0, 0))
+            # save to file
 
-        # add pie chart
-        rStat = self.rasterStat(mapFile, domainFile)
-        ax2 = fig.add_subplot(gs[0, 2])
-        ax2.axis('off')
-        ax2.pie(rStat['perc'], labels=None, colors=colors)
-        ax2.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+            labels = ['{:.0f}'.format(x) for x in values]
 
-        # add legend
-        ax3 = fig.add_subplot(gs[0, 3])
-        ax3.axis('off')
-        ax3.legend(handles, labels)
+            map_data = np.where(map_data == map_rl['nodata_value'], np.nan, map_data)
+
+            map_data = self.replace_values_by_list(map_data,values,im_values)
+
+            im = ax1.imshow(map_data, extent=map_rl['extent'], interpolation='nearest', cmap='tab20')
+            # credits: https://stackoverflow.com/questions/25482876/how-to-add-legend-to-imshow-in-matplotlib
+            # colormap used by imshow
+            colors = [im.cmap(im.norm(value)) for value in im_values]
+            # create a patch (proxy artist) for every color
+            patches = [mpatches.Patch(color=colors[i]) for i in range(len(im_values))]
+
+            handles += patches
+
+            # set axes extent
+            xmin = map_rl['xll'] - offset * map_rl['width']
+            xmax = map_rl['xlr'] + offset * map_rl['width']
+            ymin = map_rl['yll'] - offset * map_rl['height']
+            ymax = map_rl['yur'] + offset * map_rl['height']
+
+            ax1.set_xlim([xmin, xmax])
+            ax1.set_ylim([ymin, ymax])
+            ax1.ticklabel_format(axis='both', style='sci', scilimits=(0, 0))
+
+            # add pie chart
+            rStat = self.rasterStat(mapFile, domainFile)
+            ax2 = fig.add_subplot(gs[0, 2])
+            ax2.axis('off')
+            ax2.pie(rStat['perc'], labels=None, colors=colors)
+            ax2.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+            # add legend
+            ax3 = fig.add_subplot(gs[0, 3])
+            ax3.axis('off')
+            ax3.legend(handles, labels)
 
         # save to file
         fig.savefig(outfile, format='png')
@@ -386,31 +435,36 @@ class OverviewReportBuilder(ReportBuilder):
         return text
 
     def rasterStat(self, baseMapFN, maskMapFN):
-        baseRaster = self.loadASC(baseMapFN, np.int)
-        maskRaster = self.loadASC(maskMapFN, np.int)
+        if maskMapFN.endswith('.asc'):
+            baseRaster = self.loadASC(baseMapFN, np.int)
+            maskRaster = self.loadASC(maskMapFN, np.int)
 
-        baseData = baseRaster['data']
-        maskData = maskRaster['data']
+            baseData = baseRaster['data']
+            maskData = maskRaster['data']
 
-        baseList = list(np.unique(baseData))
-        if baseRaster['nodata_value'] in baseList: baseList.remove(baseRaster['nodata_value'])
+            baseList = list(np.unique(baseData))
+            if baseRaster['nodata_value'] in baseList: baseList.remove(baseRaster['nodata_value'])
 
-        countCells = []
-        for i in baseList:
-            mask = np.where(np.logical_and(baseData[:, :] == i, maskData[:, :] != maskRaster['nodata_value']))
-            countCells.append(np.count_nonzero(mask))
+            countCells = []
+            for i in baseList:
+                mask = np.where(np.logical_and(baseData[:, :] == i, maskData[:, :] != maskRaster['nodata_value']))
+                countCells.append(np.count_nonzero(mask))
 
-        baseList = np.asarray(baseList)
-        countCells = np.asarray(countCells)
+            baseList = np.asarray(baseList)
+            countCells = np.asarray(countCells)
 
-        cellsArea = np.asarray(countCells) * baseRaster['cellsize']
-        totArea = sum(cellsArea)
-        perc = 100 * cellsArea / totArea
+            cellsArea = np.asarray(countCells) * baseRaster['cellsize']
+            totArea = sum(cellsArea)
+            perc = 100 * cellsArea / totArea
 
-        # print(baseList,countCells,cellsArea,perc)
-        res = pd.DataFrame.from_dict(
-            {'id': baseList.tolist(), 'count': countCells.tolist(), 'area': cellsArea.tolist(),
-             'perc': perc.tolist()})
+            # print(baseList,countCells,cellsArea,perc)
+            res = pd.DataFrame.from_dict(
+                {'id': baseList.tolist(), 'count': countCells.tolist(), 'area': cellsArea.tolist(),
+                 'perc': perc.tolist()})
+        else:
+            res = pd.DataFrame.from_dict(
+                {'id': [], 'count': [], 'area': [],
+                 'perc': []})
 
         return res
 
@@ -467,7 +521,10 @@ class OverviewReportBuilder(ReportBuilder):
         # get meteofolder
         meteoPath = os.path.join(simFolder, simPar['meteopath'])
         geodataPath = os.path.join(simFolder, simPar['inputpath'])
-        domainFile = os.path.join(geodataPath, 'domain.asc')
+        if os.path.exists(os.path.join(geodataPath, 'domain.gpkg')):
+            domainFile = os.path.join(geodataPath, 'domain.gpkg')
+        else:
+            domainFile = os.path.join(geodataPath, 'domain.asc')
 
         xs = []
         ys = []
@@ -739,8 +796,8 @@ class OverviewReportBuilder(ReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder=r'C:\examples\ex_report_SIM'
-    outputFile = 'C:/examples/test_img/test_overview.html'
+    simFolder=r'C:\examples\version4\test5_SIM'
+    outputFile = r'C:\examples\version4\test5_SIM\test_overview.html'
     RB = OverviewReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)

@@ -284,6 +284,7 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 		#wstat_num = min(len(ws_ids), wstat_num)
 
 		# prepare the destination field
+		# WARNING: the order of the fields must match with the order of the attributes inserted
 		fldList = field_lay.fields()
 
 		fldList.append(QgsField('x_c', QVariant.Double))
@@ -301,11 +302,11 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 		fldList.append(QgsField('irrmeth_id', QVariant.Int))
 		#fldList.append(QgsField('irrmeth_gidx', QVariant.Double))
 
-		fldList.append(QgsField('irrunit_id', QVariant.Int))
-		#fldList.append(QgsField('irrunit_gidx', QVariant.Double))
-
 		for yr in year_seq:
 			fldList.append(QgsField('irrmeth_id_%s'%yr, QVariant.Int))
+
+		fldList.append(QgsField('irrunit_id', QVariant.Int))
+		# fldList.append(QgsField('irrunit_gidx', QVariant.Double))
 
 		# add meteo fields
 		for n in range(wstat_num):
@@ -335,33 +336,36 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 			except:
 				shape_area = float(geom.area())
 
-			x_c = geom.centroid().asPoint().x()
-			y_c = geom.centroid().asPoint().y()
+			c_geom = geom.centroid()
+			x_c = c_geom.asPoint().x()
+			y_c = c_geom.asPoint().y()
+
+
 
 			# get id from other maps (maximum covered area)
-			lu_id, lu_gidx = self.selectByLocation(inputLayer=lu_lay, refGeom=geom, inputFld=lu_col)
+			lu_id, lu_gidx = self.selectByLocation(inputLayer=lu_lay, refGeom=c_geom, inputFld=lu_col)
 			if not lu_id: lu_id = -9999
 
 			lu_id_list = [lu_id]
 			for yr in year_seq:
-				lu_id_year, lu_gidx_year = self.selectByLocation(inputLayer=lu_lay, refGeom=geom, inputFld=lu_col,
+				lu_id_year, lu_gidx_year = self.selectByLocation(inputLayer=lu_lay, refGeom=c_geom, inputFld=lu_col,
 																 filter_string=' year("date")=%s '%yr)
 				if not lu_id_year: lu_id_year = lu_id
 				lu_id_list.append(lu_id_year)
 
-			soil_id, soil_gidx = self.selectByLocation(inputLayer=soil_lay, refGeom=geom, inputFld=soil_col)
+			soil_id, soil_gidx = self.selectByLocation(inputLayer=soil_lay, refGeom=c_geom, inputFld=soil_col)
 
-			irrmeth_id, irrmeth_gidx = self.selectByLocation(inputLayer=irrmeth_lay, refGeom=geom, inputFld=irrmeth_col)
+			irrmeth_id, irrmeth_gidx = self.selectByLocation(inputLayer=irrmeth_lay, refGeom=c_geom, inputFld=irrmeth_col)
 			if not irrmeth_id: irrmeth_id = -9999
 
 			irrmeth_list = [irrmeth_id]
 			for yr in year_seq:
-				irrmeth_id_year, irrmeth_gidx_year = self.selectByLocation(inputLayer=irrmeth_lay, refGeom=geom, inputFld=irrmeth_col,
+				irrmeth_id_year, irrmeth_gidx_year = self.selectByLocation(inputLayer=irrmeth_lay, refGeom=c_geom, inputFld=irrmeth_col,
 															 filter_string=' year("date")=%s '%yr)
 				if not irrmeth_id_year: irrmeth_id_year = irrmeth_id
 				irrmeth_list.append(irrmeth_id_year)
 
-			irrunit_id, irrunit_gidx = self.selectByLocation(inputLayer=irrunit_lay, refGeom=geom, inputFld=irrunit_col)
+			irrunit_id, irrunit_gidx = self.selectByLocation(inputLayer=irrunit_lay, refGeom=c_geom, inputFld=irrunit_col)
 
 			# calculate weather weights matrix
 			ws_ww = makeWeightMatrix_WW(xmin=None, xmax=None, ymin=None, ymax=None, cellsize=None,
