@@ -309,6 +309,7 @@ class ExportGeodataVector(QObject):
                        'row_count':'row_count'
                        }
 
+        init_wd = True # save the initial condition for water depth
         for k,v_list in data.items():
             v_str = '\n'.join([str(v) for v in v_list])
             v_str = v_str.replace('NULL','-9999')
@@ -355,6 +356,14 @@ class ExportGeodataVector(QObject):
                 writeParsToTemplate(outfile=os.path.join(outPath, out_file + '.asc'),
                                     parsDict=asc_dict,
                                     templateName='asc_grid.txt')
+
+                # initialize the first water depth map
+                if init_wd:
+                    init_wd = False
+                    out_file = 'waterdepth'
+                    writeParsToTemplate(outfile=os.path.join(outPath, out_file + '.asc'),
+                                        parsDict=asc_dict,
+                                        templateName='asc_grid.txt')
 
             if out_file in list(replaceDict.keys()):
                 out_file = replaceDict[out_file]

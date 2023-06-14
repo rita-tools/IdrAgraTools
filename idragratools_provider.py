@@ -34,6 +34,7 @@ from qgis.core import QgsProcessingProvider
 
 from PyQt5.QtGui import QIcon
 
+from .algs.idragra_resultsmap import IdragraResultsMap
 from .algs.idragra_export_control_points_vector import IdragraExportControlPointsVector
 from .algs.idragra_create_raster_to_field import IdragraCreateRasterToField
 from .algs.idragra_create_field_table import IdragraCreateFieldTable
@@ -108,7 +109,8 @@ class IdrAgraToolsProvider(QgsProcessingProvider):
 						IdragraReportOverview(),
 						IdragraCreateFieldTable(),
 						IdragraCreateRasterToField(),
-						IdragraExportControlPointsVector()
+						IdragraExportControlPointsVector(),
+						IdragraResultsMap()
 						]
 
 	def unload(self):

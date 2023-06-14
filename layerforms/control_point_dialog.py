@@ -262,13 +262,25 @@ def plotTransVars(wsId,name):
 	tr = qgis.utils.plugins['IdragraTools'].tr
 
 	r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
+	# try:
+	# 	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
+	# 																		  None, ['Giulian_day', 'perc1_mm', 'capflux_mm',
+	# 																				 'theta2_mm', 'trasp_act_mm',
+	# 																				 'perc2_mm'])
+	# except:
 	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
-																		  None, ['Giulian_day', 'perc1_mm', 'capflux_mm',
-																				 'theta2_mm', 'trasp_act_mm',
-																				 'perc2_mm'])
+																		  None,
+																		  ['Giulian_day', 'perc1_mm', 'capflux_mm',
+																		   'theta2_mm',  'trasp_act1_mm', 'trasp_act2_mm',
+																		   'perc2_mm'])
+	version = 2.
+
 	if df is None:
 		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
 		return
+
+	# TODO: manage also older version with df['trasp_act_mm']
+	df['trasp_act_mm']= df['trasp_act1_mm']+df['trasp_act2_mm']
 
 	# make a dialog
 	tr = qgis.utils.plugins['IdragraTools'].tr
@@ -314,6 +326,7 @@ def plotTransVars(wsId,name):
 		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_perc2_mm'], 'plot': 'True', 'color': '#6E548D',
 		 'style': '-', 'axes': 'y', 'table': 'perc2_mm', 'id': wsId}
 	]
+
 
 	y1Title = []
 	if df is not None:

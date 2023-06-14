@@ -172,11 +172,11 @@ class SetSimulationDialog(QMainWindow):
 		### set spatial resolution
 		print('simSettings:',simSettings)
 		if simSettings['VECTOR_MODE']:
-			print('vector mode is selected')
+			#print('vector mode is selected')
 			self.VECTOR_MODE.setChecked(True)
 			self.enableGridDomain()
 		else:
-			print('grid mode is selected')
+			#print('grid mode is selected')
 			self.GRID_MODE.setChecked(True)
 			self.enableGridDomain()
 

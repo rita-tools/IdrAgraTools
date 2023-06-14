@@ -29,6 +29,7 @@ __copyright__ = '(C) 2020 by Enrico A. Chiaradia'
 __revision__ = '$Format:%H$'
 
 import gc
+import math
 import os
 import re
 import shutil
@@ -521,14 +522,19 @@ class IdrAgraTools():
         self.mainMenu.addMenu(self.soilMenu)
 
         self.landuseMenu = self._addmenu(self.mainMenu, 'LandUse', self.tr('Land use'), False)
-        self._addmenuitem(self.landuseMenu, 'ImportLandUseMap', self.tr('Import land use map'), self.importLandUseMap, False)
+        self._addmenuitem(self.landuseMenu, 'ImportLandUseMap', self.tr('Import land use map [vector]'), self.importLandUseMap, False)
+        self._addmenuitem(self.landuseMenu, 'SetLandUse', self.tr('Set/edit land use map [raster]'),
+                          self.setRasterLanduse, False)
+
         #self._addmenuitem(self.landuseMenu, 'EditLandUseType', self.tr('Edit land use type'), self.printSome, False)
         self.mainMenu.addMenu(self.landuseMenu)
 
         self.irrigationMenu = self._addmenu(self.mainMenu, 'Irrigation', self.tr('Irrigation'), False)
         self._addmenuitem(self.irrigationMenu, 'ImportWaterDistrictMap', self.tr('Import irrigation units map'), self.importWaterDistrictMap, False)
-        self._addmenuitem(self.irrigationMenu, 'importIrrMethMap', self.tr('Import irrigation methods map'),
+        self._addmenuitem(self.irrigationMenu, 'importIrrMethMap', self.tr('Import irrigation methods map [vector]'),
                           self.importIrrMethMap, False)
+        self._addmenuitem(self.irrigationMenu, 'SetIrrMeth', self.tr('Set/edit irrigation map [raster]'), self.setRasterIrrmeth, False)
+
         self._addmenuitem(self.irrigationMenu, 'ImportNodeMap', self.tr('Import node map'),  self.importNodes, False)
         self._addmenuitem(self.irrigationMenu, 'ImportLinkMap', self.tr('Import link map'), self.importLinks, False)
         #self._addmenuitem(self.irrigationMenu, 'CheckNetwork', self.tr('Check network'), self.printSome, False)
@@ -594,6 +600,8 @@ class IdrAgraTools():
                           lambda: self.runAsThread(self.computeNodeDischarge), False)
         self._addmenuitem(self.analysisMenu, 'GroupedStats', self.tr('Grouped statistics'),
                           self.makeGroupedStats, False)
+        self._addmenuitem(self.analysisMenu, 'ImportResultsMap', self.tr('Import results map'),
+                          self.importResultsMap, False)
         self._addmenuitem(self.analysisMenu, 'ManageTimeSerie', self.tr('Explore timeseries'), self.manageTimeSerie,
                           False)
 
@@ -959,6 +967,13 @@ class IdrAgraTools():
         for n,s in self.SIMDIC['WATERTABLEMAP'].items():
             self.loadRaster(rasterPath = s, rasterName=n, layGroup=self.tr('Ground water'))
 
+        for n,s in self.SIMDIC['IRRMETHMAP'].items():
+            self.loadRaster(rasterPath = s, rasterName=n, layGroup=self.tr('Land use'))
+
+        for n,s in self.SIMDIC['LANDUSEMAP'].items():
+            self.loadRaster(rasterPath = s, rasterName=n, layGroup=self.tr('Land use'))
+
+
     def setupAllLayers(self):
         self.setupNodeLayer()
         self.setupLinkLayer()
@@ -1269,10 +1284,84 @@ class IdrAgraTools():
                 progress=progress)
 
     def importDomainMap(self):
-        pass
+        domLay = self.getVectorLayerByName('idr_domainmap')
+        layList = self.getLayerList(geomTypeList=[QgsWkbTypes.PolygonGeometry])
+        from .forms.import_vector_dialog import ImportVectorDialog
+        dlg = ImportVectorDialog(self.iface.mainWindow(), layList=layList, fields=domLay.fields(),
+                                 skipFields=['fid'], dateFld=[], settings=self.s,
+                                 title=self.tr('Import domain map'))
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            progress = IfaceProgress(self.iface)
+            self.importVector(
+                fromLay=res['lay'], toLay=domLay, fieldDict=res['fieldDict'], assignDate=None,
+                saveEdit=res['saveEdit'],
+                progress=progress)
 
     def createDomainMap(self):
-        pass
+        # open grid settings
+        from .forms.create_grid_dialog import CreateGridDialog
+        dlg = CreateGridDialog(self.iface,title=self.tr('Create regular domain grid'))
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        res = []
+        if result == 1:
+            res = dlg.getData()
+            print('res',res)
+            # res = {'cell_size':cell_size, 'grid_extent':grid_extent,'grid_crs':grid_crs,
+            # 				'save_edits':save_edits,'use_integer':use_integer}
+            progress = IfaceProgress(self.iface)
+
+            cell_size = res['cell_size']
+            grd_ext = res['grid_extent']
+            grd_crs = res['grid_crs']
+
+            use_inside = res['use_inside']
+            save_edits = res['save_edits']
+            # regularize the grid to integer coordinates
+            if res['use_integer']:
+                grd_ext = QgsRectangle(math.floor(grd_ext.xMinimum()),
+                                       math.floor(grd_ext.yMinimum()),
+                                       math.ceil(grd_ext.xMaximum()),
+                                       math.ceil(grd_ext.yMaximum()))
+
+            progress.setProgress(0.)
+            progress.pushInfo(self.tr('Creating grid ...'))
+            # run the algorithm
+            self.algResults = processing.run("native:creategrid", {'TYPE': 2,
+                                                 'EXTENT': grd_ext,
+                                                 'HSPACING': cell_size, 'VSPACING': cell_size,
+                                                 'HOVERLAY': 0, 'VOVERLAY': 0,
+                                                 'CRS': grd_crs,
+                                                 'OUTPUT': 'TEMPORARY_OUTPUT'},
+                                                context=None, feedback=None, is_child_algorithm=False)
+
+            progress.setProgress(50.)
+            # copy the result to the map
+            domLay = self.getVectorLayerByName('idr_domainmap')
+            domLay.startEditing()
+            c = 0
+            #temp_lay = QgsVectorLayer(self.algResults['OUTPUT'], 'temp','ogr')
+            num_feat = self.algResults['OUTPUT'].featureCount()
+            for feat in self.algResults['OUTPUT'].getFeatures():
+                c+=1
+                progress.setProgress(100*c/num_feat)
+                newFeat = QgsFeature(domLay.fields())
+                newFeat.setGeometry(feat.geometry())
+                newFeat['id'] = c
+                newFeat['name'] = 'cell_grid_%s'%c
+                newFeat['area_m2'] = feat.geometry().area()
+                domLay.addFeature(newFeat)
+
+            domLay.updateExtents()
+            self.iface.mapCanvas().refresh()
+
+            if save_edits: domLay.commitChanges()
 
 
     def getVectorLayerByName(self, tablename):
@@ -2449,13 +2538,13 @@ class IdrAgraTools():
 
         sql = 'select %s.timestamp as DoY, %s from %s'%(firstTimeStamp, ', '.join(subDistrList),' '.join(subDistrSqlList))
 
-        #print('sql',sql)
+        print('sql',sql)
 
         tableDF = self.DBM.getTableAsDF(sql)
         if colMapper: tableDF.rename(columns=colMapper, inplace=True)
         return tableDF
 
-    def calculateDistrictArea(self,progress,nodata=9999):
+    def calculateDistrictArea(self,progress,nodata=-9999):
         resDict = {}
 
         areaFile = os.path.join(self.SIMDIC['OUTPUTPATH'],self.SIMDIC['SPATIALFOLDER'], 'shapearea.asc')
@@ -2463,6 +2552,7 @@ class IdrAgraTools():
 
         irrUnitData = np.loadtxt(irrUnitsFile, dtype=np.int, skiprows=6)
         irrUnitList = list(np.unique(irrUnitData))
+        irrUnitList.remove(nodata)# remove nodata
 
         try:
             areaData = np.loadtxt(areaFile, dtype=np.float, skiprows=6)
@@ -3252,12 +3342,71 @@ class IdrAgraTools():
         groupIndex = len(mygroup.children())
         return groupIndex, mygroup
 
+    def importResultsMap(self):
+        if not self.SIMDIC['VECTOR_MODE']:
+           showCriticalMessageBox(self.tr('Not available function'),
+                                   self.tr('This function is available for VECTOR mode simulation only'),
+                                   self.tr('Consider to use "Make grouped statistics" instead'))
+           return
+
+        # open the selector with the variable to be imported
+        from .forms.resultsmap_dialog import ResultsMapDialog
+
+        dlg = ResultsMapDialog(self.iface.mainWindow(), self.STEPNAME)
+        dlg.show()
+        result = dlg.exec_()
+        # See if OK was pressed
+        if result == 1:
+            res = dlg.getData()
+            # TODO: fix dlg update problem
+
+            # self.progressDlg = WorkerDialog(parent=self.iface.mainWindow())
+            # self.progressDlg.show()
+            # feedback = Worker(None)
+            # feedback.reportMessage.connect(self.progressDlg.setText)
+            self.data = None
+
+            def processOutput(progress):
+                idragraFile = os.path.join(self.SIMDIC['OUTPUTPATH'], 'idragra_parameters.txt')
+                #domain_lay = self.getVectorLayerByName('idr_domainmap') # use db domain
+                domain_lay = os.path.join(self.SIMDIC['OUTPUTPATH'], 'geodata','domain.gpkg') # use domain in simulation
+                # TODO: check if input files exist
+                self.data = processing.run("idragratools:IdragraResultMaps",
+                                           {'IDRAGRA_FILE': idragraFile,
+                                            'DOMAIN_LAY': domain_lay,
+                                            'RES_VAR': res['selVarIdx'],
+                                            'OUTPUT_LAY': 'TEMPORARY_OUTPUT'},
+                                           context=None,
+                                           feedback=progress,
+                                           is_child_algorithm=False
+                                           )
+
+            def loadResults():
+                # load data in table view ...
+                if self.data:
+                    self.progressDlg.close()
+                    # add to
+                    groupIndex, mygroup = self.getGroupIndex(self.tr('Analysis'), True)
+                    # mygroup.insertChildNode(groupIndex, QgsLayerTreeLayer(data['OUTPUT_TABLE']))
+                    baseName = '%s' % (list(self.STEPNAME.values())[res['selVarIdx']])
+                    self.data['OUTPUT_LAY'].setName(baseName)
+                    QgsProject.instance().addMapLayer(self.data['OUTPUT_LAY'], False)  # False is the key
+                    mygroup.insertChildNode(groupIndex, QgsLayerTreeLayer(self.data['OUTPUT_LAY']))
+
+            # print('data:',data)
+            self.runAsThread(function=processOutput, onFinished=loadResults, progress=None)
+
+
+
     def makeGroupedStats(self):
+        if self.SIMDIC['VECTOR_MODE']:
+           showCriticalMessageBox(self.tr('Not available function'),
+                                   self.tr('This function is available for RASTER mode simulation only'),
+                                   self.tr('Consider to use "Import result maps" instead'))
+           return
+
         # TODO: fix UI
         from .forms.groupstats_dialog import GroupstatsDialog
-        from .forms.worker_dialog import WorkerDialog
-        from .tools.worker import Worker
-
 
         dlg = GroupstatsDialog(self.iface.mainWindow(), self.STEPNAME, self.AGGRFUNCTIONS)
         dlg.show()
@@ -3394,6 +3543,35 @@ class IdrAgraTools():
 
         def updatePar():
             self.SIMDIC['WATERTABLEMAP'] = dlg.getData()
+            self.updatePars()
+
+        dlg.closed.connect(updatePar)
+        dlg.show()
+
+    def setRasterLanduse(self):
+        dlg = ManageRastersDialog(iface= self.iface, assignTime = True,
+                                  rasterDict = self.SIMDIC['LANDUSEMAP'],
+                                  tableName='landuse',DBM = self.DBM)
+        dlg.rasterAdded.connect(lambda source, name: self.loadRaster(source, name, self.tr('Land use')))
+        dlg.rasterDeleted.connect(lambda source, name: self.unloadRaster(source, name))
+
+        def updatePar():
+            self.SIMDIC['LANDUSEMAP'] = dlg.getData()
+            self.updatePars()
+
+        dlg.closed.connect(updatePar)
+        dlg.show()
+
+
+    def setRasterIrrmeth(self):
+        dlg = ManageRastersDialog(iface= self.iface, assignTime = True,
+                                  rasterDict = self.SIMDIC['IRRMETHMAP'],
+                                  tableName='irrmeth',DBM = self.DBM)
+        dlg.rasterAdded.connect(lambda source, name: self.loadRaster(source, name, self.tr('Land use')))
+        dlg.rasterDeleted.connect(lambda source, name: self.unloadRaster(source, name))
+
+        def updatePar():
+            self.SIMDIC['IRRMETHMAP'] = dlg.getData()
             self.updatePars()
 
         dlg.closed.connect(updatePar)

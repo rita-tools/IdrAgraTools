@@ -289,7 +289,7 @@ class IdragraCreateCapriseTable(QgsProcessingAlgorithm):
 			'CapRisePar_a4': [7.55, 4.6, 1.11],
 			'CapRisePar_b4': [-2.03, -0.65, -0.98]
 		}
-
+		# TODO: check a4, b1, !!!
 		(sink, dest_id) = self.parameterAsSink(
 			parameters,
 			self.OUT_TABLE,

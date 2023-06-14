@@ -98,6 +98,8 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 
 	ELEV_LAY = 'ELEV_LAY'
 	WT_ELEV_LAY = 'WT_ELEV_LAY'
+	LANDUSE_LAY = 'LANDUSE_LAY'
+	IRRMETH_LAY = 'IRRMETH_LAY'
 
 	SLP_MIN = 'SLP_MIN' # minimum values for slope
 	SLP_MAX = 'SLP_MAX' # maximum values for slope
@@ -107,6 +109,8 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 	OUT_LAY = 'OUT_LAY'
 
 	FEEDBACK = None
+
+	alg_result = {'OUTPUT':None}
 	
 
 	def tr(self, string):
@@ -165,6 +169,8 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 						Fields: the field map [FIELD_LAY]
 						Elevation: elevation raster map [ELEV_LAY]
 						Water table elevation: one or more water table elevation raster map [WT_ELEV_LAY]
+						Land uses: one or more landuse raster map [LANDUSE_LAY]
+						Irrigation methods: one or more irrigation method raster map [IRRMETH_LAY]
 						Minimum slope value: the lowest acceptable value for slopes [SLP_MIN]
 						Maximum slope value: the highest acceptable value for slopes [SLP_MAX]
 						Minimum water table depth value: the lowest acceptable value for water table [WTD_MIN]
@@ -194,6 +200,12 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 		self.addParameter(QgsProcessingParameterMultipleLayers(self.WT_ELEV_LAY, self.tr('Water table elevation'), \
 															   QgsProcessing.TypeRaster, '', True))
 
+		self.addParameter(QgsProcessingParameterMultipleLayers(self.LANDUSE_LAY, self.tr('Raster land use'), \
+															   QgsProcessing.TypeRaster, '', True))
+
+		self.addParameter(QgsProcessingParameterMultipleLayers(self.IRRMETH_LAY, self.tr('Raster irrigation method'), \
+															   QgsProcessing.TypeRaster, '', True))
+
 		self.addParameter(QgsProcessingParameterNumber(self.SLP_MIN, self.tr('Minimum slope value'),
 													   QgsProcessingParameterNumber.Double, 0.0,True))
 
@@ -211,6 +223,10 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 		Here is where the processing itself takes place.
 		"""
 		self.FEEDBACK = feedback
+		wt_col_list = []
+		landuse_col_list = []
+		irrmeth_col_list = []
+
 		# get params
 		field_lay = self.parameterAsVectorLayer(parameters, self.FIELD_LAY, context)
 
@@ -221,6 +237,12 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 			elev_lay = None
 			wt_lay_list = []
 
+		landuse_lay_list =  self.parameterAsRasterLayer(parameters, self.LANDUSE_LAY, context)
+		if not landuse_lay_list: landuse_lay_list=[]
+
+		irrmeth_lay_list = self.parameterAsRasterLayer(parameters, self.IRRMETH_LAY, context)
+		if not irrmeth_lay_list: irrmeth_lay_list = []
+
 		slp_min = self.parameterAsDouble(parameters, self.SLP_MIN, context)
 		slp_max = self.parameterAsDouble(parameters, self.SLP_MAX, context)
 		wtd_min = self.parameterAsDouble(parameters, self.WTD_MIN, context)
@@ -230,6 +252,11 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 		elev_col = 'elev_mean'
 		# store slope col name
 		slp_col = 'slp_mean'
+		# store base water table depth
+		wt_col = 'watertable_mean'
+
+		# init algresult
+		self.alg_result['OUTPUT'] = field_lay
 
 		if elev_lay:
 			# make zonal statistics
@@ -250,6 +277,7 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 												context = context, feedback = self.FEEDBACK, is_child_algorithm = True
 												)
 
+
 			self.alg_result = processing.run("native:zonalstatisticsfb",
 										   {'INPUT': self.alg_result['OUTPUT'],
 											'INPUT_RASTER': self.algresult1['OUTPUT'], 'RASTER_BAND': 1,
@@ -258,8 +286,6 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 												context = context, feedback = self.FEEDBACK, is_child_algorithm = True
 												)
 
-			# store slope col name
-			wt_col_list = []
 
 			# get water table elevation
 			for wt_lay in wt_lay_list:
@@ -273,10 +299,40 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 
 				wt_col_list.append(wt_lay.name()+'_mean')
 
+
+		# get landuse
+		for landuse_lay in landuse_lay_list:
+			self.alg_result = processing.run("native:zonalstatisticsfb",
+											 {'INPUT': self.alg_result['OUTPUT'],
+											  'INPUT_RASTER': landuse_lay, 'RASTER_BAND': 1,
+											  'COLUMN_PREFIX': landuse_lay.name()+'_', 'STATISTICS': [2],
+											  'OUTPUT': 'TEMPORARY_OUTPUT'},
+											context = context, feedback = self.FEEDBACK, is_child_algorithm = False
+											)
+
+			landuse_col_list.append(landuse_lay.name()+'_mean')
+
+		# get irrmeth
+		for irrmeth_lay in irrmeth_lay_list:
+			self.alg_result = processing.run("native:zonalstatisticsfb",
+											 {'INPUT': self.alg_result['OUTPUT'],
+											  'INPUT_RASTER': irrmeth_lay, 'RASTER_BAND': 1,
+											  'COLUMN_PREFIX': irrmeth_lay.name() + '_', 'STATISTICS': [2],
+											  'OUTPUT': 'TEMPORARY_OUTPUT'},
+											 context=context, feedback=self.FEEDBACK, is_child_algorithm=False
+											 )
+
+			irrmeth_col_list.append(irrmeth_lay.name() + '_mean')
+
 		# copy feature to sink and parse results
 		fldList = self.alg_result['OUTPUT'].fields()
-		#if not (slp_col in fldList.names()):
-		#	fldList.append(QgsField(slp_col,QVariant.Double))
+
+		if not (slp_col in fldList.names()):
+			fldList.append(QgsField(slp_col,QVariant.Double))
+
+		if not elev_lay:
+			fldList.append(QgsField(wt_col,QVariant.Double))
+
 
 		(sink, dest_id) = self.parameterAsSink(
 			parameters,
@@ -298,23 +354,38 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 			if elev_lay:
 				elev = new_feat[elev_col]
 
-				# transform slope from degree to tangent
-				slp_deg = new_feat[slp_col]
-				slp_tan = 100*tan(slp_deg/180)
-				slp_tan = max(slp_tan,slp_min)
-				slp_tan = min(slp_tan, slp_max)
+				if elev:
+					# transform slope from degree to tangent
+					slp_deg = new_feat[slp_col]
+					slp_tan = 100*tan(slp_deg/180)
+					slp_tan = max(slp_tan,slp_min)
+					slp_tan = min(slp_tan, slp_max)
+				else:
+					slp_tan = slp_min
+					self.FEEDBACK.reportError(
+						self.tr('Unable to calculate slope for element %s [%s]' %
+								(new_feat['name'], new_feat['id'])), False)
 				# save results
 				new_feat[slp_col] = slp_tan
 
 				# transform watertable elev to water table depth
 				for wt_col in wt_col_list:
 					wt_elev = new_feat[wt_col]
-					wt_depth = elev-wt_elev
+
+					if wt_elev:
+						wt_depth = elev-wt_elev
+					else:
+						wt_depth = wtd_min
+						self.FEEDBACK.reportError(
+							self.tr('Unable to calculate water depth for element %s [%s]'%
+									(new_feat['name'],new_feat['id'])),False)
+
 					wt_depth = max(wt_depth, wtd_min)
 					# save results
 					new_feat[wt_col] = wt_depth
 			else:
 				new_feat[slp_col] = slp_min
+				new_feat[wt_col] = wtd_min
 
 			sink.addFeature(new_feat, QgsFeatureSink.FastInsert)
 

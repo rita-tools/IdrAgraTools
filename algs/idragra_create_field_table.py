@@ -60,7 +60,7 @@ from qgis.core import (QgsProcessing,
 					   QgsVectorLayer,
 					   QgsRasterLayer,
 					   QgsProject,
-					   NULL, QgsFeature, QgsProcessingOutputRasterLayer)
+					   NULL, QgsFeature, QgsProcessingOutputRasterLayer, QgsGeometry)
 
 import numpy as np
 
@@ -336,11 +336,10 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 			except:
 				shape_area = float(geom.area())
 
-			c_geom = geom.centroid()
+			#c_geom = geom.centroid()
+			c_geom = geom.pointOnSurface()
 			x_c = c_geom.asPoint().x()
 			y_c = c_geom.asPoint().y()
-
-
 
 			# get id from other maps (maximum covered area)
 			lu_id, lu_gidx = self.selectByLocation(inputLayer=lu_lay, refGeom=c_geom, inputFld=lu_col)
