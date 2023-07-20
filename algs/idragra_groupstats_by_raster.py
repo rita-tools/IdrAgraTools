@@ -276,7 +276,7 @@ class IdragraGroupStatsByRaster(QgsProcessingAlgorithm):
 
 		baseFileName = os.path.join(rootSimPath,inputPath,layToUse+'.asc')
 		# create a grid file
-		baseData = np.loadtxt(baseFileName,dtype=np.int,skiprows=6)
+		baseData = np.loadtxt(baseFileName,dtype=np.int32,skiprows=6)
 		baseList = list(np.unique(baseData))
 		baseList.remove(nodata)
 
@@ -322,7 +322,7 @@ class IdragraGroupStatsByRaster(QgsProcessingAlgorithm):
 
 			self.FEEDBACK.pushInfo(self.tr('Processing %s --> %s'%(f,parsedDate)))
 			if parsedDate:
-				varData = np.loadtxt(f, dtype=np.float, skiprows=6)
+				varData = np.loadtxt(f, dtype=float, skiprows=6)
 
 				for i in baseList:
 					mask = np.where(np.logical_and(baseData[:,:] == i,varData[:,:] != nodata))

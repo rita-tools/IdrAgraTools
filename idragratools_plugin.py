@@ -2465,13 +2465,13 @@ class IdrAgraTools():
         irrSum= res['Qirr'] + res['Qcrs'] + res['Qprivate']+res['Qcoll']
         res['recval'] = irrSum
         # delete Qirr, Qcrs Qprivate
-        res = res.drop('Qirr', 1)
-        res = res.drop('Qcrs', 1)
-        res = res.drop('Qprivate', 1)
-        res = res.drop('Qcoll', 1)
-        res = res.drop('QprivMaxAll', 1)
-        res = res.drop('QirrMaxAll', 1)
-        res = res.drop('QcrsMaxAll', 1)
+        res = res.drop('Qirr', axis=1)
+        res = res.drop('Qcrs', axis=1)
+        res = res.drop('Qprivate', axis=1)
+        res = res.drop('Qcoll', axis=1)
+        res = res.drop('QprivMaxAll', axis=1)
+        res = res.drop('QirrMaxAll', axis=1)
+        res = res.drop('QcrsMaxAll', axis=1)
 
         res.rename(columns={'DoY':'timestamp'},inplace=True)
 
@@ -2550,12 +2550,12 @@ class IdrAgraTools():
         areaFile = os.path.join(self.SIMDIC['OUTPUTPATH'],self.SIMDIC['SPATIALFOLDER'], 'shapearea.asc')
         irrUnitsFile = os.path.join(self.SIMDIC['OUTPUTPATH'], self.SIMDIC['SPATIALFOLDER'], 'irr_units.asc')
 
-        irrUnitData = np.loadtxt(irrUnitsFile, dtype=np.int, skiprows=6)
+        irrUnitData = np.loadtxt(irrUnitsFile, dtype=np.int32, skiprows=6)
         irrUnitList = list(np.unique(irrUnitData))
         irrUnitList.remove(nodata)# remove nodata
 
         try:
-            areaData = np.loadtxt(areaFile, dtype=np.float, skiprows=6)
+            areaData = np.loadtxt(areaFile, dtype=float, skiprows=6)
 
             for i in irrUnitList:
                 # print('varData shape',np.shape(varData))

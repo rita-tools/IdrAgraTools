@@ -270,13 +270,13 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 
 		baseFileName = os.path.join(rootSimPath,inputPath,'irr_units.asc')
 		# create a grid file
-		baseData = np.loadtxt(baseFileName,dtype=np.int,skiprows=6)
+		baseData = np.loadtxt(baseFileName,dtype=int,skiprows=6)
 		baseList = list(np.unique(baseData))
 		if nodata in baseList: baseList.remove(nodata)
 
 		areaFileName = os.path.join(rootSimPath, inputPath, 'shapearea.asc')
 		try:
-			areaData = np.loadtxt(areaFileName, dtype=np.float, skiprows=6)
+			areaData = np.loadtxt(areaFileName, dtype=float, skiprows=6)
 		except:
 			self.FEEDBACK.reportError(self.tr('Cannot parse area file %s. Regular grid is used for calculation') %
 									  (areaFileName), False)
@@ -325,7 +325,7 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 
 			self.FEEDBACK.pushInfo(self.tr('Processing %s --> %s'%(f,parsedDate)))
 			if parsedDate:
-				varData = np.loadtxt(f, dtype=np.float, skiprows=6)
+				varData = np.loadtxt(f, dtype=float, skiprows=6)
 
 				for i in baseList:
 					#print('varData shape',np.shape(varData))

@@ -159,7 +159,7 @@ class ReportBuilder():
 
         return text
 
-    def loadASC(self, filename, val_type=np.int):
+    def loadASC(self, filename, val_type=int):
         """
         Open and ascii raster file as dictionary
         The header structure should be:

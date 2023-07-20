@@ -40,6 +40,7 @@ def checkIrrMethodPars(irrmeth,feedback,tr):
 	checkValue('k_stresswells', irrmeth['k_stresswells'], 0, '>=', tr, feedback)
 	checkValue('irr_eff', irrmeth['irr_eff'], [0.,1.], '>=<=', tr, feedback)
 	if 'fw' in list(irrmeth.keys()):
+		# TODO: empty value are showed as 0 in QGIS print('fw =',irrmeth['fw'])
 		checkValue('fw', irrmeth['fw'], [0.,1.], '>=<=', tr, feedback)
 
 	# TODO: check comparison

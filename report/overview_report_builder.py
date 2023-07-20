@@ -31,8 +31,9 @@ class OverviewReportBuilder(ReportBuilder):
         self.irrmeth_template = os.path.join(self.rb_dir, 'default', 'irrmeth_report.html')
         self.soil_template = os.path.join(self.rb_dir, 'default', 'soil_report.html')
 
-        self.listOfVar = ['T_max', 'T_min', 'P_tot_cum', 'U_max', 'U_min', 'V_med', 'RG_CORR']
+        self.listOfVar = ['T_max', 'T_min','P_tot', 'P_tot_cum', 'U_max', 'U_min', 'V_med', 'RG_CORR']
         self.dictOfLabels = {'T_min': self.tr('Min temp. (°C)'), 'T_max': self.tr('Max temp.(°C)'),
+                             'P_tot': self.tr('Precipitation (mm)'),
                              'P_tot_cum': self.tr('Cum. Precipitation (mm)'),
                              'U_min': self.tr('Min air humidity (-)'), 'U_max': self.tr('Max air humidity (-)'),
                              'V_med': self.tr('Wind velocity (m/s)'), 'RG_CORR': self.tr('Solar radiation (MJ/m^2/d)')}
@@ -185,7 +186,7 @@ class OverviewReportBuilder(ReportBuilder):
             temp = pd.concat(listOfSeries, axis=1)
             # print('temp',temp)
 
-            temp.set_axis(listOfFields, axis=1, inplace=True)
+            temp = temp.set_axis(listOfFields, axis=1)
             # res['year']=res.index
             temp.index.name = None
             daily_res[var] = temp
@@ -205,7 +206,7 @@ class OverviewReportBuilder(ReportBuilder):
         labels = []
 
         if domainFile.endswith('.asc'):
-            rl = self.loadASC(domainFile, val_type=np.int)
+            rl = self.loadASC(domainFile, val_type=int)
             data = rl['data']
 
             values = np.unique(data.ravel()).tolist()
@@ -311,13 +312,13 @@ class OverviewReportBuilder(ReportBuilder):
                     # print(j,'plotting',col)
                     y = df[col]
                     # if mainTitle == 'P_tot': y = df[col].cumsum()
-                    lines, = ax.plot(df['doy'], y, color=colList(j / colNum), label=str(y))
+                    lines, = ax.plot(df['doy'].values, y.values, color=colList(j / colNum), label=str(y))
                     # lines.set_label(str(y))
                     handles.append(lines)
                     j += 1
 
                 if j > 1:  # more than one year
-                    lines, = ax.plot(df['doy'], df['average'], color='red', label=self.tr('Average'))
+                    lines, = ax.plot(df['doy'].values, df['average'].values, color='red', label=self.tr('Average'))
                     # lines.set_label(self.tr('Average'))
                     handles.append(lines)
                     colNames.append(self.tr('Average'))
@@ -355,11 +356,11 @@ class OverviewReportBuilder(ReportBuilder):
         patches = []
 
         if domainFile.endswith('.asc'):
-            map_rl = self.loadASC(mapFile, val_type=np.int)
+            map_rl = self.loadASC(mapFile, val_type=int)
             if not map_rl: return # exit if file not loaded
             map_data = map_rl['data']
 
-            domain_rl = self.loadASC(domainFile, val_type=np.int)
+            domain_rl = self.loadASC(domainFile, val_type=int)
             if not domain_rl: return  # exit if file not loaded
             domain_data = domain_rl['data']
 
@@ -414,7 +415,7 @@ class OverviewReportBuilder(ReportBuilder):
 
 
 
-    def makeStatsTable(self, dataToPrint, printAsInt=['P_tot_cum']):
+    def makeStatsTable(self, dataToPrint, printAsInt=['P_tot']):
         # print('dataToPrint',dataToPrint)
         allInt = ['{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}']
         allFloat = ['{:.0f}', '{:.2f}', '{:.2f}', '{:.2f}', '{:.2f}', '{:.2f}', '{:.2f}']
@@ -436,8 +437,8 @@ class OverviewReportBuilder(ReportBuilder):
 
     def rasterStat(self, baseMapFN, maskMapFN):
         if maskMapFN.endswith('.asc'):
-            baseRaster = self.loadASC(baseMapFN, np.int)
-            maskRaster = self.loadASC(maskMapFN, np.int)
+            baseRaster = self.loadASC(baseMapFN, int)
+            maskRaster = self.loadASC(maskMapFN, int)
 
             baseData = baseRaster['data']
             maskData = maskRaster['data']
@@ -486,7 +487,7 @@ class OverviewReportBuilder(ReportBuilder):
         #     for s in statLabel: res['2nd %s (%s)'%(i,s)]= []
 
         for i,parFN in enumerate(parFNList):
-            parRl = self.loadASC(os.path.join(geodataFolder, parFN),np.float)
+            parRl = self.loadASC(os.path.join(geodataFolder, parFN),float)
             parData = np.where(parRl['data'] == parRl['nodata_value'], np.nan, parRl['data'])
 
             for sid in catIds:
@@ -540,6 +541,7 @@ class OverviewReportBuilder(ReportBuilder):
 
             res['ws_x'] = '{:.2f}'.format(coord['ws_x'])
             res['ws_y'] = '{:.2f}'.format(coord['ws_y'])
+            del res['ws_stats']['P_tot_cum']
             res['ws_stats'] = self.makeStatsTable(res['ws_stats'])
 
             temp_png = os.path.join(outImageFolder, 'daily_plot_%s.png' % res['ws_id'])
@@ -611,6 +613,7 @@ class OverviewReportBuilder(ReportBuilder):
         # search for land use maps
         luFileList = glob.glob(os.path.join(geodataPath, 'soiluse*.asc'))
         # print('fileList',fileList)
+
         nOfFiles = len(luFileList)
         for luFile in luFileList:
             # parse year from soiluse_2005.asc
@@ -621,8 +624,8 @@ class OverviewReportBuilder(ReportBuilder):
             try:
                 nums = re.findall(r'\d+', fname)
                 y = int(nums[0])
-            except:
-                self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name:'), fname)
+            except Exception as e:
+                self.FEEDBACK.reportError(self.tr('Skip landuse file name: %s [%s]')%(fname,str(e)),False)
 
             res = self.rasterStat(luFile, domainFile)
             # make pie plot
@@ -685,7 +688,7 @@ class OverviewReportBuilder(ReportBuilder):
                 nums = re.findall(r'\d+', fname)
                 y = int(nums[0])
             except:
-                self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name:'), fname)
+                self.FEEDBACK.reportError(self.tr('Skip irrigation method map file name: %s')%fname,False)
 
             res = self.rasterStat(imFile, domainFile)
             # make pie plot

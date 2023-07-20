@@ -360,7 +360,7 @@ def createArray(wsId,tableName = 'ws_ptot'):
 		newListOfValues[idx]= values[i]
 
 	# make a 2d array
-	data2D = np.array(newListOfValues,np.float)
+	data2D = np.array(newListOfValues,np.float32)
 	data2D = np.reshape(data2D,(nOfYear,366))
 
 	return data2D,startYear,endYear

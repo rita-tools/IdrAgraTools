@@ -92,7 +92,7 @@ class GisGrid(QObject):
 		self.rows = np.arange(self.nrows)
 		self.rows = np.array([self.rows,]*self.ncols).transpose()
 		# create an empty numpy 2d-array to store value
-		self.data = np.zeros((self.nrows,self.ncols), dtype=np.float)+self.nodata
+		self.data = np.zeros((self.nrows,self.ncols), dtype=float)+self.nodata
 		self.extent = QgsRectangle(xcell, ycell, xcell+dx*ncols, ycell+dy*nrows)
 		self.CRS = QgsCoordinateReferenceSystem()
 		self.EPSGid = EPSGid

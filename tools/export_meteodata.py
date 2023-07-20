@@ -99,7 +99,7 @@ def exportMeteodataFromDB(DBM, outpath,startY,endY,feedback,tr=None):
 			CO2.append(valueList)
 
 	# calculate average sumCO2
-	CO2 = np.array(CO2,dtype=np.float)
+	CO2 = np.array(CO2,dtype=float)
 	meanCO2 = np.nanmean(CO2, axis=0)
 	CO2List = meanCO2.tolist()
 	for i,v in enumerate(CO2List):

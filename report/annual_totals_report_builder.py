@@ -51,13 +51,14 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         for i,parFN in enumerate(parFNList):
             # match only if start with four characters
+            #print('processing:',parFN)
             outFileList = glob.glob(os.path.join(outFolder, parFN + '.asc'))
             outFileList.sort()
             # reset year list
             res['year']=[]
             res['month']=[]
             res['step']=[]
-
+            #print('outFileList:', outFileList)
             for outFile in outFileList:
                 month = 0  # months range from 1 to 12
                 step = 0  # always greater than 0
@@ -72,16 +73,16 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                         step = int(nums[1])
 
                 except:
-                    self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name:'), outFile)
+                    self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name: %s')%outFile,False)
 
-                #print(outFile,y,month,step)
+                print(outFile,y,month,step)
 
                 res['year'].append(y)
                 res['month'].append(month)
                 res['step'].append(step)
 
                 # compute stats
-                parRl = self.loadASC(outFile, np.float)
+                parRl = self.loadASC(outFile, float)
                 parData = np.where(parRl['data'] == parRl['nodata_value'], np.nan, parRl['data'])
                 filteredParData = np.where(mask_data[:] != 1., np.nan, parData)
                 nan_flag = np.isnan(filteredParData).all()
@@ -140,7 +141,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
     def makeFluxPlot(self,outFile, dataToPlot, labels, alias,signs, orientations,pathlengths):
         dataToPlot = dataToPlot.fillna(0.)
-        #print(dataToPlot.to_string())
+        print(dataToPlot.to_string())
         nPlot = len(dataToPlot.index)
         nRows = math.ceil(nPlot/2)
         nCols = 2

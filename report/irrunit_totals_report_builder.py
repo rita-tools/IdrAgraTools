@@ -63,7 +63,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
     def irrUnitsSummary(self, baseFN, mask_rl, values, outFile= None):
         if isinstance(mask_rl, str):
-            mask_rl = self.loadASC(mask_rl,np.int)
+            mask_rl = self.loadASC(mask_rl,int)
             mask_data = np.where(mask_rl['data']==mask_rl['nodata_value'],np.nan,mask_rl['data'])
             mask_data = mask_data * 0 + 1
         else:
@@ -99,7 +99,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                 except:
                     self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name:'), fname)
 
-                base_rl = self.loadASC(baseFile, np.float)
+                base_rl = self.loadASC(baseFile, float)
                 base_data = np.where(base_rl['data']==base_rl['nodata_value'],np.nan,base_rl['data'])
                 filtered_data = base_data*mask_data
 
@@ -155,7 +155,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
         self.FEEDBACK.pushInfo(self.tr('List irrigation units'))
 
         irrunitsFile = os.path.join(geodataPath, 'irr_units.asc')
-        iuRl = self.loadASC(irrunitsFile,np.int)
+        iuRl = self.loadASC(irrunitsFile,int)
         iu_data = iuRl['data']
         iuList = np.unique(iu_data.ravel()).tolist()
         if iuRl['nodata_value'] in iuList: iuList.remove(iuRl['nodata_value'])
