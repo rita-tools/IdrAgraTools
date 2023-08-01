@@ -105,11 +105,12 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 		# create crop params folder
 
 		table = ['GDD	Kcb LAI	Hc	Sr']
+		# FIX: set to running values
 		cropDict = {'NAME': 'empty crop parameters file',
-					'SOWINGDATE_MIN': 0,
+					'SOWINGDATE_MIN': 1,
 					'SOWINGDATE_MAX': 0,
-					'HARVESTDATE_MAX': 0,
-					'HARVNUM_MAX': 0,
+					'HARVESTDATE_MAX': 366,
+					'HARVNUM_MAX': 1,
 					'CROPSOVERLAP': 0,
 					'TSOWING': 0,
 					'TDAYBASE': 0,

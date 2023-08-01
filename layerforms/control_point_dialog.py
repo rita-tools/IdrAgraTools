@@ -116,14 +116,14 @@ def plotEvaWC(wsId,name):
 	if df is not None:
 		df['theta1_mm'] = df['theta1_mm']/(simdic['ZEVALAY'] * 1000)
 		#dlg = ChartDialog(myDialog, tr('Water content from %s' % name))
-		cw.addTimeSerie(df['Giulian_day'], df['theta1_mm'],
+		cw.addTimeSerie(df['Giulian_day'].values, df['theta1_mm'].values,
 						 lineType='-', color='#4A7EBB', name=tr('Soil water content (-)'),
 						 yaxis=1,
 						 shadow=False)
 	if pars is not None:
-		cw.addTimeSerie(pars['timestamp'], pars['ThetaI_wp'], lineType='-', color='#BE4B48',
+		cw.addTimeSerie(pars['timestamp'].values, pars['ThetaI_wp'].values, lineType='-', color='#BE4B48',
 						 name=tr('Wilting point (-)'), yaxis=1, shadow=False)
-		cw.addTimeSerie(pars['timestamp'], pars['ThetaI_fc'],lineType='-',color='#98B954',
+		cw.addTimeSerie(pars['timestamp'].values, pars['ThetaI_fc'].values,lineType='-',color='#98B954',
 						name = tr('Field capacity (-)'), yaxis = 1,shadow= False)
 
 	dlg = QMainWindow(myDialog)
@@ -151,22 +151,22 @@ def plotTransWC(wsId,name):
 	if df is not None:
 		df['theta2'] = df['theta2_mm'] / (df['thickness_II_m'] * 1000)
 		# dlg = ChartDialog(myDialog, tr('Water content from %s' % name))
-		cw.addTimeSerie(df['Giulian_day'], df['theta2'],
+		cw.addTimeSerie(df['Giulian_day'].values, df['theta2'].values,
 						lineType='-', color='#4A7EBB', name=tr('Soil water content (-)'),
 						yaxis=1,
 						shadow=False)
 
 	if pars is not None:
-		cw.addTimeSerie(pars['timestamp'], pars['ThetaII_wp'], lineType='-', color='#BE4B48',
+		cw.addTimeSerie(pars['timestamp'].values, pars['ThetaII_wp'].values, lineType='-', color='#BE4B48',
 						name=tr('Wilting point (-)'), yaxis=1, shadow=False)
-		cw.addTimeSerie(pars['timestamp'], pars['ThetaII_fc'], lineType='-', color='#98B954',
+		cw.addTimeSerie(pars['timestamp'].values, pars['ThetaII_fc'].values, lineType='-', color='#98B954',
 						name=tr('Field capacity (-)'), yaxis=1, shadow=False)
 
 	if ((df is not None) and (pars is not None)):
 		#df['RAWlim']
 		df['RAWlim'] = (pars['ThetaII_fc'] - df['pday'] * (pars['ThetaII_fc'] - pars['ThetaII_wp']))
 
-		cw.addTimeSerie(df['Giulian_day'], df['RAWlim'],
+		cw.addTimeSerie(df['Giulian_day'].values, df['RAWlim'].values,
 						lineType='-', color='#7d60a0', name=tr('RAW limit (-)'),
 						yaxis=1,
 						shadow=False)
@@ -207,8 +207,8 @@ def plotEvaVars(wsId,name):
 				shadow = p['color']+'29'
 				p['color'] = p['color']+'00'
 			# get data
-			dateTimeList = df['Giulian_day']
-			values = df[p['table']]
+			dateTimeList = df['Giulian_day'].values
+			values = df[p['table']].values
 			cw.addTimeSerie(dateTimeList,values,lineType='-',color=p['color'],name = p['name'],yaxis = p['axes'],shadow= shadow)
 			if p['axes']=='y': y1Title.append(p['name'])
 
@@ -242,8 +242,8 @@ def plotEvaVars(wsId,name):
 				shadow = p['color'] + '29'
 				p['color'] = p['color'] + '00'
 			# get data
-			dateTimeList = df['Giulian_day']
-			values = df[p['table']]
+			dateTimeList = df['Giulian_day'].values
+			values = df[p['table']].values
 			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
 							shadow=shadow)
 			if p['axes'] == 'y': y1Title.append(p['name'])
@@ -303,8 +303,8 @@ def plotTransVars(wsId,name):
 				shadow = p['color'] + '29'
 				p['color'] = p['color'] + '00'
 			# get data
-			dateTimeList = df['Giulian_day']
-			values = df[p['table']]
+			dateTimeList = df['Giulian_day'].values
+			values = df[p['table']].values
 			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
 							shadow=shadow)
 			if p['axes'] == 'y': y1Title.append(p['name'])
@@ -336,8 +336,8 @@ def plotTransVars(wsId,name):
 				shadow = p['color'] + '29'
 				p['color'] = p['color'] + '00'
 			# get data
-			dateTimeList = df['Giulian_day']
-			values = df[p['table']]
+			dateTimeList = df['Giulian_day'].values
+			values = df[p['table']].values
 			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
 							shadow=shadow)
 			if p['axes'] == 'y': y1Title.append(p['name'])
@@ -382,8 +382,8 @@ def plotCropVars(wsId,name):
 				shadow = p['color'] + '29'
 				p['color'] = p['color'] + '00'
 			# get data
-			dateTimeList = df['Giulian_day']
-			values = df[p['table']]
+			dateTimeList = df['Giulian_day'].values
+			values = df[p['table']].values
 			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
 							shadow=shadow)
 			if p['axes'] == 'y': y1Title.append(p['name'])
@@ -407,8 +407,8 @@ def plotCropVars(wsId,name):
 				shadow = p['color'] + '29'
 				p['color'] = p['color'] + '00'
 			# get data
-			dateTimeList = df['Giulian_day']
-			values = df[p['table']]
+			dateTimeList = df['Giulian_day'].values
+			values = df[p['table']].values
 			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
 							shadow=shadow)
 			if p['axes'] == 'y': y1Title.append(p['name'])

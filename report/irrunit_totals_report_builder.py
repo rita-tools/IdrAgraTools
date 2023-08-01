@@ -76,6 +76,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
         # search all files that match baseFN
         baseFileList = glob.glob(baseFN)
+        #print('baseFileList',baseFileList)
         baseFileList.sort()
         numOfFile = len(baseFileList)
         nPlot = math.ceil((numOfFile) / 2)# always add one-axes for legend
@@ -92,12 +93,13 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                 # extract date time
                 fname = os.path.basename(baseFile)
                 y = 'general'
-                # print(fname)
+                #print('fname: ',fname)
                 try:
                     nums = re.findall(r'\d+', fname)
                     y = int(nums[0])
                 except:
-                    self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name:'), fname)
+                    self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name: %s') % fname, False)
+                    #self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name:'), fname)
 
                 base_rl = self.loadASC(baseFile, float)
                 base_data = np.where(base_rl['data']==base_rl['nodata_value'],np.nan,base_rl['data'])

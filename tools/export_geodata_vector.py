@@ -340,7 +340,7 @@ class ExportGeodataVector(QObject):
                                     parsDict=asc_dict,
                                     templateName='asc_grid.txt')
 
-            # beacuse join needs unique fields, the name of irr_eff differs from irr_meth
+            # because join needs unique fields, the name of irr_eff differs from irr_meth
             if out_file.endswith('_irr_eff'):
                 #get the last numeric part
                 out_file = out_file.replace('_irr_eff','')

@@ -612,10 +612,8 @@ class IdrAgraTools():
 
         self.advancedMenu = self._addmenu(self.mainMenu, 'Advanced', self.tr('Advanced'), True)
         self._addmenuitem(self.advancedMenu, 'Options', self.tr('Options'), self.setOptions,True)
-        self._addmenuitem(self.advancedMenu, 'Test', self.tr('test'), lambda: self.runAsThread(self.test),True)
+        #self._addmenuitem(self.advancedMenu, 'Test', self.tr('test'), lambda: self.runAsThread(self.test),True)
         #self._addmenuitem(self.advancedMenu, 'testexport', self.tr('Test esport'), self.createImageMap, True)
-
-
 
         self.mainMenu.addMenu(self.advancedMenu)
 
@@ -1321,7 +1319,6 @@ class IdrAgraTools():
             grd_ext = res['grid_extent']
             grd_crs = res['grid_crs']
 
-            use_inside = res['use_inside']
             save_edits = res['save_edits']
             # regularize the grid to integer coordinates
             if res['use_integer']:
@@ -1334,7 +1331,8 @@ class IdrAgraTools():
             progress.pushInfo(self.tr('Creating grid ...'))
             # run the algorithm
             self.algResults = processing.run("native:creategrid", {'TYPE': 2,
-                                                 'EXTENT': grd_ext,
+                                                 'EXTENT': '%s,%s,%s,%s [%s]'%(grd_ext.xMinimum(),grd_ext.xMaximum(),
+                                                                                    grd_ext.yMinimum(),grd_ext.yMaximum(),grd_crs.authid()),
                                                  'HSPACING': cell_size, 'VSPACING': cell_size,
                                                  'HOVERLAY': 0, 'VOVERLAY': 0,
                                                  'CRS': grd_crs,
@@ -2140,7 +2138,8 @@ class IdrAgraTools():
 
                     res[var]= [varValue]*len(dateList)
 
-                finalDF = finalDF.append(res, ignore_index=True)
+                #finalDF = finalDF.append(res, ignore_index=True) # deprecated
+                finalDF = pd.concat([finalDF, res], ignore_index=True)
 
             except Exception as e:
                  msg += str(e)+'\n'
@@ -2167,8 +2166,8 @@ class IdrAgraTools():
                 if finalDF is None:
                     finalDF = df
                 else:
-                    # TODO: Deprecated since version 1.4.0: Use concat() instead.
-                    finalDF = finalDF.append(df,ignore_index = True)
+                    #finalDF = finalDF.append(df,ignore_index = True) # deprecated
+                    finalDF = pd.concat([finalDF, df], ignore_index=True)
 
             except Exception as e:
                 msg += str(e) + '\n'
@@ -2505,7 +2504,8 @@ class IdrAgraTools():
                 if finalDF is None:
                     finalDF = df
                 else:
-                    finalDF = finalDF.append(df,ignore_index=True)
+                    #finalDF = finalDF.append(df,ignore_index=True) #deprecated
+                    finalDF = pd.concat([finalDF, df], ignore_index=True)
 
             except Exception as e:
                 progress.reportError(self.tr('Unable to open %s')%csvFile,False)

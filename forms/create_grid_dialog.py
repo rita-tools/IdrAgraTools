@@ -72,8 +72,7 @@ class CreateGridDialog(QDialog):
 		grid_crs = self.EXTENT_GRP.outputCrs()
 
 		use_integer = self.USEINT_CB.isChecked()
-		use_inside = self.USEINSIDE_CB.isChecked()
 		save_edits = self.SAVEEDITS_CB.isChecked()
 
 		return {'cell_size':cell_size, 'grid_extent':grid_extent,'grid_crs':grid_crs,
-				'save_edits':save_edits,'use_integer':use_integer,'use_inside':use_inside}
+				'save_edits':save_edits,'use_integer':use_integer}
