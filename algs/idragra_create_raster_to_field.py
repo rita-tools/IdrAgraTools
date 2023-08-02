@@ -63,7 +63,7 @@ from qgis.core import (QgsProcessing,
 					   QgsVectorLayer,
 					   QgsRasterLayer,
 					   QgsProject,
-					   NULL, QgsFeature, QgsProcessingOutputRasterLayer)
+					   NULL, QgsFeature, QgsProcessingOutputRasterLayer, QgsProcessingUtils)
 
 import numpy as np
 
@@ -111,6 +111,7 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 	FEEDBACK = None
 
 	alg_result = {'OUTPUT':None}
+	alg_result1 = {'OUTPUT':None}
 	
 
 	def tr(self, string):
@@ -259,18 +260,22 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 		self.alg_result['OUTPUT'] = field_lay
 
 		if elev_lay:
+			self.FEEDBACK.pushInfo(self.tr('Processing %s' % elev_lay.name()))
+			elev_file = QgsProcessingUtils.generateTempFilename('elev_stats.gpkg')
 			# make zonal statistics
 			self.alg_result = processing.run("native:zonalstatisticsfb",
 											  {'INPUT': field_lay,
 											   'INPUT_RASTER': elev_lay, 'RASTER_BAND': 1,
 											   'COLUMN_PREFIX': 'elev_', 'STATISTICS': [2],
-											   'OUTPUT': 'TEMPORARY_OUTPUT'},
+											   'OUTPUT': elev_file},
 												context = context, feedback = self.FEEDBACK, is_child_algorithm = True
 												)
 
 
 			# make slope map
-			self.algresult1 = processing.run("native:slope",
+			slp_file = QgsProcessingUtils.generateTempFilename('slp_stats.gpkg')
+
+			self.alg_result1 = processing.run("native:slope",
 									   {'INPUT': elev_lay,
 										'Z_FACTOR': 1,
 										'OUTPUT': 'TEMPORARY_OUTPUT'},
@@ -279,50 +284,67 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 
 
 			self.alg_result = processing.run("native:zonalstatisticsfb",
-										   {'INPUT': self.alg_result['OUTPUT'],
-											'INPUT_RASTER': self.algresult1['OUTPUT'], 'RASTER_BAND': 1,
+										   {'INPUT': elev_file,
+											'INPUT_RASTER': self.alg_result1['OUTPUT'], 'RASTER_BAND': 1,
 											'COLUMN_PREFIX': 'slp_', 'STATISTICS': [2],
-											'OUTPUT': 'TEMPORARY_OUTPUT'},
+											'OUTPUT': slp_file},
 												context = context, feedback = self.FEEDBACK, is_child_algorithm = True
 												)
 
+			self.alg_result['OUTPUT'] = slp_file
+			self.alg_result1['OUTPUT'] = self.alg_result['OUTPUT']
 
 			# get water table elevation
 			for wt_lay in wt_lay_list:
+				self.FEEDBACK.pushInfo(self.tr('Processing %s' % wt_lay.name()))
+				self.alg_result['OUTPUT'] = QgsProcessingUtils.generateTempFilename(wt_lay.name()+'.gpkg')
 				self.alg_result = processing.run("native:zonalstatisticsfb",
-												 {'INPUT': self.alg_result['OUTPUT'],
+												 {'INPUT': self.alg_result1['OUTPUT'],
 												  'INPUT_RASTER': wt_lay, 'RASTER_BAND': 1,
 												  'COLUMN_PREFIX': wt_lay.name()+'_', 'STATISTICS': [2],
-												  'OUTPUT': 'TEMPORARY_OUTPUT'},
+												  'OUTPUT': self.alg_result['OUTPUT']},
 												context = context, feedback = self.FEEDBACK, is_child_algorithm = False
 												)
 
 				wt_col_list.append(wt_lay.name()+'_mean')
-
+				self.alg_result1['OUTPUT'] = self.alg_result['OUTPUT']
 
 		# get landuse
+		self.alg_result1['OUTPUT'] = self.alg_result['OUTPUT']
 		for landuse_lay in landuse_lay_list:
+			self.FEEDBACK.pushInfo(self.tr('Processing %s' % landuse_lay.name()))
+			self.alg_result['OUTPUT'] = QgsProcessingUtils.generateTempFilename(landuse_lay.name() + '.gpkg')
+
 			self.alg_result = processing.run("native:zonalstatisticsfb",
-											 {'INPUT': self.alg_result['OUTPUT'],
+											 {'INPUT': self.alg_result1['OUTPUT'],
 											  'INPUT_RASTER': landuse_lay, 'RASTER_BAND': 1,
 											  'COLUMN_PREFIX': landuse_lay.name()+'_', 'STATISTICS': [2],
-											  'OUTPUT': 'TEMPORARY_OUTPUT'},
+											  'OUTPUT': self.alg_result['OUTPUT']},
 											context = context, feedback = self.FEEDBACK, is_child_algorithm = False
 											)
 
 			landuse_col_list.append(landuse_lay.name()+'_mean')
+			self.alg_result1['OUTPUT'] = self.alg_result['OUTPUT']
 
 		# get irrmeth
+		self.alg_result1['OUTPUT'] = self.alg_result['OUTPUT']
 		for irrmeth_lay in irrmeth_lay_list:
+			self.FEEDBACK.pushInfo(self.tr('Processing %s' % irrmeth_lay.name()))
+			self.alg_result['OUTPUT'] = QgsProcessingUtils.generateTempFilename(landuse_lay.name() + '.gpkg')
+
 			self.alg_result = processing.run("native:zonalstatisticsfb",
-											 {'INPUT': self.alg_result['OUTPUT'],
+											 {'INPUT': self.alg_result1['OUTPUT'],
 											  'INPUT_RASTER': irrmeth_lay, 'RASTER_BAND': 1,
 											  'COLUMN_PREFIX': irrmeth_lay.name() + '_', 'STATISTICS': [2],
-											  'OUTPUT': 'TEMPORARY_OUTPUT'},
+											  'OUTPUT': self.alg_result['OUTPUT']},
 											 context=context, feedback=self.FEEDBACK, is_child_algorithm=False
 											 )
 
 			irrmeth_col_list.append(irrmeth_lay.name() + '_mean')
+
+		self.FEEDBACK.pushInfo(self.tr('Get data from %s' % self.alg_result['OUTPUT']))
+
+		self.alg_result['OUTPUT'] = QgsVectorLayer(self.alg_result['OUTPUT'],'temp','ogr')
 
 		# copy feature to sink and parse results
 		fldList = self.alg_result['OUTPUT'].fields()
@@ -346,6 +368,7 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 		# get value from source table
 		c = 0
 		nFeat = self.alg_result['OUTPUT'].featureCount()
+
 		for feat in self.alg_result['OUTPUT'].getFeatures():
 			c+=1
 			self.FEEDBACK.setProgress(100.0 * c / nFeat)

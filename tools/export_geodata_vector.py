@@ -31,7 +31,7 @@ __revision__ = '$Format:%H$'
 import os
 from PyQt5.QtCore import QObject, QVariant
 from qgis import processing
-from qgis._core import QgsRasterLayer, QgsVectorLayer, QgsField
+from qgis._core import QgsRasterLayer, QgsVectorLayer, QgsField, QgsProcessing
 
 from tools.write_pars_to_template import writeParsToTemplate
 
