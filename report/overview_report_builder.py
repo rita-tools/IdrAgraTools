@@ -417,6 +417,8 @@ class OverviewReportBuilder(ReportBuilder):
 
         # add pie chart
         mapStat = self.rasterStat(mapFile, domainFile,areaFile)
+        print('mapFile:',mapFile)
+        print('mapStat:',mapStat)
         ax2 = fig.add_subplot(gs[0, 2])
         ax2.axis('off')
         ax2.pie(mapStat['perc'], labels=None, colors=colors)
@@ -487,12 +489,13 @@ class OverviewReportBuilder(ReportBuilder):
             countCells.append(np.count_nonzero(mask))
             cellsArea.append(np.sum(areaData[mask]))
 
+
         baseList = np.asarray(baseList)
         countCells = np.asarray(countCells)
         cellsArea = np.asarray(cellsArea)
 
         totArea = sum(cellsArea)
-        perc = 100 * cellsArea / totArea
+        perc = 100. * cellsArea / totArea
 
         # print(baseList,countCells,cellsArea,perc)
         res = pd.DataFrame.from_dict(
