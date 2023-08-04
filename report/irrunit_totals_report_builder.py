@@ -116,7 +116,6 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                 tableList.append(res)
 
                 # add map to the figure
-
                 handles, labels = self.addMapToPlot(ax, filtered_data, extent,values)
                 ax.set_title(str(y))
                 #print('labels', labels)

@@ -14,6 +14,7 @@ from matplotlib import cm
 import matplotlib.patches as mpatches
 import matplotlib.patheffects as pe
 from matplotlib.gridspec import GridSpec
+from osgeo import ogr
 
 from datetime import datetime,timedelta
 
@@ -193,7 +194,7 @@ class OverviewReportBuilder(ReportBuilder):
 
         return {'ws_id': wsId, 'ws_name': wsName, 'ws_alt': wsAlt, 'ws_means': daily_res, 'ws_stats': stats_res}
 
-    def makeRasterMap(self, fileName, xs, ys, ids, domainFile, offset=0.1):
+    def makeOverviewMap(self, fileName, xs, ys, ids, domainFile, featFile = None, offset=0.1,nodata=-9999.):
         #		fig, ax = plt.subplots(1, 2, figsize=(10, 3), constrained_layout=True)
 
         fig = plt.figure(figsize=(10, 3), constrained_layout=True)
@@ -205,8 +206,9 @@ class OverviewReportBuilder(ReportBuilder):
         handles = []
         labels = []
 
-        if domainFile.endswith('.asc'):
+        if not featFile:
             rl = self.loadASC(domainFile, val_type=int)
+            ext = rl['extent']
             data = rl['data']
 
             values = np.unique(data.ravel()).tolist()
@@ -225,43 +227,36 @@ class OverviewReportBuilder(ReportBuilder):
             handles += patches
             labels.append('domain')
 
-            # set axes extent
-            xmin = min(xs + [rl['xll']]) - offset * rl['width']
-            xmax = max(xs + [rl['xlr']]) + offset * rl['width']
-            ymin = min(ys + [rl['yll']]) - offset * rl['height']
-            ymax = max(ys + [rl['yur']]) + offset * rl['height']
-
         else:
-            domain_lay = QgsVectorLayer(domainFile, 'domain', 'ogr')
-            ext = domain_lay.extent()
-            # set axes extent
-            xmean = 0.5 *(ext.xMinimum() + ext.xMaximum())
-            ymean = 0.5 * (ext.yMinimum() + ext.yMaximum())
+            rl = self.loadASC(domainFile, val_type=int)
+            values = rl['data']
 
-            # TODO: check map extentions
-            max_edge =0.5* (1+offset)*max(ext.width(),ext.height())
+            # load geometries vector file
+            inDataSource = ogr.Open(featFile)
+            if not inDataSource: return  # exit if file not loaded
+            domain_lay = inDataSource.GetLayer(0)
+            ext = domain_lay.GetExtent() # xmin,xmax,ymin,ymax
 
-            xmin = xmean - max_edge
-            xmax = xmean + max_edge
-            ymin = ymean - max_edge
-            ymax = ymean + max_edge
+            for f, feat in enumerate(domain_lay):
+                geom = feat.GetGeometryRef()
+                nbrRings = geom.GetGeometryCount()
+                for i in range(nbrRings):
+                    ring = geom.GetGeometryRef(i)
+                    n_inner_ring = ring.GetGeometryCount()
+                    for i in range(n_inner_ring):
+                        x = []
+                        y = []
+                        inner_ring = ring.GetGeometryRef(i)
+                        for i in range(0, inner_ring.GetPointCount()):
+                            # GetPoint returns a tuple not a Geometry
+                            pt = inner_ring.GetPoint(i)
+                            x.append(pt[0])
+                            y.append(pt[1])
 
-            x = []
-            y = []
+                        if values[f] != nodata:
+                            plt.plot(x, y, color='black')
 
-            for feat in domain_lay.getFeatures():
-                v_list = feat.geometry().vertices()
-                for v in v_list:
-                    x.append(v.x())
-                    y.append(v.y())
-
-                # add empty point to break polygon
-                x.append(None)
-                y.append(None)
-
-            plt.plot(x, y)
-
-            patches = []
+        patches = [mpatches.Patch(edgecolor ='black',facecolor ='white', fill= False)]
 
         handles += patches
         labels.append('domain')
@@ -270,11 +265,30 @@ class OverviewReportBuilder(ReportBuilder):
         lay = ax1.scatter(xs, ys, edgecolors='white')
         handles.append(lay)
         # print('handles',handles)
-        labels.append('Weather stations')
+        labels.append(self.tr('Weather stations'))
         for x, y, id in zip(xs, ys, ids):
             ax1.text(x + 10, y + 10, id, fontsize=10,
                      path_effects=[pe.withStroke(linewidth=2, foreground="white")])
 
+        # calculate maximum extent
+        xmin = min(xs+[ext[0]])
+        xmax = max(xs+[ext[1]])
+        ymin = min(ys+[ext[2]])
+        ymax = max(ys+[ext[3]])
+        # apply offset to extent
+        xmean = 0.5 * (xmin+xmax)
+        ymean = 0.5 * (ymin+ymax)
+        w = xmax-xmin
+        h = ymax-ymin
+
+        max_edge = 0.5 * (1 + offset) * max(w, h)
+
+        xmin = xmean - max_edge
+        xmax = xmean + max_edge
+        ymin = ymean - max_edge
+        ymax = ymean + max_edge
+
+        ax1.set_aspect(1.0)
 
         ax1.set_xlim([xmin, xmax])
         ax1.set_ylim([ymin, ymax])
@@ -344,7 +358,7 @@ class OverviewReportBuilder(ReportBuilder):
 
 
 
-    def plotCatMap(self,outfile,mapFile,domainFile,offset=0.1):
+    def plotCatMap(self,outfile,mapFile,domainFile,areaFile= None, featFile=None, offset=0.1):
         #
         fig = plt.figure(figsize=(10, 3), constrained_layout=True)
         gs = GridSpec(1, 4, figure=fig)
@@ -353,9 +367,10 @@ class OverviewReportBuilder(ReportBuilder):
         ax1 = fig.add_subplot(gs[0, 0:2])
 
         handles = []
-        patches = []
+        labels = []
 
-        if domainFile.endswith('.asc'):
+        if not featFile:
+            # make a map as image
             map_rl = self.loadASC(mapFile, val_type=int)
             if not map_rl: return # exit if file not loaded
             map_data = map_rl['data']
@@ -372,42 +387,45 @@ class OverviewReportBuilder(ReportBuilder):
 
             # save to file
 
-            labels = ['{:.0f}'.format(x) for x in values]
+            #labels = ['{:.0f}'.format(x) for x in values]
 
             map_data = np.where(map_data == map_rl['nodata_value'], np.nan, map_data)
 
             map_data = self.replace_values_by_list(map_data,values,im_values)
 
-            im = ax1.imshow(map_data, extent=map_rl['extent'], interpolation='nearest', cmap='tab20')
-            # credits: https://stackoverflow.com/questions/25482876/how-to-add-legend-to-imshow-in-matplotlib
-            # colormap used by imshow
-            colors = [im.cmap(im.norm(value)) for value in im_values]
-            # create a patch (proxy artist) for every color
-            patches = [mpatches.Patch(color=colors[i]) for i in range(len(im_values))]
+            handles, labels, colors = self.addRasterMapToPlot(ax1, map_data, map_rl['extent'], values,offset)
+        else:
+            # make a map based on geometries
+            map_rl = self.loadASC(mapFile, val_type=int)
+            if not map_rl: return  # exit if file not loaded
+            map_data = map_rl['data']
 
-            handles += patches
+            # load geometries vector file
+            inDataSource = ogr.Open(featFile)
+            if not inDataSource: return  # exit if file not loaded
 
-            # set axes extent
-            xmin = map_rl['xll'] - offset * map_rl['width']
-            xmax = map_rl['xlr'] + offset * map_rl['width']
-            ymin = map_rl['yll'] - offset * map_rl['height']
-            ymax = map_rl['yur'] + offset * map_rl['height']
+            domain_rl = inDataSource.GetLayer(0)
+            extent = domain_rl.GetExtent()
+            fld_name = os.path.basename(mapFile)[:-4]
 
-            ax1.set_xlim([xmin, xmax])
-            ax1.set_ylim([ymin, ymax])
-            ax1.ticklabel_format(axis='both', style='sci', scilimits=(0, 0))
+            unique_values = np.unique(map_data.ravel()).tolist()
+            if (-9999.0 in unique_values): unique_values.remove(-9999.0)
+            unique_values.sort()
 
-            # add pie chart
-            rStat = self.rasterStat(mapFile, domainFile)
-            ax2 = fig.add_subplot(gs[0, 2])
-            ax2.axis('off')
-            ax2.pie(rStat['perc'], labels=None, colors=colors)
-            ax2.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+            handles, labels, colors = self.addVectorMapToPlot(ax1, domain_rl, extent, map_data.tolist(), unique_values)
 
-            # add legend
-            ax3 = fig.add_subplot(gs[0, 3])
-            ax3.axis('off')
-            ax3.legend(handles, labels)
+
+        # add pie chart
+        mapStat = self.rasterStat(mapFile, domainFile,areaFile)
+        ax2 = fig.add_subplot(gs[0, 2])
+        ax2.axis('off')
+        ax2.pie(mapStat['perc'], labels=None, colors=colors)
+        ax2.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+        # add legend
+        ax3 = fig.add_subplot(gs[0, 3])
+        ax3.axis('off')
+        ax3.legend(handles, labels)
 
         # save to file
         fig.savefig(outfile, format='png')
@@ -435,37 +453,96 @@ class OverviewReportBuilder(ReportBuilder):
 
         return text
 
-    def rasterStat(self, baseMapFN, maskMapFN):
-        if maskMapFN.endswith('.asc'):
-            baseRaster = self.loadASC(baseMapFN, int)
-            maskRaster = self.loadASC(maskMapFN, int)
+    def rasterStat(self, baseMapFN, maskMapFN, areaMapFN = None):
+        res = pd.DataFrame.from_dict(
+            {'id': [], 'count': [], 'area': [],
+             'perc': []})
 
-            baseData = baseRaster['data']
-            maskData = maskRaster['data']
+        baseRaster = self.loadASC(baseMapFN, int)
+        maskRaster = self.loadASC(maskMapFN, int)
 
-            baseList = list(np.unique(baseData))
-            if baseRaster['nodata_value'] in baseList: baseList.remove(baseRaster['nodata_value'])
+        baseData = baseRaster['data']
+        maskData = maskRaster['data']
+        areaData = maskRaster['data']*0.+(baseRaster['cellsize']*baseRaster['cellsize'])
 
-            countCells = []
-            for i in baseList:
+        try:
+            areaRaster = self.loadASC(areaMapFN, int)
+            areaData = areaRaster['data']
+        except:
+            self.FEEDBACK.reportError(self.tr('Unable to open %s')%areaMapFN,False)
+
+        baseList = list(np.unique(baseData))
+        if baseRaster['nodata_value'] in baseList: baseList.remove(baseRaster['nodata_value'])
+
+        countCells = []
+        cellsArea = []
+        for i in baseList:
+            if len(baseData.shape)>1:
                 mask = np.where(np.logical_and(baseData[:, :] == i, maskData[:, :] != maskRaster['nodata_value']))
-                countCells.append(np.count_nonzero(mask))
+            else:
+                mask = np.where(np.logical_and(baseData[:] == i, maskData[:] != maskRaster['nodata_value']))
 
-            baseList = np.asarray(baseList)
-            countCells = np.asarray(countCells)
+            #mask = np.where(np.logical_and(baseData == i, maskData != maskRaster['nodata_value']))
 
-            cellsArea = np.asarray(countCells) * baseRaster['cellsize']
-            totArea = sum(cellsArea)
-            perc = 100 * cellsArea / totArea
+            countCells.append(np.count_nonzero(mask))
+            cellsArea.append(np.sum(areaData[mask]))
 
-            # print(baseList,countCells,cellsArea,perc)
-            res = pd.DataFrame.from_dict(
-                {'id': baseList.tolist(), 'count': countCells.tolist(), 'area': cellsArea.tolist(),
-                 'perc': perc.tolist()})
-        else:
-            res = pd.DataFrame.from_dict(
-                {'id': [], 'count': [], 'area': [],
-                 'perc': []})
+        baseList = np.asarray(baseList)
+        countCells = np.asarray(countCells)
+        cellsArea = np.asarray(cellsArea)
+
+        totArea = sum(cellsArea)
+        perc = 100 * cellsArea / totArea
+
+        # print(baseList,countCells,cellsArea,perc)
+        res = pd.DataFrame.from_dict(
+            {'id': baseList.tolist(), 'count': countCells.tolist(), 'area': cellsArea.tolist(),
+             'perc': perc.tolist()})
+
+        return res
+
+    def vectorStat(self, domainFile, group_fld, value_fld):
+        res = pd.DataFrame.from_dict(
+            {'id': [], 'count': [], 'area': [],
+             'perc': []})
+
+        inDataSource = ogr.Open(domainFile)
+        if not inDataSource: return res # exit if file not loaded
+
+        # get list of unique values from group_fld
+        sql = 'SELECT DISTINCT ' + group_fld + ' FROM domain'
+        selection = inDataSource.ExecuteSQL(sql)
+        if not selection:
+            self.FEEDBACK.reportError(self.tr('Unable to query: %s') % sql)
+            return res
+
+        values = []
+        for i, feature in enumerate(selection):
+            values.append(feature.GetField(0))
+
+        if (-9999.0 in values): values.remove(-9999.0)
+        values.sort()
+
+        count_list = []
+        area_list = []
+        for val in values:
+            sql = 'SELECT count(%s) as count_value, sum(%s) as sum_value from domain WHERE %s = %s'%(group_fld,value_fld,group_fld,val)
+            selection = inDataSource.ExecuteSQL(sql)
+            if not selection:
+                self.FEEDBACK.reportError(self.tr('Unable to query: %s') % sql)
+                return res
+
+            for feat in selection:
+                count_list.append(feat['count_value'])
+                area_list.append(feat['sum_value'])
+
+        totArea = sum(np.asarray(area_list))
+        perc = 100*np.asarray(area_list)/totArea
+
+        # print(baseList,countCells,cellsArea,perc)
+        res = pd.DataFrame.from_dict(
+            {'id': values, 'count': count_list, 'area': area_list,
+             'perc': perc.tolist()})
 
         return res
 
@@ -522,10 +599,17 @@ class OverviewReportBuilder(ReportBuilder):
         # get meteofolder
         meteoPath = os.path.join(simFolder, simPar['meteopath'])
         geodataPath = os.path.join(simFolder, simPar['inputpath'])
+        domainFile = os.path.join(geodataPath, 'domain.asc')
+
         if os.path.exists(os.path.join(geodataPath, 'domain.gpkg')):
-            domainFile = os.path.join(geodataPath, 'domain.gpkg')
+            featFile = os.path.join(geodataPath, 'domain.gpkg')
+
+        if os.path.exists(os.path.join(geodataPath, 'shapearea.asc')):
+            # only newest version of idragratools generates "cellarea" file
+            areaFile = os.path.join(geodataPath, 'shapearea.asc')
         else:
-            domainFile = os.path.join(geodataPath, 'domain.asc')
+            print('missing shapearea.asc')
+            areaFile = None
 
         xs = []
         ys = []
@@ -555,7 +639,7 @@ class OverviewReportBuilder(ReportBuilder):
 
         ws_overview_map = os.path.join(outImageFolder, 'ws_overview_map.png')
         # self.makeOverViewMap(ws_overview_map, xs, ys, ids, domainFile)
-        self.makeRasterMap(ws_overview_map, xs, ys, ids, domainFile)
+        self.makeOverviewMap(ws_overview_map, xs, ys, ids, domainFile,featFile)
         ws_overview_map = os.path.relpath(ws_overview_map, os.path.dirname(outfile))
 
 
@@ -627,10 +711,10 @@ class OverviewReportBuilder(ReportBuilder):
             except Exception as e:
                 self.FEEDBACK.reportError(self.tr('Skip landuse file name: %s [%s]')%(fname,str(e)),False)
 
-            res = self.rasterStat(luFile, domainFile)
+            res = self.rasterStat(luFile, domainFile,areaFile)
             # make pie plot
             temp_png = os.path.join(outImageFolder, 'lu_pie_%s.png' % y)
-            self.plotCatMap(temp_png, luFile, domainFile)
+            self.plotCatMap(temp_png, luFile, domainFile,areaFile,featFile)
             temp_png_rel = os.path.relpath(temp_png, os.path.dirname(outfile))
 
             # print('res',res)
@@ -690,10 +774,10 @@ class OverviewReportBuilder(ReportBuilder):
             except:
                 self.FEEDBACK.reportError(self.tr('Skip irrigation method map file name: %s')%fname,False)
 
-            res = self.rasterStat(imFile, domainFile)
+            res = self.rasterStat(imFile, domainFile,areaFile)
             # make pie plot
             temp_png = os.path.join(outImageFolder, 'im_pie_%s.png' % y)
-            self.plotCatMap(temp_png, imFile, domainFile)
+            self.plotCatMap(temp_png, imFile, domainFile,areaFile,featFile)
             temp_png_rel = os.path.relpath(temp_png, os.path.dirname(outfile))
 
             # print('res',res)
@@ -755,7 +839,7 @@ class OverviewReportBuilder(ReportBuilder):
 
         # make pie plot
         temp_png = os.path.join(outImageFolder, 'soil_pie.png')
-        self.plotCatMap(temp_png, os.path.join(geodataPath,'soilid.asc'), domainFile)
+        self.plotCatMap(temp_png, os.path.join(geodataPath,'soilid.asc'), domainFile,areaFile,featFile)
         temp_png_rel = os.path.relpath(temp_png, os.path.dirname(outfile))
 
         #print('soil pars', soil_par_table)

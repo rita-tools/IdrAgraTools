@@ -6,6 +6,11 @@ import pandas as pd
 import re
 
 import matplotlib
+from matplotlib.colors import Normalize
+from matplotlib.pyplot import cm
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+from osgeo import ogr
 
 from report.toc_item import TocItem
 
@@ -174,7 +179,7 @@ class ReportBuilder():
         """
 
         res = {'ncols': 0, 'nrows': 0, 'xllcorner': 0, 'yllcorner': 0, 'cellsize': 0, 'nodata_value': 0,
-               'data': np.array([])}
+               'data': np.array([]),'extent':()}
 
         if not os.path.exists(filename):
             self.FEEDBACK.reportError(self.tr('Unknown file: %s'%filename))
@@ -369,6 +374,94 @@ class ReportBuilder():
         self.FEEDBACK.setProgress(100.)
 
         return outfile
+
+    def addRasterMapToPlot(self, ax, map_data, extent, values, offset=0.1):
+        handles = []
+        labels = []
+        colors = []
+        if len(values)>0:
+            im = ax.imshow(map_data, extent=extent, interpolation='nearest', cmap='tab20',
+                           norm=Normalize(min(values), max(values)))
+
+            # credits: https://stackoverflow.com/questions/25482876/how-to-add-legend-to-imshow-in-matplotlib
+            # colormap used by imshow
+            colors = [im.cmap(im.norm(value)) for value in values]
+            # create a patch (proxy artist) for every color
+            patches = [mpatches.Patch(color=colors[i]) for i in range(len(values))]
+
+            handles = patches
+            labels = values
+
+            # set axes extent
+            xmin = round(extent[0] - offset * (extent[1]-extent[0]))
+            xmax = round(extent[1] + offset * (extent[1]-extent[0]))
+            ymin = round(extent[2] - offset * (extent[3]-extent[2]))
+            ymax = round(extent[3] + offset * (extent[3]-extent[2]))
+
+            #ax.set_xticks(np.arange(xmin, xmax, step=1000))
+            #ax.set_yticks(np.arange(ymin, ymax, step=1000))
+            ax.set_aspect(1.0)
+
+            #ax.axis('equal')
+            #print(xmin,xmax,ymin,ymax)
+            ax.set_xlim([xmin, xmax])
+            ax.set_ylim([ymin, ymax])
+
+            ax.ticklabel_format(axis='both', style='sci', scilimits=(0, 0))
+
+        return handles, labels, colors
+
+    def addVectorMapToPlot(self, ax, vector_data, extent, values, unique_val, offset=0.1, nodata = -9999.):
+        # vector_data: a ogr shape object
+        # values = QgsVectorLayerUtils.getValues(vector_data, val_fld)
+        # values = list(set(values))
+
+        colors = cm.rainbow(np.linspace(0, 1, len(unique_val)))
+        # create a patch (proxy artist) for every color
+        patches = [mpatches.Patch(color=colors[i]) for i in range(len(unique_val))]
+
+        handles = patches
+        labels = unique_val
+
+        for f,feat in enumerate(vector_data):
+            geom = feat.GetGeometryRef()
+            nbrRings = geom.GetGeometryCount()
+            for i in range(nbrRings):
+                ring = geom.GetGeometryRef(i)
+                n_inner_ring = ring.GetGeometryCount()
+                for i in range(n_inner_ring):
+                    inner_ring = ring.GetGeometryRef(i)
+                    x = []
+                    y = []
+                    for i in range(0, inner_ring.GetPointCount()):
+                        # GetPoint returns a tuple not a Geometry
+                        pt = inner_ring.GetPoint(i)
+                        x.append(pt[0])
+                        y.append(pt[1])
+
+                    #x.append(x[0])
+                    #y.append(y[0])
+                    if values[f] != nodata:
+                        icol = unique_val.index(values[f])
+                        plt.fill(x, y, color=colors[icol])
+
+        # set axes extent
+        xmin = round(extent[0] - offset * (extent[1] - extent[0]))
+        xmax = round(extent[1] + offset * (extent[1] - extent[0]))
+        ymin = round(extent[2] - offset * (extent[3] - extent[2]))
+        ymax = round(extent[3] + offset * (extent[3] - extent[2]))
+
+        # ax.set_xticks(np.arange(xmin, xmax, step=1000))
+        # ax.set_yticks(np.arange(ymin, ymax, step=1000))
+        ax.set_aspect(1.0)
+
+        # ax.axis('equal')
+        # print(xmin,xmax,ymin,ymax)
+        ax.set_xlim([xmin, xmax])
+        ax.set_ylim([ymin, ymax])
+
+        ax.ticklabel_format(axis='both', style='sci', scilimits=(0, 0))
+        return handles, labels, colors
 
 
 if __name__ == '__main__':
