@@ -371,7 +371,7 @@ class Exporter(QObject):
 						   context=None, feedback=self.feedback, is_child_algorithm=False)
 
 		# export cell area map
-		cellareaFile = os.path.join(outPath, 'cellarea.asc')
+		cellareaFile = os.path.join(outPath, 'shapearea.asc')
 		self.aGrid = GisGrid(progress= self.feedback)
 		self.aGrid.openASC(domainFile)
 		self.aGrid = self.aGrid*cellSize*cellSize

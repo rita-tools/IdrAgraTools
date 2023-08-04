@@ -180,7 +180,11 @@ class ExportGeodataVector(QObject):
                                           'OUT_TABLE': 'TEMPORARY_OUTPUT'},
                                          context=None, feedback=self.feedback, is_child_algorithm=False)
 
-        colToJoin = ['CapRisePar_a3','CapRisePar_a4','CapRisePar_b1','CapRisePar_b2','CapRisePar_b3','CapRisePar_b4']
+        colToJoin = ['main_txtr',
+                     'CapRisePar_a3','CapRisePar_a4',
+                     'CapRisePar_b1','CapRisePar_b2',
+                     'CapRisePar_b3','CapRisePar_b4'
+                     ]
 
         # link to table
         self.algResults = processing.run("native:joinattributestable", {
@@ -306,7 +310,8 @@ class ExportGeodataVector(QObject):
                        'hydr_group':'hydr_group',
                        'main_txtr':'main_txtr',
                        'id':'id',
-                       'row_count':'row_count'
+                       'row_count':'row_count',
+                       'soil_id':'soilid'
                        }
 
         init_wd = True # save the initial condition for water depth
