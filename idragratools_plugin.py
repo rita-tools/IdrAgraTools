@@ -2411,9 +2411,11 @@ class IdrAgraTools():
                 effTable[str(irrDistr['inlet_node'])] = irrDistr['distr_eff']
             else:
                 # irrDistr['distr_eff'] FIX: "need mode" always considers the internal network distribution see interventi_fabbisogni_fc in ogg_bilancio.f90
-                effTable[str(irrDistr['inlet_node'])] = 1.
+                #effTable[str(irrDistr['inlet_node'])] = 1. # OLD IDRAGRA
+                effTable[str(irrDistr['inlet_node'])] = irrDistr['distr_eff'] # from new release, water need are calculated at field
 
-            effTable[str(irrDistr['outlet_node'])] = 1. #/ irrDistr['distr_eff']
+            #effTable[str(irrDistr['outlet_node'])] = 1. #/ irrDistr['distr_eff'] # OLD IDRAGRA
+            effTable[str(irrDistr['outlet_node'])] = 1./irrDistr['distr_eff'] # from new release, water need are calculated at field
             replaceFieldTableOUT['SubDistr_' + str(irrDistr['id'])] = 'Source_' + str(irrDistr['outlet_node'])
 
         # calculate irrigation district areas
@@ -2512,7 +2514,8 @@ class IdrAgraTools():
 
         return finalDF
 
-    def getDischargeFromMaps(self,watDistrAreas = {'11834':24000000,'9999':0}, tableName ='stp_irr', progress= None, colMapper = None):
+    def getDischargeFromMaps(self,watDistrAreas = {'11834':24000000,'9999':0},
+                             tableName ='stp_irr', progress= None, colMapper = None):
         # get/update irrigation, runoff volumes (mm) from maps
         i = list(self.STEPNAME.values()).index(self.STEPNAME[tableName])
         self.importDistrictData(i, tableName, progress)
