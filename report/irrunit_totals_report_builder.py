@@ -8,6 +8,7 @@ import pandas as pd
 import re
 
 import matplotlib
+from osgeo import ogr
 
 from report.toc_item import TocItem
 
@@ -61,18 +62,16 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
         ax.ticklabel_format(axis='both', style='sci', scilimits=(0, 0))
         return handles, labels
 
-    def irrUnitsSummary(self, baseFN, mask_rl, values, outFile= None):
+    def irrUnitsSummary(self, baseFN, mask_rl, values, areaFile = None, featFile = None, outFile= None):
+        # TODO: think in another way
         if isinstance(mask_rl, str):
             mask_rl = self.loadASC(mask_rl,int)
-            mask_data = np.where(mask_rl['data']==mask_rl['nodata_value'],np.nan,mask_rl['data'])
+            mask_data = np.where(mask_rl['data']==mask_rl['nodata_value'],
+                                 np.nan,
+                                 mask_rl['data'])
             mask_data = mask_data * 0 + 1
         else:
             mask_data = mask_rl['data']*0+1
-
-        extent = self.maskExtent(mask_data)
-        extent = self.calcExtent(extent[0], extent[1], extent[2], extent[3], mask_rl['xllcorner'], mask_rl['yllcorner'],
-                                 mask_rl['cellsize'])
-        #print('extent', extent)
 
         # search all files that match baseFN
         baseFileList = glob.glob(baseFN)
@@ -103,20 +102,51 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
                 base_rl = self.loadASC(baseFile, float)
                 base_data = np.where(base_rl['data']==base_rl['nodata_value'],np.nan,base_rl['data'])
-                filtered_data = base_data*mask_data
 
-                # extent = self.maskExtent(filtered_data)
-                # extent = self.calcExtent(extent[0], extent[1], extent[2], extent[3], base_rl['xllcorner'],
-                #                          base_rl['yllcorner'],
-                #                          base_rl['cellsize'])
+                if (i==0):
+                    # set area_data
+                    area_data = mask_data * base_rl['cellsize'] * base_rl['cellsize']
+                    if areaFile:
+                        area_rl = self.loadASC(areaFile, int)
+                        area_data = np.where(area_rl['data'] == area_rl['nodata_value'], np.nan, area_rl['data'])
+
+                masked_data = base_data*mask_data
+                filtered_area_data = area_data[~np.isnan(masked_data)]
+                filtered_data = masked_data[~np.isnan(masked_data)]
+                int_filtered_data = filtered_data.astype(int)
 
                 # count
-                unique, counts = np.unique(filtered_data[~np.isnan(filtered_data)], return_counts=True)
-                res = pd.DataFrame({y: (counts*mask_rl['cellsize']*mask_rl['cellsize'])}, index=unique)
+                unique, counts = np.unique(int_filtered_data, return_counts=True)
+
+                # get total area
+                tot_area = np.bincount(int_filtered_data,
+                                       weights=filtered_area_data)
+                # note that bincount always start from zero as first group id
+                res = pd.DataFrame({y: tot_area[1:]}, index=unique)
                 tableList.append(res)
 
                 # add map to the figure
-                handles, labels = self.addMapToPlot(ax, filtered_data, extent,values)
+                #handles, labels = self.addMapToPlot(ax, filtered_data, extent,values)
+                if not featFile:
+                    if (i==0):
+                        extent = self.maskExtent(mask_data)
+                        extent = self.calcExtent(extent[0], extent[1], extent[2], extent[3], mask_rl['xllcorner'],
+                                                 mask_rl['yllcorner'],
+                                                 mask_rl['cellsize'])
+
+                    handles, labels, colors = self.addRasterMapToPlot(ax, masked_data, extent, values)
+                else:
+                    # load geometries vector file
+                    inDataSource = ogr.Open(featFile)
+                    if not inDataSource: return  # exit if file not loaded
+
+                    domain_rl = inDataSource.GetLayer(0)
+                    #extent = domain_rl.GetExtent()
+                    extent = None # calculate extent from plotted polygons
+
+                    handles, labels, colors = self.addVectorMapToPlot(ax, domain_rl, extent, masked_data,
+                                                                      unique.tolist())
+
                 ax.set_title(str(y))
                 #print('labels', labels)
             else:
@@ -148,6 +178,15 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
         # set domain file
         geodataPath = os.path.join(simFolder, simPar['inputpath'])
         domainFile = os.path.join(geodataPath, 'domain.asc')
+
+        featFile = None
+        if os.path.exists(os.path.join(geodataPath, 'domain.gpkg')):
+            featFile = os.path.join(geodataPath, 'domain.gpkg')
+
+        areaFile = None
+        if os.path.exists(os.path.join(geodataPath, 'shapearea.asc')):
+            # only newest version of idragratools generates "cellarea" file
+            areaFile = os.path.join(geodataPath, 'shapearea.asc')
 
         # set sim output path
         outputPath = os.path.join(simFolder,simPar['outputpath'])
@@ -194,7 +233,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
         ### PLOT IRRIGATION UNITS MAP
 
         irrunits_image = os.path.join(outImageFolder, 'all_irr_units.png')
-        self.plotCatMap(irrunits_image, irrunitsFile, domainFile)
+        self.plotCatMap(irrunits_image, irrunitsFile, domainFile,areaFile,featFile)
         irrunits_image = os.path.relpath(irrunits_image, os.path.dirname(outfile))
 
         report_contents = """
@@ -215,6 +254,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             lu_image = os.path.join(outImageFolder, 'lu_by_year_map_%s.png'%(iu))
             soiluse_table = self.irrUnitsSummary(baseFN=os.path.join(geodataPath,'soiluse*.asc'),
                                                  mask_rl=selIuRL, values=list(landusePar['id']),
+                                                 featFile=featFile,
                                                  outFile=lu_image)
             lu_image = os.path.relpath(lu_image, os.path.dirname(outfile))
 
@@ -235,16 +275,28 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             soilPar2FNList = ['ThetaII_r.asc', 'ThetaII_WP.asc', 'ThetaII_FC.asc', 'ThetaII_sat.asc', 'Ksat_II.asc']
 
             soilParName = ['Res. (-)', 'WP (-)', 'FC (-)', 'Sat. (-)', 'K sat. (cm/hour)']
-            statLabel = ['min', 'mean', 'max']
+            statLabel = ['min', 'mean','average', 'max']
 
-            first_soil_par_table = self.makeGroupedStats(geodataPath, soilPar1FNList, soilParName, statLabel,irrunitsFile,[iu])
+            first_soil_par_table = self.makeGroupedStats(geodataPath,
+                                                         soilPar1FNList,
+                                                         soilParName,
+                                                         statLabel,
+                                                         irrunitsFile,
+                                                         [iu],
+                                                         areaFile)
             first_soil_par_table = self.dataframeToHtml(first_soil_par_table.values.tolist(),
                                                         ['id'] + soilParName,
                                                         statLabel,
                                                         ['{:.0f}'] + ['{:.2f}'] * (
                                                                     len(list(first_soil_par_table.columns)) - 1))
 
-            sec_soil_par_table = self.makeGroupedStats(geodataPath, soilPar2FNList, soilParName, statLabel,irrunitsFile,[iu])
+            sec_soil_par_table = self.makeGroupedStats(geodataPath,
+                                                       soilPar2FNList,
+                                                       soilParName,
+                                                       statLabel,
+                                                       irrunitsFile,
+                                                       [iu],
+                                                       areaFile)
             sec_soil_par_table = self.dataframeToHtml(sec_soil_par_table.values.tolist(),
                                                       ['id'] + soilParName,
                                                       statLabel,
@@ -257,7 +309,13 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             soilParName = ['b1', 'b2', 'b3', 'b4', 'a4', 'a5']
             statLabel = ['min', 'mean', 'max']
 
-            deep_soil_par_table = self.makeGroupedStats(geodataPath, soilPar3FNList, soilParName, statLabel,irrunitsFile,[iu])
+            deep_soil_par_table = self.makeGroupedStats(geodataPath,
+                                                        soilPar3FNList,
+                                                        soilParName,
+                                                        statLabel,
+                                                        irrunitsFile,
+                                                        [iu],
+                                                        areaFile)
             deep_soil_par_table = self.dataframeToHtml(deep_soil_par_table.values.tolist(),
                                                       ['id'] + soilParName,
                                                       statLabel,
@@ -267,9 +325,15 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             soilPar4FNList = ['hydr_group.asc', 'main_txtr.asc']
 
             soilParName = ['HSG', 'Texture']
-            statLabel = ['min', 'mean', 'max']
+            statLabel = ['min', 'mean', 'average','max']
 
-            other_soil_par_table = self.makeGroupedStats(geodataPath, soilPar4FNList, soilParName, statLabel,irrunitsFile,[iu])
+            other_soil_par_table = self.makeGroupedStats(geodataPath,
+                                                         soilPar4FNList,
+                                                         soilParName,
+                                                         statLabel,
+                                                         irrunitsFile,
+                                                         [iu],
+                                                         areaFile)
             other_soil_par_table = self.dataframeToHtml(other_soil_par_table.values.tolist(),
                                                         ['id'] + soilParName,
                                                         statLabel,
@@ -280,6 +344,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             im_image = os.path.join(outImageFolder, 'im_by_year_map_%s.png'%(iu))
             irrmeth_table = self.irrUnitsSummary(baseFN=os.path.join(geodataPath,'irr_meth*.asc'),
                                                  mask_rl=selIuRL, values=list(irrmethPar['id']),
+                                                 featFile=featFile,
                                                  outFile=im_image)
             im_image = os.path.relpath(im_image, os.path.dirname(outfile))
 
@@ -306,7 +371,11 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             }
 
             waterFlux_table = self.makeAnnualStats(outputPath, ['????_' + x for x in list(waterFlux.keys())],
-                                                   list(waterFlux.values()), statLabel, selIuRL, 1)
+                                                   list(waterFlux.values()),
+                                                   statLabel,
+                                                   selIuRL,
+                                                   1,
+                                                   areaFile)
 
             years = waterFlux_table['year'].to_list()
 
@@ -375,8 +444,13 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             else: axsList = [axs]
 
             for y,ax in zip(years,axsList):
-                stepWaterFlux_table = self.makeAnnualStats(outputPath, ['%s_%s*_'%(y,stepname) + x for x in list(stepWaterFlux.keys())],
-                                                       list(stepWaterFlux.values()), statLabel, selIuRL, 1)
+                stepWaterFlux_table = self.makeAnnualStats(outputPath,
+                                                           ['%s_%s*_'%(y,stepname) + x for x in list(stepWaterFlux.keys())],
+                                                           list(stepWaterFlux.values()),
+                                                           statLabel,
+                                                           selIuRL,
+                                                           1,
+                                                           areaFile)
                 # sort by step num
                 stepWaterFlux_table.sort_values(stepname, inplace = True)
 
@@ -408,8 +482,11 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                 'irr_tot': self.tr('Cumulative irrigation (mm)')
             }
             waterMan_table = self.makeAnnualStats(outputPath, ['????_' + x for x in list(waterMan.keys())],
-                                                  list(waterMan.values()), statLabel,
-                                                  selIuRL, 1)
+                                                  list(waterMan.values()),
+                                                  statLabel,
+                                                  selIuRL,
+                                                  1,
+                                                  areaFile)
             waterMan_table = self.dataframeToHtml(waterMan_table.values.tolist(),
                                                   ['year'] + list(waterMan.values()),
                                                   statLabel,
@@ -426,8 +503,11 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             }
 
             first_prod_table = self.makeAnnualStats(outputPath, ['????_' + x for x in list(production1Vars.keys())],
-                                                    list(production1Vars.values()), statLabel,
-                                                    selIuRL, 1)
+                                                    list(production1Vars.values()),
+                                                    statLabel,
+                                                    selIuRL,
+                                                    1,
+                                                    areaFile)
             first_prod_table = self.dataframeToHtml(first_prod_table.values.tolist(),
                                                     ['year'] + list(production1Vars.values()),
                                                     statLabel,
@@ -446,7 +526,9 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             sec_prod_table = self.makeAnnualStats(outputPath, ['????_' + x for x in list(production2Vars.keys())],
                                                   list(production2Vars.values()),
                                                   statLabel,
-                                                  selIuRL, 1)
+                                                  selIuRL,
+                                                  1,
+                                                  areaFile)
             sec_prod_table = self.dataframeToHtml(sec_prod_table.values.tolist(),
                                                   ['year'] + list(production2Vars.values()),
                                                   statLabel,

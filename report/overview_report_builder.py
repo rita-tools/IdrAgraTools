@@ -549,7 +549,11 @@ class OverviewReportBuilder(ReportBuilder):
 
         return res
 
-    def makeGroupedStats(self,geodataFolder,parFNList,parName, statList=['min', 'mean', 'max'], catFN = 'soilid.asc',catIds=[]):
+    def makeGroupedStats(self,geodataFolder,parFNList,parName,
+                         statList=['min', 'mean','average', 'max'],
+                         catFN = 'soilid.asc',catIds=[],
+                         weightsFN = None):
+
         catRL = self.loadASC(os.path.join(geodataFolder,catFN))
         if not catRL: return pd.DataFrame() # exit if file not loaded
 
@@ -559,22 +563,43 @@ class OverviewReportBuilder(ReportBuilder):
 
         ids_data = np.where(catRL['data'] == catRL['nodata_value'], np.nan, catRL['data'])
 
+        weights_data = ids_data*0+1
+
+        if weightsFN:
+            if isinstance(weightsFN, str):
+                weights = self.loadASC(weightsFN)
+                weights_data = weights['data'] * weights_data
+            else:
+                weights_data = weightsFN * weights_data
+
         # setup res table
         res = {'id':catIds}
         for i in parName:
             for s in statList: res['%s_%s'%(i,s)]= []
+
         # for i in soilParName:
         #     for s in statLabel: res['2nd %s (%s)'%(i,s)]= []
 
         for i,parFN in enumerate(parFNList):
             parRl = self.loadASC(os.path.join(geodataFolder, parFN),float)
-            parData = np.where(parRl['data'] == parRl['nodata_value'], np.nan, parRl['data'])
+            par_data = np.where(parRl['data'] == parRl['nodata_value'], np.nan, parRl['data'])
 
             for sid in catIds:
-                filteredParData = np.where(ids_data != sid, np.nan, parData)
-                res['%s_%s'%(parName[i],'min')].append(np.nanmin(filteredParData))
-                res['%s_%s' % (parName[i], 'mean')].append(np.nanmean(filteredParData))
-                res['%s_%s' % (parName[i], 'max')].append(np.nanmax(filteredParData))
+                filtered_pars_data = np.where(ids_data != sid, np.nan, par_data)
+                filtered_weights_data = weights_data[~np.isnan(filtered_pars_data)]
+                filtered_pars_data = par_data[~np.isnan(filtered_pars_data)]
+
+                nan_flag = np.isnan(filtered_pars_data).all()
+                for stat in statList:
+                    aVal = np.nan
+                    if not nan_flag:
+                        if stat == 'average':
+                            # apply weights to calculare averages
+                            aVal = self.statFun[stat](filtered_pars_data,None,filtered_weights_data)
+                        else:
+                            aVal = self.statFun[stat](filtered_pars_data)
+
+                    res['%s_%s' % (parName[i], stat)].append(aVal)
 
         return pd.DataFrame(res)
 
@@ -604,15 +629,14 @@ class OverviewReportBuilder(ReportBuilder):
         geodataPath = os.path.join(simFolder, simPar['inputpath'])
         domainFile = os.path.join(geodataPath, 'domain.asc')
 
+        featFile = None
         if os.path.exists(os.path.join(geodataPath, 'domain.gpkg')):
             featFile = os.path.join(geodataPath, 'domain.gpkg')
 
+        areaFile = None
         if os.path.exists(os.path.join(geodataPath, 'shapearea.asc')):
             # only newest version of idragratools generates "cellarea" file
             areaFile = os.path.join(geodataPath, 'shapearea.asc')
-        else:
-            print('missing shapearea.asc')
-            areaFile = None
 
         xs = []
         ys = []

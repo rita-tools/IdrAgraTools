@@ -44,6 +44,11 @@ class ReportBuilder():
         self.index_template = os.path.join(self.rb_dir, 'default', 'index_report.html')
         self.sim_template = os.path.join(self.rb_dir, 'default', 'simulation_report.html')
 
+        self.statFun= {'min':np.nanmin,'max':np.nanmax,'mean':np.nanmean,
+                       'std':np.nanstd, 'var':np.nanvar,
+                       'sum':np.nansum,'median':np.nanmedian,
+                       'average':np.average}
+
         # these properties are for future developments
         self.name = ''
         self.description = ''
@@ -411,7 +416,7 @@ class ReportBuilder():
 
         return handles, labels, colors
 
-    def addVectorMapToPlot(self, ax, vector_data, extent, values, unique_val, offset=0.1, nodata = -9999.):
+    def addVectorMapToPlot(self, ax, vector_data, vect_extent, values, unique_val, offset=0.1, nodata = -9999.):
         # vector_data: a ogr shape object
         # values = QgsVectorLayerUtils.getValues(vector_data, val_fld)
         # values = list(set(values))
@@ -423,9 +428,14 @@ class ReportBuilder():
         handles = patches
         labels = unique_val
 
+        extent = None
+
+        nfeat = vector_data.GetFeatureCount()
         for f,feat in enumerate(vector_data):
+            self.FEEDBACK.setProgress(100.*f/nfeat)
             geom = feat.GetGeometryRef()
             nbrRings = geom.GetGeometryCount()
+
             for i in range(nbrRings):
                 ring = geom.GetGeometryRef(i)
                 n_inner_ring = ring.GetGeometryCount()
@@ -444,6 +454,11 @@ class ReportBuilder():
                     if values[f] != nodata:
                         icol = unique_val.index(values[f])
                         plt.fill(x, y, color=colors[icol])
+                        # calculatre extent with only visible features
+                        feat_extent = geom.GetEnvelope()
+                        extent = self.getMaxExtent(feat_extent, extent)
+
+        if vect_extent: extent = vect_extent
 
         # set axes extent
         xmin = round(extent[0] - offset * (extent[1] - extent[0]))
@@ -462,6 +477,22 @@ class ReportBuilder():
 
         ax.ticklabel_format(axis='both', style='sci', scilimits=(0, 0))
         return handles, labels, colors
+
+    def getMaxExtent(self,ext1,ext2):
+        # each extent is a tuple: xmin, xmax, ymin, ymax
+        if ext1 and ext2:
+            max_ext = (min(ext1[0], ext2[0]),
+                       max(ext1[1], ext2[1]),
+                       min(ext1[2], ext2[2]),
+                       max(ext1[3], ext2[3]))
+        elif (not ext1) and ext2:
+            max_ext = ext2
+        elif ext1 and (not ext2):
+            max_ext = ext1
+        else:
+            max_ext = None
+
+        return max_ext
 
 
 if __name__ == '__main__':

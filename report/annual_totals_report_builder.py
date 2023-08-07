@@ -30,11 +30,11 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         self.annual_template = os.path.join(self.rb_dir, 'default', 'annual_report.html')
 
-        self.statFun= {'min':np.nanmin,'max':np.nanmax,'mean':np.nanmean,
-                       'std':np.nanstd, 'var':np.nanvar,
-                       'sum':np.nansum,'median':np.nanmedian}
+    def makeAnnualStats(self,outFolder,parFNList,parName,
+                        statList=['min', 'mean', 'average','max'],
+                        maskIdFN = 'pathTo/domain.asc',maskId = 1,
+                        weightsFN = None):
 
-    def makeAnnualStats(self,outFolder,parFNList,parName, statList=['min', 'mean', 'max'], maskIdFN = 'pathTo/domain.asc',maskId = 1):
         if isinstance(maskIdFN,str):
             maskRl = self.loadASC(maskIdFN)
         else:
@@ -42,6 +42,15 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         mask_data = np.where(maskRl['data'] == maskRl['nodata_value'], np.nan, maskRl['data'])
         mask_data = np.where(mask_data[:] != maskId, np.nan, mask_data[:] * 0 + 1)
+
+        weights_data = mask_data
+
+        if weightsFN:
+            if isinstance(weightsFN, str):
+                weights = self.loadASC(weightsFN)
+                weights_data = weights['data']*mask_data
+            else:
+                weights_data = weightsFN*mask_data
 
         # setup res table
         res = {'year':[],'month':[],'step':[]}
@@ -83,12 +92,19 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
                 # compute stats
                 parRl = self.loadASC(outFile, float)
-                parData = np.where(parRl['data'] == parRl['nodata_value'], np.nan, parRl['data'])
-                filteredParData = np.where(mask_data[:] != 1., np.nan, parData)
-                nan_flag = np.isnan(filteredParData).all()
+                par_data = np.where(parRl['data'] == parRl['nodata_value'], np.nan, parRl['data'])
+                filtered_weights_data = weights_data[~np.isnan(mask_data)]
+                filtered_pars_data = par_data[~np.isnan(mask_data)]
+
+                nan_flag = np.isnan(filtered_pars_data).all()
                 for stat in statList:
                     aVal = np.nan
-                    if not nan_flag: aVal = self.statFun[stat](filteredParData)
+                    if not nan_flag:
+                        if stat == 'average':
+                            # apply weights to calculare averages
+                            aVal = self.statFun[stat](filtered_pars_data,None,filtered_weights_data)
+                        else:
+                            aVal = self.statFun[stat](filtered_pars_data)
 
                     res['%s_%s' % (parName[i], stat)].append(aVal)
 
@@ -160,7 +176,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                 row = dataToPlot.iloc[[n]]
                 for label,sign in zip(labels,signs):
                     #print('row val',float(row[label+'_mean']))
-                    flows.append(float(row[label+'_mean'])*sign)
+                    flows.append(float(row[label+'_average'])*sign)
 
                 self.addFluxChart(axsList[n],flows,alias,orientations,pathlengths,'year\n%s'%int(row['year']))
             else:
@@ -183,7 +199,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             for n in range(nRows):
                 row = dataToPlot.iloc[[n]]
                 #print('row val',float(row[label+'_mean']))
-                flows.append(float(row[label + '_mean']) * sign)
+                flows.append(float(row[label + '_average']) * sign)
                 time_step.append(str(int(row[timeFld])))
 
             if sign>0:
@@ -250,13 +266,18 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         geodataPath = os.path.join(simFolder, simPar['inputpath'])
         domainFile = os.path.join(geodataPath, 'domain.asc')
 
+        areaFile = None
+        if os.path.exists(os.path.join(geodataPath, 'shapearea.asc')):
+            # only newest version of idragratools generates "cellarea" file
+            areaFile = os.path.join(geodataPath, 'shapearea.asc')
+
         # set sim output path
         outputPath = os.path.join(simFolder,simPar['outputpath'])
 
         # annual report
         report_contents = ""
 
-        statLabel = ['min', 'mean', 'std','max']
+        statLabel = ['min', 'mean', 'average','std','max']
 
         self.FEEDBACK.setProgress(0.)
 
@@ -274,7 +295,11 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         }
 
         waterFlux_table = self.makeAnnualStats(outputPath, ['????_'+x for x in list(waterFlux.keys())],
-                                               list(waterFlux.values()), statLabel,domainFile,1)
+                                               list(waterFlux.values()),
+                                               statLabel,
+                                               domainFile,
+                                               1,
+                                               areaFile)
 
         temp_png = os.path.join(outImageFolder, 'wat_fluxes.png')
         self.makeFluxPlot(temp_png, waterFlux_table, list(waterFlux.values()),['P','E','T','I','L','R','N'],
@@ -304,8 +329,13 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             'irr_nr':self.tr('Number of irrigation application (-)'),
             'irr_tot':self.tr('Cumulative irrigation (mm)')
         }
-        waterMan_table = self.makeAnnualStats(outputPath,['????_'+x for x in  list(waterMan.keys())], list(waterMan.values()), statLabel,
-                                               domainFile, 1)
+        waterMan_table = self.makeAnnualStats(outputPath,
+                                              ['????_'+x for x in  list(waterMan.keys())],
+                                              list(waterMan.values()),
+                                              statLabel,
+                                              domainFile,
+                                              1,
+                                              areaFile)
         waterMan_table = self.dataframeToHtml(waterMan_table.values.tolist(),
                                                ['year'] + list(waterMan.values()),
                                                statLabel,
@@ -325,8 +355,13 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             'yield_pot_1': self.tr('Potential yield for the main crop (t/ha)')
         }
 
-        first_prod_table = self.makeAnnualStats(outputPath,['????_'+x for x in  list(production1Vars.keys())], list(production1Vars.values()), statLabel,
-                                              domainFile, 1)
+        first_prod_table = self.makeAnnualStats(outputPath,
+                                                ['????_'+x for x in  list(production1Vars.keys())],
+                                                list(production1Vars.values()),
+                                                statLabel,
+                                                domainFile,
+                                                1,
+                                                areaFile)
         first_prod_table = self.dataframeToHtml(first_prod_table.values.tolist(),
                                               ['year'] + list(production1Vars.values()),
                                               statLabel,
@@ -342,9 +377,13 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             'yield_pot_2': self.tr('Potential yield for the second crop (t/ha)')
         }
 
-        sec_prod_table = self.makeAnnualStats(outputPath,['????_'+x for x in  list(production2Vars.keys())], list(production2Vars.values()),
-                                          statLabel,
-                                          domainFile, 1)
+        sec_prod_table = self.makeAnnualStats(outputPath,
+                                              ['????_'+x for x in  list(production2Vars.keys())],
+                                              list(production2Vars.values()),
+                                              statLabel,
+                                              domainFile,
+                                              1,
+                                              areaFile)
         sec_prod_table = self.dataframeToHtml(sec_prod_table.values.tolist(),
                                           ['year'] + list(production2Vars.values()),
                                           statLabel,
