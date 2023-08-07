@@ -451,13 +451,23 @@ class ReportBuilder():
 
                     #x.append(x[0])
                     #y.append(y[0])
-                    if values[f] != nodata:
-                        icol = unique_val.index(values[f])
-                        plt.fill(x, y, color=colors[icol])
-                        # calculatre extent with only visible features
-                        feat_extent = geom.GetEnvelope()
-                        extent = self.getMaxExtent(feat_extent, extent)
+                    #print('values[f]',values[f])
+                    if not (np.isnan(values[f])):
+                        if (values[f] !=nodata) :
+                            #print('--> add feature')
+                            #print('    x:', x)
+                            #print('    y:', y)
 
+                            icol = unique_val.index(values[f])
+                            plt.fill(x, y, color=colors[icol])
+                            #print('    colors:', colors[icol])
+                            # calculatre extent with only visible features
+                            feat_extent = geom.GetEnvelope()
+                            #print('    extent:', feat_extent)
+                            extent = self.getMaxExtent(feat_extent, extent)
+
+        print('extent',extent)
+        print('vect_extent', vect_extent)
         if vect_extent: extent = vect_extent
 
         # set axes extent

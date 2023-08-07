@@ -143,9 +143,9 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                     domain_rl = inDataSource.GetLayer(0)
                     #extent = domain_rl.GetExtent()
                     extent = None # calculate extent from plotted polygons
-
+                    #print('masked_data',masked_data)
                     handles, labels, colors = self.addVectorMapToPlot(ax, domain_rl, extent, masked_data,
-                                                                      unique.tolist())
+                                                                      unique.tolist(),0.1,-9999)
 
                 ax.set_title(str(y))
                 #print('labels', labels)
@@ -396,7 +396,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             waterFlux_table = self.dataframeToHtml(waterFlux_table.values.tolist(),
                                                    ['year'] + list(waterFlux.values()),
                                                    statLabel,
-                                                   ['{:.0f}'] + ['{:.2f}'] * (
+                                                   ['{:.0f}'] + ['{:.0f}'] * (
                                                            len(list(waterFlux_table.columns)) - 1))
 
             # make flux plot for each period and year
@@ -490,7 +490,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             waterMan_table = self.dataframeToHtml(waterMan_table.values.tolist(),
                                                   ['year'] + list(waterMan.values()),
                                                   statLabel,
-                                                  ['{:.0f}'] + ['{:.2f}'] * (
+                                                  ['{:.0f}'] + ['{:.0f}'] * (
                                                           len(list(waterMan_table.columns)) - 1))
 
             ### ADD PRODUCTION STATISTICS ###

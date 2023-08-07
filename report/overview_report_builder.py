@@ -412,7 +412,11 @@ class OverviewReportBuilder(ReportBuilder):
             if (-9999.0 in unique_values): unique_values.remove(-9999.0)
             unique_values.sort()
 
-            handles, labels, colors = self.addVectorMapToPlot(ax1, domain_rl, extent, map_data.tolist(), unique_values)
+            #print('map_data',map_data.tolist())
+
+            handles, labels, colors = self.addVectorMapToPlot(ax1, domain_rl,
+                                                              extent, map_data.tolist(),
+                                                              unique_values,0.1,-9999)
 
 
         # add pie chart

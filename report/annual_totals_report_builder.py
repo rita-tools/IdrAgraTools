@@ -93,8 +93,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                 # compute stats
                 parRl = self.loadASC(outFile, float)
                 par_data = np.where(parRl['data'] == parRl['nodata_value'], np.nan, parRl['data'])
-                filtered_weights_data = weights_data[~np.isnan(mask_data)]
-                filtered_pars_data = par_data[~np.isnan(mask_data)]
+                filtered_weights_data = weights_data[~np.isnan(par_data)]
+                filtered_pars_data = par_data[~np.isnan(par_data)]
 
                 nan_flag = np.isnan(filtered_pars_data).all()
                 for stat in statList:
@@ -311,7 +311,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         waterFlux_table = self.dataframeToHtml(waterFlux_table.values.tolist(),
                                                     ['year'] + list(waterFlux.values()),
                                                     statLabel,
-                                                    ['{:.0f}'] + ['{:.2f}'] * (
+                                                    ['{:.0f}'] + ['{:.0f}'] * (
                                                                 len(list(waterFlux_table.columns)) - 1))
 
         self.FEEDBACK.setProgress(30.)
@@ -339,7 +339,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         waterMan_table = self.dataframeToHtml(waterMan_table.values.tolist(),
                                                ['year'] + list(waterMan.values()),
                                                statLabel,
-                                               ['{:.0f}'] + ['{:.2f}'] * (
+                                               ['{:.0f}'] + ['{:.0f}'] * (
                                                        len(list(waterMan_table.columns)) - 1))
 
 
