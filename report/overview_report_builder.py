@@ -490,7 +490,7 @@ class OverviewReportBuilder(ReportBuilder):
 
             #mask = np.where(np.logical_and(baseData == i, maskData != maskRaster['nodata_value']))
 
-            countCells.append(np.count_nonzero(mask))
+            countCells.append(np.count_nonzero(areaData[mask]))
             cellsArea.append(np.sum(areaData[mask]))
 
 
