@@ -5,3 +5,6 @@ idragra_prerelease_20230704.exe
 cropcoef_20230516.exe
 - add cover fraction (fc) as input/output
 - fix nodata in fc series
+
+cropcoef_20230830.exe
+- fix invalid sowing date index
