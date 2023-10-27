@@ -115,13 +115,31 @@ class ReportBuilder():
 
        return (xll, xlr, yll, yur)
 
+    def trim_labels(self,labels,trim_num):
+        if trim_num>0:
+            # trim header labels
+            new_labels = []
+            for l in labels:
+                l = str(l)
+                new_label = l
+                if len(l)>trim_num: new_label = l[0:trim_num]+'.'
+                new_labels.append(new_label)
 
+            labels = new_labels
 
-    def dataframeToHtml(self, df, header, subHeader=None, formatList=None, tableClass='statistics', oddClass='odd'):
+        return labels
+
+    def dataframeToHtml(self, df, header,
+                        subHeader=None, formatList=None, tableClass='statistics', oddClass='odd',
+                        trim_header=-1, trim_subheader = 4):
         """
         Convert a pandas dataframe to html table
         More advanced respected to simple pandas.DataFrame.to_html method
         """
+
+        header = self.trim_labels(header,trim_header)
+        if subHeader: subHeader = self.trim_labels(subHeader,trim_subheader)
+
         nMains = len(header)
         if subHeader:
             nsubs = len(subHeader)
@@ -416,21 +434,23 @@ class ReportBuilder():
 
         return handles, labels, colors
 
-    def addVectorMapToPlot(self, ax, vector_data, vect_extent, values, unique_val, offset=0.1, nodata = -9999.):
+    def addVectorMapToPlot(self, ax, vector_data, vect_extent, values, unique_val,
+                           offset=0.1, nodata = -9999.,
+                           colors=None,patches=None,labels=None):
         # vector_data: a ogr shape object
         # values = QgsVectorLayerUtils.getValues(vector_data, val_fld)
         # values = list(set(values))
-
-        colors = cm.rainbow(np.linspace(0, 1, len(unique_val)))
+        if colors is None: colors = cm.rainbow(np.linspace(0, 1, len(unique_val)))
         # create a patch (proxy artist) for every color
-        patches = [mpatches.Patch(color=colors[i]) for i in range(len(unique_val))]
+        if patches is None: patches = [mpatches.Patch(color=colors[i]) for i in range(len(unique_val))]
 
         handles = patches
-        labels = unique_val
+        if labels is None: labels = unique_val
 
         extent = None
 
         nfeat = vector_data.GetFeatureCount()
+
         for f,feat in enumerate(vector_data):
             self.FEEDBACK.setProgress(100.*f/nfeat)
             geom = feat.GetGeometryRef()
@@ -451,7 +471,7 @@ class ReportBuilder():
 
                     #x.append(x[0])
                     #y.append(y[0])
-                    #print('values[f]',values[f])
+
                     if not (np.isnan(values[f])):
                         if (values[f] !=nodata) :
                             #print('--> add feature')
@@ -459,15 +479,16 @@ class ReportBuilder():
                             #print('    y:', y)
 
                             icol = unique_val.index(values[f])
-                            plt.fill(x, y, color=colors[icol])
-                            #print('    colors:', colors[icol])
-                            # calculatre extent with only visible features
+                            ax.fill(x, y, color=colors[icol])
+                            if (f<-1):
+                                print('    x:', x)
+                                print('    y:', y)
+                                print('    colors:', colors[icol])
+                            # calculate extent with only visible features
                             feat_extent = geom.GetEnvelope()
                             #print('    extent:', feat_extent)
                             extent = self.getMaxExtent(feat_extent, extent)
 
-        print('extent',extent)
-        print('vect_extent', vect_extent)
         if vect_extent: extent = vect_extent
 
         # set axes extent

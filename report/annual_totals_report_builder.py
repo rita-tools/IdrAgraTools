@@ -199,7 +199,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             for n in range(nRows):
                 row = dataToPlot.iloc[[n]]
                 #print('row val',float(row[label+'_mean']))
-                flows.append(float(row[label + '_average']) * sign)
+                flows.append(float(row[label + '_average']) * sign) #float(ser.iloc[0])
                 time_step.append(str(int(row[timeFld])))
 
             if sign>0:

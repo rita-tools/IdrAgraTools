@@ -17,7 +17,7 @@ from matplotlib.gridspec import GridSpec
 from osgeo import ogr
 
 from datetime import datetime,timedelta
-
+import math
 # import as module
 from report.report_builder import ReportBuilder
 
@@ -431,7 +431,12 @@ class OverviewReportBuilder(ReportBuilder):
         # add legend
         ax3 = fig.add_subplot(gs[0, 3])
         ax3.axis('off')
-        ax3.legend(handles, labels)
+        # calc num of cols
+        n_items = len(handles)
+        n_cols = math.ceil(n_items/10)
+        ax3.legend(handles, labels,ncol=n_cols)
+
+        # TODO: fix long legend
 
         # save to file
         fig.savefig(outfile, format='png')

@@ -62,7 +62,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
         ax.ticklabel_format(axis='both', style='sci', scilimits=(0, 0))
         return handles, labels
 
-    def irrUnitsSummary(self, baseFN, mask_rl, values, areaFile = None, featFile = None, outFile= None):
+    def irrUnitsSummary(self, baseFN, mask_rl, values, areaFile = None, featFile = None, outFile= None,
+                        colors=None, patches=None,labels=None):
         # TODO: think in another way
         if isinstance(mask_rl, str):
             mask_rl = self.loadASC(mask_rl,int)
@@ -71,6 +72,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                  mask_rl['data'])
             mask_data = mask_data * 0 + 1
         else:
+            #print('irrigation num.',np.nanmax(mask_rl['data']))
             mask_data = mask_rl['data']*0+1
 
         # search all files that match baseFN
@@ -97,8 +99,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                     nums = re.findall(r'\d+', fname)
                     y = int(nums[0])
                 except:
-                    self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name: %s') % fname, False)
-                    #self.FEEDBACK.reportError(self.tr('Bad-formatted landuse file name:'), fname)
+                    self.FEEDBACK.reportError(self.tr('Unrecognized year from file name "%s", considered as general') % fname, False)
 
                 base_rl = self.loadASC(baseFile, float)
                 base_data = np.where(base_rl['data']==base_rl['nodata_value'],np.nan,base_rl['data'])
@@ -107,6 +108,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                     # set area_data
                     area_data = mask_data * base_rl['cellsize'] * base_rl['cellsize']
                     if areaFile:
+                        #print('areaFile:',areaFile)
                         area_rl = self.loadASC(areaFile, int)
                         area_data = np.where(area_rl['data'] == area_rl['nodata_value'], np.nan, area_rl['data'])
 
@@ -117,23 +119,32 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
                 # count
                 unique, counts = np.unique(int_filtered_data, return_counts=True)
-
+                #if not all_values: all_values = unique
+                #print('unique')
+                #print(unique)
                 # get total area
                 tot_area = np.bincount(int_filtered_data,
                                        weights=filtered_area_data)
-                # note that bincount always start from zero as first group id
-                res = pd.DataFrame({y: tot_area[1:]}, index=unique)
+                #print('tot_area before filter')
+                #print(tot_area)
+                # note that bincount always returns an array of length np.amax(int_filtered_data)+1.
+                # select only the values available in the map
+                tot_area = tot_area[unique]
+                #print('tot_area after filter')
+                #print(tot_area)
+
+                res = pd.DataFrame({y: tot_area}, index=unique)
                 tableList.append(res)
 
                 # add map to the figure
                 #handles, labels = self.addMapToPlot(ax, filtered_data, extent,values)
                 if not featFile:
+                    #print('not featFile', ax)
                     if (i==0):
                         extent = self.maskExtent(mask_data)
                         extent = self.calcExtent(extent[0], extent[1], extent[2], extent[3], mask_rl['xllcorner'],
                                                  mask_rl['yllcorner'],
                                                  mask_rl['cellsize'])
-
                     handles, labels, colors = self.addRasterMapToPlot(ax, masked_data, extent, values)
                 else:
                     # load geometries vector file
@@ -144,9 +155,13 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                     #extent = domain_rl.GetExtent()
                     extent = None # calculate extent from plotted polygons
                     #print('masked_data',masked_data)
-                    handles, labels, colors = self.addVectorMapToPlot(ax, domain_rl, extent, masked_data,
-                                                                      unique.tolist(),0.1,-9999)
+                    #print('y: %s'%str(y),'masked data n.:',masked_data[~np.isnan(masked_data)])
+                    #print('ax',ax)
 
+                    handles, labels, colors = self.addVectorMapToPlot(ax, domain_rl, extent, masked_data,
+                                                                      unique.tolist(),0.1,-9999,
+                                                                      colors=colors, patches=patches,labels=labels)
+                #print('ax title', ax)
                 ax.set_title(str(y))
                 #print('labels', labels)
             else:
@@ -156,6 +171,9 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
         # join dataframe to only one
         newDf = pd.concat(tableList, axis=1)
+
+        #print('newDf')
+        #print(newDf)
 
         # save to file
         if outFile: fig.savefig(outFile, format='png')
@@ -230,6 +248,20 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
         irrmethPar['new_id'] = irrmethPar['id']
         irrmethPar.set_index('new_id', inplace=True)
 
+        # set general land uses plot options
+        lu_colors = cm.rainbow(np.linspace(0, 1, len(landusePar['id'])))
+        # create a patch (proxy artist) for every color
+        lu_patches = [mpatches.Patch(color=lu_colors[i]) for i in range(len(landusePar['id']))]
+        # set labels
+        lu_labels = landusePar['id']
+
+        # set general irrigation methods plot options
+        im_colors = cm.rainbow(np.linspace(0, 1, len(irrmethPar['id'])))
+        # create a patch (proxy artist) for every color
+        im_patches = [mpatches.Patch(color=im_colors[i]) for i in range(len(irrmethPar['id']))]
+        # set labels
+        im_labels = irrmethPar['id']
+
         ### PLOT IRRIGATION UNITS MAP
 
         irrunits_image = os.path.join(outImageFolder, 'all_irr_units.png')
@@ -247,6 +279,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
         # loop in each irrigation units
         for i,iu in enumerate(iuList):
+            self.FEEDBACK.pushInfo(self.tr('Processing irrigation units n.: %s')%(str(iu)))
             selIuRL = copy.deepcopy(iuRl)
             selIuRL['data'] = np.where(selIuRL['data']==iu,1,np.nan)
 
@@ -254,8 +287,10 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             lu_image = os.path.join(outImageFolder, 'lu_by_year_map_%s.png'%(iu))
             soiluse_table = self.irrUnitsSummary(baseFN=os.path.join(geodataPath,'soiluse*.asc'),
                                                  mask_rl=selIuRL, values=list(landusePar['id']),
+                                                 areaFile=os.path.join(geodataPath,'shapearea.asc'),
                                                  featFile=featFile,
-                                                 outFile=lu_image)
+                                                 outFile=lu_image,
+                                                 colors=lu_colors,patches=lu_patches,labels=lu_labels)
             lu_image = os.path.relpath(lu_image, os.path.dirname(outfile))
 
             soiluse_table=pd.concat([landusePar,soiluse_table], axis=1)
@@ -344,8 +379,10 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             im_image = os.path.join(outImageFolder, 'im_by_year_map_%s.png'%(iu))
             irrmeth_table = self.irrUnitsSummary(baseFN=os.path.join(geodataPath,'irr_meth*.asc'),
                                                  mask_rl=selIuRL, values=list(irrmethPar['id']),
+                                                 areaFile=os.path.join(geodataPath, 'shapearea.asc'),
                                                  featFile=featFile,
-                                                 outFile=im_image)
+                                                 outFile=im_image,
+                                                 colors=im_colors,patches=im_patches,labels=im_labels)
             im_image = os.path.relpath(im_image, os.path.dirname(outfile))
 
             irrmeth_table=pd.concat([irrmethPar,irrmeth_table], axis=1)
@@ -575,8 +612,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder=r'C:\examples\ex_report_SIM'
-    outputFile = 'C:/examples/test_img/test_irrigation_units.html'
+    simFolder=r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM'
+    outputFile = r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM\test_irrigation_units.html'
     RB = IrrunitTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)
