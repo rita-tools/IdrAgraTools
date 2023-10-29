@@ -919,8 +919,8 @@ class OverviewReportBuilder(ReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder=r'C:\examples\version4\test5_SIM'
-    outputFile = r'C:\examples\version4\test5_SIM\test_overview.html'
+    simFolder = r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM'
+    outputFile = r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM\test_overview.html'
     RB = OverviewReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)

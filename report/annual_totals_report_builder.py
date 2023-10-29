@@ -17,7 +17,7 @@ from matplotlib import cm
 import matplotlib.patches as mpatches
 import matplotlib.patheffects as pe
 from matplotlib.gridspec import GridSpec
-
+from matplotlib.transforms import Bbox
 from datetime import datetime,timedelta
 
 # import as module
@@ -133,6 +133,151 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                   0.25],
                      patchlabel="Widget\nA"):
 
+        def add_v_arrow(ax, x,y,l,w_arrow,lim_area,label):
+            if abs(l) < lim_area: w_arrow = (abs(l) / lim_area) * w_arrow
+
+            x_start = x
+            y_start = y + l
+            # flip if negative
+            if l < 0: y_start = y
+
+            new_arrow = matplotlib.patches.FancyArrow(x_start, y_start, 0, -l, width=w_arrow,
+                                                      length_includes_head=True,
+                                                      head_width=w_arrow, head_length=None,
+                                                      shape='full', overhang=0, head_starts_at_zero=False,
+                                                      facecolor='#acc9ffff', edgecolor='#2f6bdcff')
+
+            ax.add_patch(new_arrow)
+            arrow_bbox = new_arrow.get_extents().transformed(ax.transAxes.inverted())
+
+            # add label
+            #new_text = ax.text(x, y + 1.1 * abs(l), '%s %s' % (label, int(l)),horizontalalignment='center')
+            new_text = ax.text(0.5 * (arrow_bbox.xmin + arrow_bbox.xmax),
+                               0.5 * (arrow_bbox.ymin + arrow_bbox.ymax),
+                               '%s' % (label), horizontalalignment='center')
+
+            return Bbox.from_extents(x,y,x+w_arrow, y + 1.4 * abs(l))
+
+        ax.axis('off')
+
+        # predict ax dimension
+        y_max = max(flows)
+        y_min = flows[labels.index('N')]-1000
+
+        # drow control volume
+        evap_lay = matplotlib.patches.Rectangle((0, -100), 700, 100, facecolor='#ffcc00ff', edgecolor='black')
+        trasp_lay = matplotlib.patches.Rectangle((0, -1000), 700, 900, facecolor='#c87137ff', edgecolor='black')
+
+        ax.add_patch(evap_lay)
+        ax.add_patch(trasp_lay)
+
+        evap_bbox = evap_lay.get_extents().transformed(ax.transAxes.inverted())
+        trasp_bbox = trasp_lay.get_extents().transformed(ax.transAxes.inverted())
+
+        max_bbox = Bbox.union([evap_bbox,trasp_bbox])
+        #print('bbox with control volume:', max_bbox)
+        # draw fluxes
+        x_offset = 100
+        y_offset = 0.05*max([y_max,abs(y_min)])
+        y = y_offset
+        lim_area = 130
+
+        flow = flows[labels.index('P')]
+        ext = add_v_arrow(ax, 100, y, flow, 0.9 * x_offset, lim_area,'%s %s'%('P',int(flow)))
+        max_bbox = Bbox.union([max_bbox,ext])
+
+        flow = flows[labels.index('I')]
+        ext = add_v_arrow(ax, 200, y, flow, 0.9 * x_offset, lim_area,'%s %s'%('I',int(flow)))
+        max_bbox = Bbox.union([max_bbox, ext])
+
+        flow = flows[labels.index('E')]
+        ext = add_v_arrow(ax, 300, y, flow, 0.9 * x_offset, lim_area,'%s %s'%('E',int(flow)))
+        max_bbox = Bbox.union([max_bbox, ext])
+
+        flow = flows[labels.index('T')]
+        ext = add_v_arrow(ax, 400, y, flow, 0.9 * x_offset, lim_area,'%s %s'%('T',int(flow)))
+        max_bbox = Bbox.union([max_bbox, ext])
+
+        flow = flows[labels.index('N')]
+        ext = add_v_arrow(ax, 400, -1000+flow-y_offset, -flow, 0.9 * x_offset, lim_area, '%s %s'%('N',int(flow)))
+        max_bbox = Bbox.union([max_bbox, ext])
+
+        flow = flows[labels.index('R')]
+        ext = add_v_arrow(ax, 500, y,flow, 0.9 * x_offset, lim_area, '%s %s'%('R',int(flow)))
+        max_bbox = Bbox.union([max_bbox, ext])
+
+        flow = flows[labels.index('L')]
+        ext = add_v_arrow(ax, 600, y, flow, 0.9 * x_offset, lim_area, '%s %s'%('L',int(flow)))
+        max_bbox = Bbox.union([max_bbox, ext])
+
+        ax.set_xlim([max_bbox.xmin, max_bbox.xmax])
+        ax.set_ylim([max_bbox.ymin, max_bbox.ymax])
+        ax.set_title(patchlabel)
+
+    def addFluxChart_v1(self, ax, flows=[25, 0, 60, -10, -20, -5, -15, -10, -40],
+                     labels=['', '', '', 'First', 'Second', 'Third', 'Fourth',
+                             'Fifth', 'Hurray!'],
+                     orientations=[-1, 1, 0, 1, 1, 1, -1, -1, 0],
+                     pathlengths=[0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
+                                  0.25],
+                     patchlabel="Widget\nA"):
+
+        #ax.axis('off')
+
+        # drow control volume
+        evap_lay = matplotlib.patches.Rectangle((0, -100), 1000, 100, facecolor='#ffcc00ff', edgecolor='black')
+        trasp_lay = matplotlib.patches.Rectangle((0, -1000), 1000, 900, facecolor='#c87137ff', edgecolor='black')
+
+        ax.add_patch(evap_lay)
+        ax.add_patch(trasp_lay)
+
+        # draw fluxes
+        x_offset = 100
+        scale = 10
+        x = x_offset
+        y = 10
+
+        lim_area = 130
+        for flow, label, orient, path_l in zip(flows,labels,orientations,pathlengths):
+            #new_arrow = matplotlib.patches.Arrow(x_tail, y_tail, 10, 100)
+            print(label,':',flow,'(',orient,')','path:',path_l)
+            h_row = flow#/(0.9*x_offset)
+            arr_width = 0.9*x_offset
+            if abs(h_row)<lim_area:
+                arr_width = (abs(h_row)/lim_area)*arr_width
+
+            h_row = h_row#*scale
+            x_start = x
+            y_start = y+h_row
+            if h_row <0: y_start = y
+
+            new_arrow = matplotlib.patches.FancyArrow( x_start, y_start,0,-h_row, width=arr_width,
+                                                      length_includes_head=True,
+                                                      head_width=arr_width, head_length=None,
+                                                      shape='full', overhang=0, head_starts_at_zero=False,
+                                                       facecolor='#acc9ffff', edgecolor='#2f6bdcff')
+
+                #FancyArrowPatch((x_tail, y_tail+path_l*1000), (x_tail, y_tail),
+                #                                           mutation_scale=100,
+                #                                           length_includes_head=True, color="C1")
+            ax.add_patch(new_arrow)
+
+            ax.text(x, y+1.1*abs(h_row), '%s\n%s'%(label,int(flow)))
+
+            x = x+x_offset
+
+        ax.set_xlim([-10, 1010])
+        ax.set_ylim([-1010, 1000])
+        ax.set_title(patchlabel)
+
+    def addFluxChart_OLD(self, ax, flows=[25, 0, 60, -10, -20, -5, -15, -10, -40],
+                     labels=['', '', '', 'First', 'Second', 'Third', 'Fourth',
+                             'Fifth', 'Hurray!'],
+                     orientations=[-1, 1, 0, 1, 1, 1, -1, -1, 0],
+                     pathlengths=[0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
+                                  0.25],
+                     patchlabel="Widget\nA"):
+
         ax.axis('off')
 
         sankey = Sankey(ax=ax, scale=0.01, offset=2, head_angle=160, format='%.0f', unit='', gap=0.1)
@@ -164,6 +309,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         if nPlot==1: nCols=1
         # print('nPlot',nPlot,'nRows',nRows,'nCols',nCols)
         fig, axs = plt.subplots(nRows, nCols, figsize=(10,3.5*nRows))#, constrained_layout=True)
+        #fig.canvas.draw() # to calculate extents
 
         if nPlot > 1:
             axsList = axs.flat
@@ -316,18 +462,38 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         self.FEEDBACK.setProgress(30.)
 
-        ### ADD WATER MANAGEMENT STATISTICS ###
-        self.FEEDBACK.pushInfo(self.tr('Meteo management processing ...'))
+        ### ADD WATER PRODUCTIVITY STATISTICS ###
 
-        waterMan = {
+        self.FEEDBACK.pushInfo(self.tr('processing water productivity...'))
+
+        waterProd = {
             'eva_act_agr': self.tr('Cumulative actual evaporation (mm)'),
             'eva_pot_agr': self.tr('Cumulative potential evaporation (mm)'),
             'trasp_act_tot': self.tr('Cumulative actual transpiration (mm)'),
             'trasp_pot_tot': self.tr('Cumulative potential transpiration (mm)'),
+
+        }
+        waterProd_table = self.makeAnnualStats(outputPath,
+                                              ['????_' + x for x in list(waterProd.keys())],
+                                              list(waterProd.values()),
+                                              statLabel,
+                                              domainFile,
+                                              1,
+                                              areaFile)
+        waterProd_table = self.dataframeToHtml(waterProd_table.values.tolist(),
+                                              ['year'] + list(waterProd.values()),
+                                              statLabel,
+                                              ['{:.0f}'] + ['{:.0f}'] * (
+                                                      len(list(waterProd_table.columns)) - 1))
+
+        ### ADD WATER MANAGEMENT STATISTICS ###
+        self.FEEDBACK.pushInfo(self.tr('processing water management...'))
+
+        waterMan = {
+            'irr_tot': self.tr('Cumulative irrigation (mm)'),
             'irr_loss':self.tr('Irrigation application losses (mm)'),
             'irr_mean':self.tr('Mean irrigation application (mm)'),
-            'irr_nr':self.tr('Number of irrigation application (-)'),
-            'irr_tot':self.tr('Cumulative irrigation (mm)')
+            'irr_nr':self.tr('Number of irrigation application (-)')
         }
         waterMan_table = self.makeAnnualStats(outputPath,
                                               ['????_'+x for x in  list(waterMan.keys())],
@@ -395,6 +561,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         report_contents = self.writeParsToTemplate(None, {'annual_fluxes': temp_png_rel,
                                                           'wbf_table': waterFlux_table,
+                                                          'wp_table': waterProd_table,
                                                           'wm_table':waterMan_table,
                                                           'fcp_table':first_prod_table,
                                                           'scp_table':sec_prod_table},
@@ -417,8 +584,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder=r'C:\examples\ex_report_SIM'
-    outputFile = 'C:/examples/test_img/test_annual.html'
+    simFolder = r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM'
+    outputFile = r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM\test_annual.html'
     RB = AnnualTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)
