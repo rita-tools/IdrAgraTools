@@ -2555,7 +2555,7 @@ class IdrAgraTools():
 
         irrUnitData = np.loadtxt(irrUnitsFile, dtype=np.int32, skiprows=6)
         irrUnitList = list(np.unique(irrUnitData))
-        irrUnitList.remove(nodata)# remove nodata
+        if nodata in irrUnitList: irrUnitList.remove(nodata)# remove nodata
 
         try:
             areaData = np.loadtxt(areaFile, dtype=float, skiprows=6)
