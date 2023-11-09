@@ -493,7 +493,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             'irr_tot': self.tr('Cumulative irrigation (mm)'),
             'irr_loss':self.tr('Irrigation application losses (mm)'),
             'irr_mean':self.tr('Mean irrigation application (mm)'),
-            'irr_nr':self.tr('Number of irrigation application (-)')
+            'irr_nr':self.tr('Number of irrigation application (-)'),
+            'eff_tot': self.tr('Irrigation efficiency (-)')
         }
         waterMan_table = self.makeAnnualStats(outputPath,
                                               ['????_'+x for x in  list(waterMan.keys())],
@@ -506,7 +507,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                                ['year'] + list(waterMan.values()),
                                                statLabel,
                                                ['{:.0f}'] + ['{:.0f}'] * (
-                                                       len(list(waterMan_table.columns)) - 1))
+                                                       len(list(waterMan_table.columns)) - 1-4)
+                                                  +['{:.2f}']*4)
 
 
 
