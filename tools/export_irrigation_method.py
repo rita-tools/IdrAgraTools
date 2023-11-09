@@ -78,6 +78,7 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 		# make default parameters with empty values
 		irrDict = {'ID': irrId,
 				   'NAME': 'not implemented',
+				   'IRR_EFF': 0,
 				   'QADAQ': 0,
 				   'KSTRESS': 0,
 				   'KSTRESSWELL': 0,
@@ -149,6 +150,7 @@ def exportIrrigationMethod(DBM,outPath, feedback = None,tr=None):
 			# replace default non implemented
 			irrDict = {'ID':irrMethod['id'],
 							'NAME':irrMethod['name'],
+					   		'IRR_EFF':irrMethod['irr_eff'],
 							'QADAQ':irrMethod['qadaq'],
 							'KSTRESS':irrMethod['k_stress'],
 							'KSTRESSWELL':irrMethod['k_stresswells'],

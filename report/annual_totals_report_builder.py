@@ -584,8 +584,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder = r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM'
-    outputFile = r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM\test_annual.html'
+    simFolder = r'C:\sim_to_debug\simout'
+    outputFile = r'C:\sim_to_debug\simout\test_annual_check.html'
     RB = AnnualTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)

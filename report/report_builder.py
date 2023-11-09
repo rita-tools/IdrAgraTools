@@ -53,6 +53,8 @@ class ReportBuilder():
         self.name = ''
         self.description = ''
 
+        self.NODATA = -9999
+
     def set_title(self, name):
         """
         Set report name
@@ -178,7 +180,12 @@ class ReportBuilder():
             else:
                 text += '<tr>'
                 odd = True
-            text += '\t<td>' + '</td><td>'.join([formatList[i].format(x) for i, x in enumerate(v)]) + '</td>\n'
+
+            record_values = [formatList[i].format(x) for i, x in enumerate(v)]
+            for i,r in enumerate(record_values):
+                if record_values[i].startswith(str(self.NODATA)): record_values[i] = self.tr('NA')
+
+            text += '\t<td>' + '</td><td>'.join(record_values) + '</td>\n'
 
             text += '</tr>'
 
@@ -258,6 +265,10 @@ class ReportBuilder():
 
                 if 'Irrigation method:' in comment:
                     pars['irrmeth_name'] = comment.replace('Irrigation method:', '').strip()
+                    pars['irr_eff'] = self.NODATA # for back compatibility
+
+                if 'Irrigation efficiency:' in comment:
+                    pars['irr_eff'] = comment.replace('Irrigation efficiency:', '').strip()
 
                 l = l.split('=')
                 if len(l) == 2:
@@ -284,6 +295,10 @@ class ReportBuilder():
                         pars['enddate'] = int(l[1])
                     elif parName == 'deltadate':
                         pars['deltadate'] = int(l[1])
+                    elif parName == 'startirrseason':
+                        pars['startirrseason'] = int(l[1])
+                    elif parName == 'endirrseason':
+                        pars['endirrseason'] = int(l[1])
                     else:
                         # all the other cases
                         pars[parName] = l[1]

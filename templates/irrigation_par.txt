@@ -8,6 +8,8 @@
 # Id: Irrigation method code
 Id = [%ID%]
 
+# Irrigation efficiency: [%IRR_EFF%]
+
 # Qadaq: irrigation water depth [mm]
 Qadaq = [%QADAQ%]
 

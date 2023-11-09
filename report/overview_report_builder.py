@@ -779,19 +779,22 @@ class OverviewReportBuilder(ReportBuilder):
             if os.path.basename(irrmethFile) != 'irrmethods.txt':
                 irrmethPars[os.path.basename(irrmethFile)] = self.readIdragraParameters(irrmethFile,self.FEEDBACK,self.tr)
 
-        irrmethTable = {'id': [], 'name': [], 'h_wat_mm': [], 'k_stress': [], 'k_stress_well': []}
+        # TODO: actually, irr_eff is not a parameter of irrigation methods
+        irrmethTable = {'id': [], 'name': [], 'irr_eff':[], 'h_wat_mm': [], 'k_stress': [], 'k_stress_well': []}
         for k,v in irrmethPars.items():
             irrmethTable['id'].append(float(v['id']))
             irrmethTable['name'].append(v['irrmeth_name'])
+            irrmethTable['irr_eff'].append(float(v['irr_eff']))
             irrmethTable['h_wat_mm'].append(float(v['qadaq']))
             irrmethTable['k_stress'].append(float(v['k_stress']))
             irrmethTable['k_stress_well'].append(float(v['k_stresswells']))
 
         irrmethTable = pd.DataFrame(irrmethTable)
         irrmethTable = self.dataframeToHtml(irrmethTable.values.tolist(),
-                                       ['id', 'name', 'fixed irr. volume (mm)', 'k stress (collective)', 'k stress (private)'],
+                                       [self.tr('id'), self.tr('name'), self.tr('irrigation efficiency'),self.tr('fixed irr. volume (mm)'),
+                                        self.tr('k stress (collective)'), self.tr('k stress (private)')],
                                        None,
-                                       ['{:.0f}', '{:}', '{:.2f}', '{:.2f}', '{:.2f}'])
+                                       ['{:.0f}', '{:}', '{:.2f}', '{:.2f}', '{:.2f}', '{:.2f}'])
 
         im_contents = ''
         # search for land use maps
@@ -919,8 +922,8 @@ class OverviewReportBuilder(ReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder = r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM'
-    outputFile = r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM\test_overview.html'
+    simFolder = r'C:\sim_to_debug\simout'
+    outputFile = r'C:\sim_to_debug\simout\test_overview.html'
     RB = OverviewReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)

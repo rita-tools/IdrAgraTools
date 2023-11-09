@@ -404,7 +404,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                 'eva_act_agr': self.tr('Cumulative actual evaporation (mm)'),
                 'trasp_act_tot': self.tr('Cumulative actual transpiration (mm)'),
                 'run_tot': self.tr('Cumulative runoff (mm)'),
-                'flux_tot': self.tr('Net flux to groundwater (mm)'),
+                'flux_tot': self.tr('Net flux to groundwater (mm)')
             }
 
             waterFlux_table = self.makeAnnualStats(outputPath, ['????_' + x for x in list(waterFlux.keys())],
@@ -441,17 +441,21 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             if simPar['monthlyflag']:
                 stepname = 'month'
 
+            # TODO: note that evaporation is not a standard output so it must be calculated from ET-T
+
             stepWaterFlux = {
                 'prec': self.tr('Precipitation (mm)'),
                 'irr': self.tr('Irrigation (mm)'),
                 'irr_loss': self.tr('Irrigation application losses (mm)'),
-                'et_act': self.tr('Actual evapotranspiration (mm)'),
+                'et_act': self.tr('Actual evaporation (mm)'),
+                'trasp_act': self.tr('Actual transpiration (mm)'),
                 'runoff': self.tr('Runoff (mm)'),
                 'flux2': self.tr('Flux to groundwater (mm)'),
                 'caprise': self.tr('Capillary rise (mm)')
             }
-            stepWaterLabel = ['P', 'I', 'L', 'ET', 'R', 'F', 'C']
-            stepWaterSign = [1, 1, -1, -1, -1, -1, -1]
+
+            stepWaterLabel = ['P', 'I', 'L', 'E','T', 'R', 'F', 'C']
+            stepWaterSign = [1, 1, -1, -1, -1, -1, -1, -1]
 
             if simPar['mode']in [0,'0']:
                 stepWaterFlux = {
@@ -459,13 +463,14 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                     'irr_distr': self.tr('Irrigation from collective source (mm)'),
                     'irr_privw': self.tr('Irrigation from private wells (mm)'),
                     'irr_loss': self.tr('Irrigation application losses (mm)'),
-                    'et_act': self.tr('Actual evapotranspiration (mm)'),
+                    'et_act': self.tr('Actual evaporation (mm)'),
+                    'trasp_act': self.tr('Actual transpiration (mm)'),
                     'runoff': self.tr('Runoff (mm)'),
                     'flux2': self.tr('Flux to groundwater (mm)'),
                     'caprise': self.tr('Capillary rise (mm)')
                 }
-                stepWaterLabel = ['P', 'Ic', 'Ip', 'L', 'ET', 'R', 'F', 'C']
-                stepWaterSign = [1, 1, 1, -1, -1, -1, -1, -1]
+                stepWaterLabel = ['P', 'Ic', 'Ip', 'L', 'E','T', 'R', 'F', 'C']
+                stepWaterSign = [1, 1, 1, -1, -1, -1, -1, -1, -1]
 
             noteString = []
             for label,descr in zip(stepWaterLabel,list(stepWaterFlux.values())):
@@ -480,17 +485,24 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             if len(years)>1: axsList = axs.flat
             else: axsList = [axs]
 
+            step_stat_list = []
+
             for y,ax in zip(years,axsList):
                 stepWaterFlux_table = self.makeAnnualStats(outputPath,
                                                            ['%s_%s*_'%(y,stepname) + x for x in list(stepWaterFlux.keys())],
                                                            list(stepWaterFlux.values()),
-                                                           statLabel,
+                                                           ['average'],
                                                            selIuRL,
                                                            1,
                                                            areaFile)
                 # sort by step num
                 stepWaterFlux_table.sort_values(stepname, inplace = True)
 
+                # calculate E = ET-T
+                stepWaterFlux_table['Actual evaporation (mm)_average'] = stepWaterFlux_table['Actual evaporation (mm)_average']\
+                                                                         -stepWaterFlux_table['Actual transpiration (mm)_average']
+
+                print('stepWaterFlux_table:',stepWaterFlux_table)
                 # make flux bar plot for each year
                 patches, labels = self.makeFluxBars(ax, stepWaterFlux_table, list(stepWaterFlux.values()),
                                                     stepWaterLabel,
@@ -498,12 +510,23 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                     bar_w=1.,timeFld=stepname)
                 ax.set_title(str(y))
 
+                step_stat_list.append(stepWaterFlux_table)
+
             plt.legend(patches, labels, loc='lower center', bbox_to_anchor=(0.5, -0.3), ncol=len(labels))
             # save to file
             fig.savefig(temp_png, format='png')
             plt.close(fig)
 
             wat_fluxes_by_step = os.path.relpath(temp_png, os.path.dirname(outfile))
+
+            # add average value from plot
+            stepWaterFlux_table = pd.concat(step_stat_list)
+
+            stepWaterFlux_table = self.dataframeToHtml(stepWaterFlux_table.values.tolist(),
+                                                  ['year','step'] + list(stepWaterFlux.values()),
+                                                  [],
+                                                  ['{:.0f}','{:.0f}'] + ['{:.0f}'] * (
+                                                          len(list(stepWaterFlux_table.columns)) - 2))
 
             ### ADD WATER MANAGEMENT STATISTICS ###
             self.FEEDBACK.pushInfo(self.tr('Water management processing ...'))
@@ -516,7 +539,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                 'irr_loss': self.tr('Irrigation application losses (mm)'),
                 'irr_mean': self.tr('Mean irrigation application (mm)'),
                 'irr_nr': self.tr('Number of irrigation application (-)'),
-                'irr_tot': self.tr('Cumulative irrigation (mm)')
+                'irr_tot': self.tr('Cumulative irrigation (mm)'),
+                'eff_tot': self.tr('Irrigation efficiency (-)')
             }
             waterMan_table = self.makeAnnualStats(outputPath, ['????_' + x for x in list(waterMan.keys())],
                                                   list(waterMan.values()),
@@ -528,7 +552,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                   ['year'] + list(waterMan.values()),
                                                   statLabel,
                                                   ['{:.0f}'] + ['{:.0f}'] * (
-                                                          len(list(waterMan_table.columns)) - 1))
+                                                          len(list(waterMan_table.columns)) - 1-4)
+                                                  +['{:.2f}']*4)
 
             ### ADD PRODUCTION STATISTICS ###
             self.FEEDBACK.pushInfo(self.tr('First crop production processing ...'))
@@ -583,8 +608,9 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                                'im_image': im_image,
                                                               'irrmeth_table': irrmeth_table,
                                                                'annual_fluxes': wat_fluxes_by_year,
-                                                               'stepname':stepname,
+                                                               'stepname':stepname.capitalize(),
                                                                'step_fluxes':wat_fluxes_by_step,
+                                                               'step_fluxes_table':stepWaterFlux_table,
                                                                'step_notes':noteString,
                                                                'wbf_table': waterFlux_table,
                                                                'wm_table': waterMan_table,
@@ -612,8 +638,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder=r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM'
-    outputFile = r'C:\enricodata\lezioni\GRIA_2023\idragra\test1\test_1_SIM\test_irrigation_units.html'
+    simFolder=r'C:\sim_to_debug\simout'
+    outputFile = r'C:\sim_to_debug\simout\test_irrigation_units_check.html'
     RB = IrrunitTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)

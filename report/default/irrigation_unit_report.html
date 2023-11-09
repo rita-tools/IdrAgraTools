@@ -53,10 +53,11 @@
     <div class="notes">
         <p><strong>Notation:</strong></p>
         <p>P: Cumulative precipitation (mm), I: Cumulative irrigation (mm),
-           L: Irrigation application losses (mm), E: Cumulative actual evaporation (mm),
+           L: Irrigation application losses (mm), E: Cumulative actual evaporation (mm)*,
            T: Cumulative actual transpiration (mm), R: Cumulative runoff (mm),
            N: Net flux to groundwater (mm)</p>
         <p>Inflows to the control volume are positive values whereas outflows are negative.</p>
+        <p>(*) Only crop season.</p>
     </div>
     </br>
     <p><strong>Water balance by [%stepname%] and year</strong></p>
@@ -70,17 +71,23 @@
     </div>
     </br>
 
+    <p><strong>[%stepname%] water balance</strong></p>
+    <div>
+        [%step_fluxes_table%]
+    </div>
+
+    <p><strong>Total water balance</strong></p>
     <div>
         [%wbf_table%]
     </div>
-</div>
 
-<p><stron>Water management</stron></p>
-<div>
+    <p><strong>Totale Water management</strong></p>
     <div>
         [%wm_table%]
     </div>
+
 </div>
+
 
 <a id="cp_[%irr_unit_id%]"><h4>Crop production</h4></a>
 <p><stron>First crop</stron></p>
