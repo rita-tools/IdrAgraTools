@@ -31,24 +31,34 @@ __revision__ = '$Format:%H$'
 import os
 import subprocess
 from os import *
+from sys import platform
 
 def checkMatlabInstalled(version= '9.9'):
-	# edit thie pars if cropcoef is compiled under another version
-	queryMLruntime = ['reg','query','HKEY_LOCAL_MACHINE\SOFTWARE\MathWorks\MATLAB Runtime'+'\\'+version]
-	queryMLframework = ['reg','query','HKEY_LOCAL_MACHINE\SOFTWARE\MathWorks\MATLAB'+'\\'+version]
+	stderr = ''
+	print('platform: ',platform)
+	if platform == "win32":
+		# edit thie pars if cropcoef is compiled under another version
+		queryMLruntime = ['reg','query','HKEY_LOCAL_MACHINE\SOFTWARE\MathWorks\MATLAB Runtime'+'\\'+version]
+		queryMLframework = ['reg','query','HKEY_LOCAL_MACHINE\SOFTWARE\MathWorks\MATLAB'+'\\'+version]
 
-	proc = subprocess.Popen(queryMLruntime, stderr=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf8')
-	stdout, stderr = proc.communicate()
-
-	# print('stdout1\n',stdout)
-	# print('stderr1\n', stderr)
-
-	if stderr:
-		proc = subprocess.Popen(queryMLframework, stderr=subprocess.PIPE, stdout=subprocess.PIPE,
-								encoding='utf8')
+		proc = subprocess.Popen(queryMLruntime, stderr=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf8')
 		stdout, stderr = proc.communicate()
-		# print('stdout2', stdout)
-		# print('stderr2', stderr)
+
+		# print('stdout1\n',stdout)
+		# print('stderr1\n', stderr)
+
+		if stderr:
+			proc = subprocess.Popen(queryMLframework, stderr=subprocess.PIPE, stdout=subprocess.PIPE,
+									encoding='utf8')
+			stdout, stderr = proc.communicate()
+			# print('stdout2', stdout)
+			# print('stderr2', stderr)
+	if platform == "linux" or platform == "linux2":
+		# linux
+		pass
+	elif platform == "darwin":
+		# OS X
+		pass
 
 	if stderr:
 		path2ML=''
