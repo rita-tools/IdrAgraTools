@@ -401,20 +401,27 @@ def plotIrrEvents(wsId,name):
 	# the solution proposed above is prone to error if current ZEVALAY is not the same as the project
 	# alternatively, the read_idragra_parameters function should be used
 	df['RAW'] = df['fc1']+df['fc2'] - (df['fc1']-df['wp1']+df['fc2']-df['wp2'])*df['pday']
+	df['fc_tot'] = df['fc1']+df['fc2']
+	df['wp_tot'] = df['wp1'] + df['wp2']
+
 	# make a dialog
 	cw = ChartWidget(myDialog, '', False, False)
 	cw.setAxis(pos=111, secondAxis=False, label=['SWC','Irrigation events'])
 
 	# add timeseries
 	plotList = [
-		{'name': tr('Irrigation threshold, RAWbig (mm)'), 'plot': 'True', 'color': '#416FA6',
+		{'name': tr('Irrigation threshold (mm)'), 'plot': 'True', 'color': '#416FA6',
 		 'style': '-', 'axes': 'y', 'table': 'rawbig', 'id': wsId},
-		{'name': tr('RAW threshold, RAW (mm)'), 'plot': 'True', 'color': '#7d60a0',
+		{'name': tr('RAW limit (mm)'), 'plot': 'True', 'color': '#7d60a0',
 		 'style': '-', 'axes': 'y', 'table': 'RAW', 'id': wsId},
 		{'name': tr('SWC (mm)'), 'plot': 'True', 'color': '#4198AF',
 		 'style': '-', 'axes': 'y', 'table': 'theta_mm', 'id': wsId},
 		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_irrig_mm'], 'plot': 'True', 'color': '#A8423F',
-		 'style': '-', 'axes': 'y', 'table': 'irrig_mm', 'id': wsId}
+		 'style': '-', 'axes': 'y', 'table': 'irrig_mm', 'id': wsId},
+		{'name': tr('Theta at FC (mm)'), 'plot': 'True', 'color': '#98B954',
+		 'style': '--', 'axes': 'y', 'table': 'fc_tot', 'id': wsId},
+		{'name': tr('Theta at WP (mm)'), 'plot': 'True', 'color': '#BE4B48',
+		 'style': '--', 'axes': 'y', 'table': 'wp_tot', 'id': wsId}
 	]
 
 	y1Title = []
@@ -429,7 +436,7 @@ def plotIrrEvents(wsId,name):
 			# get data
 			dateTimeList = df['Giulian_day'].values
 			values = df[p['table']].values
-			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
+			cw.addTimeSerie(dateTimeList, values, lineType=p['style'], color=p['color'], name=p['name'], yaxis=p['axes'],
 							shadow=shadow)
 			if p['axes'] == 'y': y1Title.append(p['name'])
 			else: y2Title.append(p['name'])
