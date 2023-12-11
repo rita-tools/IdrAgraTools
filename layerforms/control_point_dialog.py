@@ -64,7 +64,6 @@ def formOpen(dialog,layerid,featureid):
 			int(myDialog.findChild(QLineEdit, 'id').text()),
 			myDialog.findChild(QLineEdit, 'name').text()))
 
-
 	PLOT_TRANS_VARS = myDialog.findChild(QPushButton, 'PLOT_TRANS_VARS')
 	# for some reason, forms are initialized twice ...
 	if PLOT_TRANS_VARS.receivers(PLOT_TRANS_VARS.clicked) == 0:
@@ -72,6 +71,12 @@ def formOpen(dialog,layerid,featureid):
 			int(myDialog.findChild(QLineEdit, 'id').text()),
 			myDialog.findChild(QLineEdit, 'name').text()))
 
+	PLOT_IRR_EVS = myDialog.findChild(QPushButton, 'PLOT_IRR_EVS')
+	# for some reason, forms are initialized twice ...
+	if PLOT_IRR_EVS.receivers(PLOT_IRR_EVS.clicked) == 0:
+		PLOT_IRR_EVS.clicked.connect(lambda: plotIrrEvents(
+			int(myDialog.findChild(QLineEdit, 'id').text()),
+			myDialog.findChild(QLineEdit, 'name').text()))
 
 	PLOT_CROP_VARS = myDialog.findChild(QPushButton, 'PLOT_CROP_VARS')
 	# for some reason, forms are initialized twice ...
@@ -349,6 +354,78 @@ def plotTransVars(wsId,name):
 	# add chart to dialog
 	dlg = QMainWindow(myDialog)
 	dlg.setWindowTitle(tr('2nd layer vars.'))
+	dlg.setCentralWidget(cw)
+	dlg.show()
+
+
+def plotIrrEvents(wsId,name):
+	tr = qgis.utils.plugins['IdragraTools'].tr
+
+	r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
+	# try:
+	# 	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
+	# 																		  None, ['Giulian_day', 'perc1_mm', 'capflux_mm',
+	# 																				 'theta2_mm', 'trasp_act_mm',
+	# 																				 'perc2_mm'])
+	# except:
+	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
+																		  None,
+																		  ['Giulian_day','rawbig',
+																		   'rawinf','theta1_mm','theta_old_mm',
+																		   'irrig_mm'])
+	version = 2.
+	df['theta1_mm']=df['theta1_mm'].shift(1)
+	df['theta_mm'] = df['theta1_mm'] + df['theta_old_mm']
+	# make a shift
+	#df['theta_mm']=df['theta_mm'].shift(1)
+
+	if df is None:
+		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
+		return
+
+	# make a dialog
+	cw = ChartWidget(myDialog, '', False, False)
+	cw.setAxis(pos=111, secondAxis=False, label=['SWC','Irrigation events'])
+
+	# add timeseries
+	plotList = [
+		{'name': tr('Irrigation threshold, RAWbig (mm)'), 'plot': 'True', 'color': '#416FA6',
+		 'style': '-', 'axes': 'y', 'table': 'rawbig', 'id': wsId},
+		{'name': tr('RAW threshold, RAWinf (mm)'), 'plot': 'True', 'color': '#7d60a0',
+		 'style': '-', 'axes': 'y', 'table': 'rawinf', 'id': wsId},
+		{'name': tr('SWC (mm)'), 'plot': 'True', 'color': '#4198AF',
+		 'style': '-', 'axes': 'y', 'table': 'theta_mm', 'id': wsId},
+		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_irrig_mm'], 'plot': 'True', 'color': '#A8423F',
+		 'style': '-', 'axes': 'y', 'table': 'irrig_mm', 'id': wsId}
+	]
+
+	y1Title = []
+	y2Title = []
+
+	if df is not None:
+		for p in plotList:
+			shadow = False
+			if p['table'] == 'theta_mm':
+				shadow = p['color'] + '29'
+				p['color'] = p['color'] + '00'
+			# get data
+			dateTimeList = df['Giulian_day'].values
+			values = df[p['table']].values
+			cw.addTimeSerie(dateTimeList, values, lineType='-', color=p['color'], name=p['name'], yaxis=p['axes'],
+							shadow=shadow)
+			if p['axes'] == 'y': y1Title.append(p['name'])
+			else: y2Title.append(p['name'])
+
+	# set title
+	cw.setTitles(xlabs=None, ylabs=None, xTitle=None,
+				 yTitle=None, y2Title=None, mainTitle=None)
+
+	# flip y axes
+	cw.flipAxes(x1=None, y1=None, x2=None, y2=None)
+
+	# add chart to dialog
+	dlg = QMainWindow(myDialog)
+	dlg.setWindowTitle(tr('Irrigation events'))
 	dlg.setCentralWidget(cw)
 	dlg.show()
 
