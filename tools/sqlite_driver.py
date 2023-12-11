@@ -1504,7 +1504,7 @@ class SQLiteDriver(QObject):
 		
 		
 	def getTimeSeries(self,tableName, wsId):
-		sql = 'select timestamp,recval from %s where wsid = %s'%(tableName, wsId)
+		sql = 'select timestamp,recval from %s where wsid = %s order by timestamp'%(tableName, wsId)
 		data = []
 		try:
 			self.startConnection()
