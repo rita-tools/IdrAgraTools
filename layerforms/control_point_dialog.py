@@ -361,6 +361,8 @@ def plotTransVars(wsId,name):
 def plotIrrEvents(wsId,name):
 	tr = qgis.utils.plugins['IdragraTools'].tr
 
+	settings = qgis.utils.plugins['IdragraTools'].SIMDIC
+
 	r, c = qgis.utils.plugins['IdragraTools'].getRowCol(feature)
 	# try:
 	# 	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
@@ -370,19 +372,34 @@ def plotIrrEvents(wsId,name):
 	# except:
 	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
 																		  None,
-																		  ['Giulian_day','rawbig',
+																		  ['Giulian_day','pday','rawbig',
 																		   'rawinf','theta1_mm','theta_old_mm',
-																		   'irrig_mm'])
-	version = 2.
-	df['theta1_mm']=df['theta1_mm'].shift(1)
-	df['theta_mm'] = df['theta1_mm'] + df['theta_old_mm']
-	# make a shift
-	#df['theta_mm']=df['theta_mm'].shift(1)
+																		   'irrig_mm','thickness_II_m'])
 
 	if df is None:
 		showCriticalMessageBox(tr('It\'s like there is no data to plot'),tr('Please, check if file exist'),msg)
 		return
 
+	version = 2.
+	df['theta1_mm']=df['theta1_mm'].shift(1)
+	df['theta_mm'] = df['theta1_mm'] + df['theta_old_mm']
+	# make a shift
+	#df['theta_mm']=df['theta_mm'].shift(1)
+	pars, msgPars = qgis.utils.plugins['IdragraTools'].readControlPointsParams(r, c, [],
+																			   ['ThetaI_fc', 'ThetaI_wp',
+																				'ThetaII_fc', 'ThetaII_wp'])
+
+	# calculate RAW
+	# wat%layer(1)%fc + wat%layer(2)%fc - (wat%layer(1)%fc - wat%layer(1)%wp + wat%layer(2)%fc-wat%layer(2)%wp)*pheno%pday
+	df['fc1'] = pars['ThetaI_fc'] * settings['ZEVALAY'] * 1000.
+	df['wp1'] = pars['ThetaI_wp'] * settings['ZEVALAY'] * 1000.
+	df['fc2'] = pars['ThetaII_fc'] * df['thickness_II_m'] * 1000.
+	df['wp2'] = pars['ThetaII_wp'] * df['thickness_II_m'] * 1000.
+
+	# TODO: control points results should be updated in order to include also RAW
+	# the solution proposed above is prone to error if current ZEVALAY is not the same as the project
+	# alternatively, the read_idragra_parameters function should be used
+	df['RAW'] = df['fc1']+df['fc2'] - (df['fc1']-df['wp1']+df['fc2']-df['wp2'])*df['pday']
 	# make a dialog
 	cw = ChartWidget(myDialog, '', False, False)
 	cw.setAxis(pos=111, secondAxis=False, label=['SWC','Irrigation events'])
@@ -391,7 +408,7 @@ def plotIrrEvents(wsId,name):
 	plotList = [
 		{'name': tr('Irrigation threshold, RAWbig (mm)'), 'plot': 'True', 'color': '#416FA6',
 		 'style': '-', 'axes': 'y', 'table': 'rawbig', 'id': wsId},
-		{'name': tr('RAW threshold, RAWinf (mm)'), 'plot': 'True', 'color': '#7d60a0',
+		{'name': tr('RAW threshold, RAW (mm)'), 'plot': 'True', 'color': '#7d60a0',
 		 'style': '-', 'axes': 'y', 'table': 'rawinf', 'id': wsId},
 		{'name': tr('SWC (mm)'), 'plot': 'True', 'color': '#4198AF',
 		 'style': '-', 'axes': 'y', 'table': 'theta_mm', 'id': wsId},
