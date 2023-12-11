@@ -390,7 +390,8 @@ def plotIrrEvents(wsId,name):
 																				'ThetaII_fc', 'ThetaII_wp'])
 
 	# calculate RAW
-	# wat%layer(1)%fc + wat%layer(2)%fc - (wat%layer(1)%fc - wat%layer(1)%wp + wat%layer(2)%fc-wat%layer(2)%wp)*pheno%pday
+	# wat%layer(1)%fc + wat%layer(2)%fc - (wat%layer(1)%fc - wat%layer(1)%wp +
+	# wat%layer(2)%fc-wat%layer(2)%wp)*pheno%pday
 	df['fc1'] = pars['ThetaI_fc'] * settings['ZEVALAY'] * 1000.
 	df['wp1'] = pars['ThetaI_wp'] * settings['ZEVALAY'] * 1000.
 	df['fc2'] = pars['ThetaII_fc'] * df['thickness_II_m'] * 1000.
@@ -409,7 +410,7 @@ def plotIrrEvents(wsId,name):
 		{'name': tr('Irrigation threshold, RAWbig (mm)'), 'plot': 'True', 'color': '#416FA6',
 		 'style': '-', 'axes': 'y', 'table': 'rawbig', 'id': wsId},
 		{'name': tr('RAW threshold, RAW (mm)'), 'plot': 'True', 'color': '#7d60a0',
-		 'style': '-', 'axes': 'y', 'table': 'rawinf', 'id': wsId},
+		 'style': '-', 'axes': 'y', 'table': 'RAW', 'id': wsId},
 		{'name': tr('SWC (mm)'), 'plot': 'True', 'color': '#4198AF',
 		 'style': '-', 'axes': 'y', 'table': 'theta_mm', 'id': wsId},
 		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_irrig_mm'], 'plot': 'True', 'color': '#A8423F',
