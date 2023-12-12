@@ -372,7 +372,7 @@ def plotIrrEvents(wsId,name):
 	# except:
 	df, msg = qgis.utils.plugins['IdragraTools'].readControlPointsResults(r, c,
 																		  None,
-																		  ['Giulian_day','pday','rawbig',
+																		  ['Giulian_day','rain_mm','pday','rawbig',
 																		   'rawinf','theta1_mm','theta_old_mm',
 																		   'irrig_mm','thickness_II_m'])
 
@@ -406,22 +406,48 @@ def plotIrrEvents(wsId,name):
 
 	# make a dialog
 	cw = ChartWidget(myDialog, '', False, False)
-	cw.setAxis(pos=111, secondAxis=False, label=['SWC','Irrigation events'])
+	cw.setAxis(pos=211, secondAxis=False,label = ['External vars'])
+
+	# add timeseries
+	plotList =  [
+						{'name':qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_rain_mm'],'plot':'True','color':'#416FA6','style': '-','axes':'y','table':'rain_mm','id':wsId},
+						{'name':qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_irrig_mm'],'plot':'True','color':'#A8423F','style': '-','axes':'y','table':'irrig_mm','id':wsId},
+						]
+
+	y1Title = []
+	if df is not None:
+		for p in plotList:
+			shadow = False
+			if p['table']=='theta1_mm':
+				shadow = p['color']+'29'
+				p['color'] = p['color']+'00'
+			# get data
+			dateTimeList = df['Giulian_day'].values
+			values = df[p['table']].values
+			cw.addTimeSerie(dateTimeList,values,lineType='-',color=p['color'],name = p['name'],yaxis = p['axes'],shadow= shadow)
+			if p['axes']=='y': y1Title.append(p['name'])
+
+	# set title
+	cw.setTitles(xlabs = None, ylabs = None, xTitle = None,
+				 yTitle = None, y2Title = None, mainTitle = None)
+
+	# flip y axes
+	cw.flipAxes(x1 = None, y1 = True, x2 = None, y2 = None)
+
+	cw.setAxis(pos=212, secondAxis=False,label = ['Internal vars'])
 
 	# add timeseries
 	plotList = [
-		{'name': tr('Irrigation threshold (mm)'), 'plot': 'True', 'color': '#416FA6',
-		 'style': '-', 'axes': 'y', 'table': 'rawbig', 'id': wsId},
-		{'name': tr('RAW limit (mm)'), 'plot': 'True', 'color': '#7d60a0',
-		 'style': '-', 'axes': 'y', 'table': 'RAW', 'id': wsId},
 		{'name': tr('SWC (mm)'), 'plot': 'True', 'color': '#4198AF',
 		 'style': '-', 'axes': 'y', 'table': 'theta_mm', 'id': wsId},
-		{'name': qgis.utils.plugins['IdragraTools'].CPVARNAME['cp_irrig_mm'], 'plot': 'True', 'color': '#A8423F',
-		 'style': '-', 'axes': 'y', 'table': 'irrig_mm', 'id': wsId},
-		{'name': tr('Theta at FC (mm)'), 'plot': 'True', 'color': '#98B954',
+		{'name': tr('SWC at RAW limit (mm)'), 'plot': 'True', 'color': '#7d60a0',
+		 'style': '-', 'axes': 'y', 'table': 'RAW', 'id': wsId},
+		{'name': tr('SWC at FC (mm)'), 'plot': 'True', 'color': '#98B954',
 		 'style': '--', 'axes': 'y', 'table': 'fc_tot', 'id': wsId},
-		{'name': tr('Theta at WP (mm)'), 'plot': 'True', 'color': '#BE4B48',
-		 'style': '--', 'axes': 'y', 'table': 'wp_tot', 'id': wsId}
+		{'name': tr('SWC at WP (mm)'), 'plot': 'True', 'color': '#BE4B48',
+		 'style': '--', 'axes': 'y', 'table': 'wp_tot', 'id': wsId},
+		{'name': tr('Irrigation threshold (mm)'), 'plot': 'True', 'color': '#416FA6',
+		 'style': '-', 'axes': 'y', 'table': 'rawbig', 'id': wsId}
 	]
 
 	y1Title = []
