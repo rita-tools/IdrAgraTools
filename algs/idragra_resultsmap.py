@@ -241,7 +241,7 @@ class IdragraResultsMap(QgsProcessingAlgorithm):
 		# add domain fields
 		allDomFldList = domainLay.fields()
 		# get only some selected field'id','name' and 'area'
-		selFldNames = ['id','name','area_m2','land_use','irrmeth_id','soil_id']
+		selFldNames = ['id','name','area_m2','land_use','irrmeth_id','soil_id','irrunit_id']
 		domFldList = QgsFields()
 		for fld in allDomFldList:
 			if fld.name() in selFldNames: domFldList.append(fld)
