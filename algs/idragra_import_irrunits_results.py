@@ -284,7 +284,7 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 			areaData = np.ones(np.shape(baseData))
 
 		# get the list of the output for the selected variable
-
+		#print('sum areaData', sum(areaData))
 		fileFilter = '*'+varToUse[4:]+'.asc'
 
 		pathToImport = os.path.join(rootSimPath,outputPath)[:-1] # because ends with //
@@ -327,21 +327,32 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 			if parsedDate:
 				varData = np.loadtxt(f, dtype=float, skiprows=6)
 
+
 				for i in baseList:
 					#print('varData shape',np.shape(varData))
 					#mask = np.where(np.logical_and(baseData[:,:] == i,varData[:,:] != nodata))
 					# mask where there are valid values for the selected district
 					mask = np.where(np.logical_and(baseData == i, varData != nodata))
-
 					# make the products for mean value calculation
 					prodData = areaData * varData # volume in liters beacuse m2*mm = 0.001 m3 = l
 					if returnVolume:
 						calcVal = np.sum(prodData[mask])/1000
 					else:
 						calcVal = np.sum(prodData[mask])/np.sum(areaData[mask]) # specific volume in mm (per unit area)
+
+					# TODO: fix mask contains zeros
 					countVal = (np.count_nonzero(mask))
 
-					print('distr. n.',i,'area:', np.sum(areaData[mask]))
+					#print('distr. n.',i,'area:', np.sum(areaData[mask]))
+					# if (s==2):
+					# 	print('date', parsedDate)
+					# 	print('sum varData', np.sum(varData))
+					# 	print('sum areaData',np.sum(areaData))
+					# 	print('sum prodData', np.sum(prodData))
+					# 	print('SUM(prodData)/SUM(areaData)', np.sum(prodData)/np.sum(areaData))
+					# 	#print('mask range:', min(mask), max(mask))
+					# 	print('returnVolume', returnVolume)
+					# 	print('calcVal',calcVal)
 
 					# store data
 					resTable['wsid'].append(i.item())
@@ -422,32 +433,23 @@ class IdragraImportIrrUnitsResults(QgsProcessingAlgorithm):
 			if startDay:
 				#firstDayOfYear += timedelta(days=(startDay - 1-1)) # -1 to consider the previous date and -1 because the first day of the year is 1
 				firstDayOfYear += timedelta(days=(startDay - 1))  # -1 to consider the previous date
-				print('startDay',startDay,'firstDayOfYear:', firstDayOfYear)
+				#print('startDay',startDay,'firstDayOfYear:', firstDayOfYear)
 				# FIXED: IdrAgra gets exactly the DoY number and does not consider the date
 				# so the 155 day is the Jun-13 in leap year and Jun-14 in the others
 				# if ((not isLeap(y)) and (startDay >= 59)):
 				# 	#print('not leap year',y)
 				# 	firstDayOfYear -= timedelta(days=(1))
 
-			dayList = [firstDayOfYear]
-			valueList = [None]
-			# dayList = []
-			# valueList = []
-			# select a subset
-			# q = "wsid == %s and timestamp like \'%s%s\'" % (sensorId, y, '%')
-			# selection = table.query(q)
-			#print('table:',table)
-
-			 #selection=table[table['wsid'] == sensorId & table['timestamp'].str().startswith("%s"%y)]
 			selection = table[(table['wsid'] == sensorId) & (table['timestamp'].dt.year == y)]
 			selection = selection.sort_values(by="timestamp")
-			print('selection:', selection)
+			#print('selection:', selection)
 
-			dayList = selection['timestamp'].to_list()
-			valueList = selection['recval'].to_list()
+			# add startday and empty value
+			dayList = [firstDayOfYear] + selection['timestamp'].to_list()
+			valueList = [None] + selection['recval'].to_list()
 
 			i = 1
-			while i < len(dayList):
+			while i < len(valueList):
 				nOfDay = (dayList[i] - dayList[i - 1]).days
 				#print(i,valueList[i],dayList[i - 1], dayList[i], nOfDay)
 				# test = np.logical_and(datesArray >= dayList[i - 1], datesArray < dayList[i])
