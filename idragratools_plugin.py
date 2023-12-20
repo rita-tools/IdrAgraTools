@@ -2530,7 +2530,8 @@ class IdrAgraTools():
             if not firstTimeStamp:
                 firstTimeStamp = 'table_%s'%k
                 subDistrSqlList.append(
-                    "(select timestamp, recval*%s/(24*60*60*1000) as 'SubDistr_%s' from %s where wsid = %s) as 'table_%s'" % (v,k,tableName, k, k))
+                    "(select timestamp, recval*%s/(24*60*60*1000) as 'SubDistr_%s' from %s where wsid = %s) as 'table_%s'"
+                    % (v,k,tableName, k, k))
             else:
                 subDistrSqlList.append(
                     "left join (select timestamp, recval*%s/(24*60*60*1000) as 'SubDistr_%s' from %s where wsid = %s) as 'table_%s' on table_%s.timestamp = %s.timestamp" % (
