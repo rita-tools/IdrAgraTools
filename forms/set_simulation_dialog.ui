@@ -132,7 +132,7 @@
         <item row="0" column="0">
          <widget class="QLabel" name="FROM_LB">
           <property name="text">
-           <string>From the 1th day of year</string>
+           <string>From the 1st day of year</string>
           </property>
          </widget>
         </item>
