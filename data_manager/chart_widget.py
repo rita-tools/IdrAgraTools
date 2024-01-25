@@ -87,6 +87,11 @@ class ChartWidget(QWidget):
 			self.toolbar.addWidget(self.WINLBL)
 			self.toolbar.addWidget(self.WINCB)
 
+		# for i,act in enumerate(self.toolbar.actions()):
+		# 	print(i,act.text())
+
+		#self.toolbar.actions()[10].triggered.connect(self.redraw_legend)
+
 		#self.line_edit.editingFinished.connect(self.do_something)
 		# set the layout
 		layout = QVBoxLayout()
@@ -190,10 +195,12 @@ class ChartWidget(QWidget):
 
 	def addTimeSerie(self,dateTimeList,values,lineType='-',color='r',name = 'lineplot',yaxis = 1,shadow= False, addToLegend = True):
 		if len(dateTimeList) > 0:
-			dates = mdt.date2num(dateTimeList)
+			#dates = mdt.date2num(dateTimeList)
+			dates = dateTimeList
 
 			if yaxis in [1, 'y']:
-				lines, = self.ax.plot_date(dates, values, lineType, color=color, label=name, picker=5)
+				lines, = self.ax.plot(dates, values, lineType, color=color, label=name, picker=5)#plot_date
+				lines.set_gid('line%s'%(len(self.h)+1))
 				if shadow:
 					verts = [(dates[0], 0), *zip(dates, values), (dates[-1], 0)]
 					poly = Polygon(verts, facecolor=shadow, edgecolor=color)
@@ -205,7 +212,8 @@ class ChartWidget(QWidget):
 					self.l.append(name)
 
 			else:
-				lines, = self.ax2.plot_date(dates, values, lineType, color=color, label=name, picker=5)
+				lines, = self.ax2.plot(dates, values, lineType, color=color, label=name, picker=5)#plot_date
+				lines.set_gid('line%s' % (len(self.h) + 1))
 				if shadow:
 					verts = [(dates[0], 0), *zip(dates, values), (dates[-1], 0)]
 					poly = Polygon(verts, facecolor=shadow, edgecolor=color)
@@ -223,7 +231,24 @@ class ChartWidget(QWidget):
 			#plt.legend(handles=self.h, labels=self.l)#, loc='upper center', bbox_to_anchor=(0.5, 1.15), fancybox=True, shadow=True, ncol=len(self.h))
 			#self.ax.legend()
 			#self.figure.legend()
-			self.ax.legend(handles=self.h, labels=self.l)
+			#self.ax.legend(handles=self.h, labels=self.l)
+			plt.legend(self.h, self.l)
+
+	def redraw_legend(self):
+		self.h = []
+		self.l = []
+		for p in self.ax.lines:
+			self.h.append(p)
+			self.l.append(p.get_label())
+
+		self.ax.legend(self.h, self.l)
+		self.canvas.draw()
+
+	# def home_callback(self):
+	# 	print("home called")
+	# 	#plt.legend(self.h, self.l)
+	# 	self.ax.legend(self.h, self.l)
+	# 	self.canvas.draw()
 
 	def addFluxChart(self,flows=[25, 0, 60, -10, -20, -5, -15, -10, -40],
 				   labels=['', '', '', 'First', 'Second', 'Third', 'Fourth',

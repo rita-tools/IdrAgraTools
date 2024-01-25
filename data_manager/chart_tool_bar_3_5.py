@@ -8,6 +8,8 @@ from matplotlib.backend_bases import MouseButton
 import matplotlib.dates as mdt
 from qgis.PyQt import QtWidgets, QtCore, QtGui
 
+from data_manager.dialogs.edit_legend import EditLegend
+
 
 class ChartToolBar(NavigationToolbar2QT):
 	def __init__(self, canvas, parent):
@@ -27,7 +29,8 @@ class ChartToolBar(NavigationToolbar2QT):
 			('NotesRemove', 'Delete notes', 'NotesRemove', 'remove_notes'),
 			(None, None, None, None),
 			('Subplots', 'Configure subplots', 'Subplots', 'configure_subplots'),
-			('Customize', 'Edit axis, curve and image parameters', 'Customize', 'edit_parameters'),
+			('EditLegend', 'Edit legend', 'Editlegend', 'edit_legend'),
+			#('Customize', 'Edit axis, curve and image parameters', 'Customize', 'edit_parameters'),
 			(None, None, None, None),
 			('Save', 'Save the figure', 'Filesave', 'save_figure'),
 		)
@@ -105,6 +108,37 @@ class ChartToolBar(NavigationToolbar2QT):
 		self._actions['remove_notes'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'REMOVE_NOTES')
 		self._actions['add_notes'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'ADD_NOTES')
 		#toolButton.toggle()
+
+	def edit_legend(self):
+		#print('In edit legend')
+		line_opt_list = {}
+		for ln in self.canvas.figure.axes[0].lines:
+			#print('id:',ln.get_gid(),'label:',ln.get_label(),'color:',ln.get_color(),'type',ln.get_linestyle())
+			line_opt_list[ln.get_gid()]={'label':ln.get_label(),'color':ln.get_color(),'type':ln.get_linestyle()}
+
+		# open form and send line options
+		dlg = EditLegend(self.canvas,line_opt_list)
+		result = dlg.exec_()
+		# See if OK was pressed
+		if result:
+			res = dlg.getData()
+			self.canvas.parent().h = []
+			self.canvas.parent().l = []
+			# apply edits
+			for ln in self.canvas.figure.axes[0].lines:
+				ln_gid = ln.get_gid()
+				ln.set_linestyle(res[ln_gid]['type'])
+				ln.set_color(res[ln_gid]['color'])
+				ln.set_label(res[ln_gid]['label'])
+				self.canvas.parent().h.append(ln)
+				self.canvas.parent().l.append(res[ln_gid]['label'])
+
+			self.canvas.figure.axes[0].legend(self.canvas.parent().h,self.canvas.parent().l)
+			self.canvas.draw()
+
+		# retrieve line options on close + OK
+
+		# apply
 
 	def add_notes(self):
 		#print('before is',self.addNotesFlg)
