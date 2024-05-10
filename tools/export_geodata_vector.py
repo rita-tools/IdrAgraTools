@@ -29,6 +29,8 @@ __copyright__ = '(C) 2020 by Enrico A. Chiaradia'
 __revision__ = '$Format:%H$'
 
 import os
+from datetime import date
+
 from PyQt5.QtCore import QObject, QVariant
 from qgis import processing
 from qgis._core import QgsRasterLayer, QgsVectorLayer, QgsField, QgsProcessing
@@ -356,8 +358,14 @@ class ExportGeodataVector(QObject):
 
 
             if out_file.startswith('watertable_'):
-                #get the last numeric part
-                out_file = out_file.replace('watertable_','waterdepth_')
+                # get the last numeric part and tranform it to yyyy and doy
+                d = out_file.split('_')[1]
+                year = int(d[0:4])
+                month = int(d[4:6])
+                day = int(d[6:8])
+                delta = date(year, month, day) - date(year, 1, 1)
+                nOfDays = delta.days + 1
+                out_file = '_'.join(['waterdepth',str(year),str(nOfDays)])
                 writeParsToTemplate(outfile=os.path.join(outPath, out_file + '.asc'),
                                     parsDict=asc_dict,
                                     templateName='asc_grid.txt')
