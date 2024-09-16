@@ -40,7 +40,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdt
 from matplotlib.patches import Polygon, Patch
-
+import matplotlib.dates as mdates
 
 import numpy as np
 
@@ -160,7 +160,11 @@ class ChartWidget(QWidget):
 		
 		#ax.set_xticks(ind + width / 2)
 		#plt.tight_layout()
-		
+
+		format_str = '%y-%m'
+		format_ = mdates.DateFormatter(format_str)
+		self.ax.xaxis.set_major_formatter(format_)
+
 		self.figure.autofmt_xdate()
 		# beautify the x-labels
 		#plt.gcf().autofmt_xdate()
@@ -199,10 +203,17 @@ class ChartWidget(QWidget):
 			dates = dateTimeList
 
 			if yaxis in [1, 'y']:
-				lines, = self.ax.plot(dates, values, lineType, color=color, label=name, picker=5)#plot_date
+				#lines, = self.ax.plot(dates, values, lineType, color=color, label=name, picker=5)#plot_date
+				lines, = self.ax.plot_date(dates, values, lineType, color=color, label=name, picker=5)  # plot_date
+
 				lines.set_gid('line%s'%(len(self.h)+1))
+				# https://stackoverflow.com/questions/31162780/how-to-plot-a-rectangle-on-a-datetime-axis-using-matplotlib
 				if shadow:
-					verts = [(dates[0], 0), *zip(dates, values), (dates[-1], 0)]
+					#verts = [(dates[0], 0), *zip(dates, values), (dates[-1], 0)]
+					verts = [(mdates.date2num(dates[0]), 0),
+							 *zip([mdates.date2num(dt) for dt in dates], values),
+							 (mdates.date2num(dates[-1]), 0)]
+
 					poly = Polygon(verts, facecolor=shadow, edgecolor=color)
 					self.ax.add_patch(poly)
 					lines = Patch(facecolor=shadow, edgecolor=color, label=name, picker=5)
@@ -212,7 +223,9 @@ class ChartWidget(QWidget):
 					self.l.append(name)
 
 			else:
-				lines, = self.ax2.plot(dates, values, lineType, color=color, label=name, picker=5)#plot_date
+				#lines, = self.ax2.plot(dates, values, lineType, color=color, label=name, picker=5)#plot_date
+				lines, = self.ax2.plot_date(dates, values, lineType, color=color, label=name, picker=5)  # plot_date
+
 				lines.set_gid('line%s' % (len(self.h) + 1))
 				if shadow:
 					verts = [(dates[0], 0), *zip(dates, values), (dates[-1], 0)]
