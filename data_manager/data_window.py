@@ -94,7 +94,7 @@ class DataWindow(QMdiSubWindow):
 
     def createPlot(self, plotConf=[]):
         # ['name','plot','color','style','axes','query']
-        self.CHART = ChartWidget(self, '')
+        self.CHART = ChartWidget(self, '',advanced = True, digits = True)
         self.CHART.resize(0.9 * self.geometry().width(), self.geometry().height())
         self.CHART.setAxis(111, False)
 

@@ -57,7 +57,8 @@ else:
 	from data_manager.chart_tool_bar_3_1 import ChartToolBar
 
 class ChartWidget(QWidget):
-	def __init__(self, parent=None, title = '', secondAxis = False, enableConnection = True,size= None):
+	def __init__(self, parent=None, title = '', secondAxis = False,
+				 enableConnection = True, size= None, advanced = False, digits = False):
 		QWidget.__init__(self,parent) 
 		
 		self.setWindowTitle(title)
@@ -76,7 +77,7 @@ class ChartWidget(QWidget):
 		# this is the Navigation widget
 		# it takes the Canvas widget and a parent
 		#self.toolbar = NavigationToolbar(self.canvas, self)
-		self.toolbar = ChartToolBar(self.canvas,parent)#self
+		self.toolbar = ChartToolBar(self.canvas,parent, advanced, digits)#self
 		self.toolbar.update()
 
 		if enableConnection:

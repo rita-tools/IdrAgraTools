@@ -12,9 +12,10 @@ from data_manager.dialogs.edit_legend import EditLegend
 
 
 class ChartToolBar(NavigationToolbar2QT):
-	def __init__(self, canvas, parent):
-		self.digits = True # before parent initialization
+	def __init__(self, canvas, parent, advanced = False, digits = False):
+		self.digits = digits # before parent initialization
 		self.basedir = os.path.join(os.path.dirname(__file__), 'icons')
+		self.ADVANCED = advanced
 
 		NavigationToolbar2QT.__init__(self, canvas, parent)
 
@@ -25,22 +26,38 @@ class ChartToolBar(NavigationToolbar2QT):
 			(None, None, None, None),
 			('Pan', 'Pan axes with left mouse, zoom with right', 'Move', 'pan'),
 			('Zoom', 'Zoom to rectangle', 'ZoomToRect', 'zoom'),
-			('Notes', 'Add notes', 'Notes', 'add_notes'),
-			('NotesRemove', 'Delete notes', 'NotesRemove', 'remove_notes'),
 			(None, None, None, None),
 			('Subplots', 'Configure subplots', 'Subplots', 'configure_subplots'),
-			('EditLegend', 'Edit legend', 'Editlegend', 'edit_legend'),
-			#('Customize', 'Edit axis, curve and image parameters', 'Customize', 'edit_parameters'),
 			(None, None, None, None),
 			('Save', 'Save the figure', 'Filesave', 'save_figure'),
 		)
+
+		if self.ADVANCED:
+			self.toolitems = (
+				('Home', 'Reset original view', 'Home', 'home'),
+				('Back', 'Back to previous view', 'Back', 'back'),
+				('Forward', 'Forward to next view', 'Forward', 'forward'),
+				(None, None, None, None),
+				('Pan', 'Pan axes with left mouse, zoom with right', 'Move', 'pan'),
+				('Zoom', 'Zoom to rectangle', 'ZoomToRect', 'zoom'),
+				('Notes', 'Add notes', 'Notes', 'add_notes'),
+				('NotesRemove', 'Delete notes', 'NotesRemove', 'remove_notes'),
+				(None, None, None, None),
+				('Subplots', 'Configure subplots', 'Subplots', 'configure_subplots'),
+				('EditLegend', 'Edit legend', 'Editlegend', 'edit_legend'),
+				# ('Customize', 'Edit axis, curve and image parameters', 'Customize', 'edit_parameters'),
+				(None, None, None, None),
+				('Save', 'Save the figure', 'Filesave', 'save_figure'),
+			)
 
 		self._init_toolbar()
 		self.canvas = canvas
 		self.ann_list = []
 
-		self.cid_deltext = self.canvas.mpl_connect('button_press_event', self.delTextFromPlot)
-		self.cid_addtext = self.canvas.mpl_connect('pick_event', self.addTextToPlot)
+		if self.ADVANCED:
+			self.cid_deltext = self.canvas.mpl_connect('button_press_event', self.delTextFromPlot)
+			self.cid_addtext = self.canvas.mpl_connect('pick_event', self.addTextToPlot)
+
 		self.coordinates = False
 
 	def _init_toolbar(self):
@@ -102,11 +119,12 @@ class ChartToolBar(NavigationToolbar2QT):
 	def _update_buttons_checked(self):
 		# sync button checkstates to match active mode
 		#print('CALL _update_buttons_checked')
-		print('_update_buttons_checked',self.canvas.figure.axes[0].get_navigate_mode())
+		#print('_update_buttons_checked',self.canvas.figure.axes[0].get_navigate_mode())
 		self._actions['pan'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'PAN')
 		self._actions['zoom'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'ZOOM')
-		self._actions['remove_notes'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'REMOVE_NOTES')
-		self._actions['add_notes'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'ADD_NOTES')
+		if self.ADVANCED:
+			self._actions['remove_notes'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'REMOVE_NOTES')
+			self._actions['add_notes'].setChecked(self.canvas.figure.axes[0].get_navigate_mode() == 'ADD_NOTES')
 		#toolButton.toggle()
 
 	def edit_legend(self):
@@ -147,16 +165,11 @@ class ChartToolBar(NavigationToolbar2QT):
 			self.canvas.figure.axes[0].set_navigate_mode(None)
 		else:
 			self.canvas.figure.axes[0].set_navigate_mode('ADD_NOTES')
-			print('add notes')
 			self._update_buttons_checked()
-			print('last cursor',self._lastCursor)
 			self.canvas.widgetlock.release(self)
 			self.canvas.set_cursor(cursors.POINTER)
 			self._lastCursor = cursors.POINTER
-			print('new last cursor', self._lastCursor)
 			self.canvas.widgetlock.locked()
-
-			#print('after is', self.addNotesFlg)
 
 	def remove_notes(self):
 		# TODO: fix pointer changes
@@ -165,17 +178,15 @@ class ChartToolBar(NavigationToolbar2QT):
 			self.canvas.figure.axes[0].set_navigate_mode(None)
 		else:
 			self.canvas.figure.axes[0].set_navigate_mode('REMOVE_NOTES')
-			print('remove notes')
 			self._update_buttons_checked()
-			print('last cursor', self._lastCursor)
 			self.canvas.widgetlock.release(self)
 			self.canvas.set_cursor(cursors.POINTER)
 			self._lastCursor = cursors.POINTER
-			print('new last cursor', self._lastCursor)
 			self.canvas.widgetlock.locked()
 
 	def addTextToPlot(self,event):
-		print('addTextToPlot')
+		print('triggered addTextToPlot')
+
 		numOfDig = 10
 		if self.digits:
 			numOfDig = self.digitSB.value()
@@ -190,7 +201,10 @@ class ChartToolBar(NavigationToolbar2QT):
 			ypos = y[ind[0]]
 			ystr = round(ypos,numOfDig)
 			if numOfDig==0: ystr=int(ystr)
-			txt = '%s\n%s' % (mdt.num2date(xpos).strftime("%Y-%m-%d"), ystr)
+
+			#print(type(xpos))
+			#txt = '%s\n%s' % (mdt.num2date(xpos).strftime("%Y-%m-%d"), ystr)
+			txt = '%s\n%s' % (xpos.strftime("%Y-%m-%d"), ystr)
 			id = '%s%s'%(xpos,ypos)
 
 			if event.mouseevent.button is MouseButton.LEFT:
