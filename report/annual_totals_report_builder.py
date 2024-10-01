@@ -102,7 +102,11 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                     if not nan_flag:
                         if stat == 'average':
                             # apply weights to calculare averages
-                            aVal = self.statFun[stat](filtered_pars_data,None,filtered_weights_data)
+                            # remove first all nans
+                            filtered_weights_data2 = filtered_weights_data[~np.isnan(filtered_weights_data)]
+                            filtered_pars_data2 = filtered_pars_data[~np.isnan(filtered_weights_data)]
+                            #filtered_weights_data = np.nan_to_num(filtered_weights_data,False,0.)
+                            aVal = self.statFun[stat](filtered_pars_data2,None,filtered_weights_data2)
                         else:
                             aVal = self.statFun[stat](filtered_pars_data)
 
@@ -116,10 +120,13 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             del res['month']
         else:
             pass
+
         if len(res['step']) == 0:
             del res['step']
         elif max(res['step']) == 0:
             del res['step']
+        else:
+            pass
 
         #print('res',res)
 
@@ -437,7 +444,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             'irr_tot': self.tr('Cumulative irrigation (mm)'),
             'irr_loss': self.tr('Irrigation application losses (mm)'),
             'run_tot':self.tr('Cumulative runoff (mm)'),
-            'flux_tot': self.tr('Net flux to groundwater (mm)'),
+            'net_flux_gw': self.tr('Net flux to groundwater (mm)'),
         }
 
         waterFlux_table = self.makeAnnualStats(outputPath, ['????_'+x for x in list(waterFlux.keys())],
@@ -586,8 +593,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder = r'C:\sim_to_debug\simout'
-    outputFile = r'C:\sim_to_debug\simout\test_annual_check.html'
+    simFolder = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim_distr_2020_vect'
+    outputFile = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim1\test_annual_check.html'
     RB = AnnualTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)

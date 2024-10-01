@@ -1,3 +1,4 @@
+import copy
 import glob
 import os
 
@@ -455,12 +456,23 @@ class ReportBuilder():
         # vector_data: a ogr shape object
         # values = QgsVectorLayerUtils.getValues(vector_data, val_fld)
         # values = list(set(values))
+
+        if labels is None: labels = unique_val
+        else:
+            idx_list = [labels.index(a_val) for a_val in unique_val]
+            labels = [labels[idx] for idx in idx_list]
+
+
         if colors is None: colors = cm.rainbow(np.linspace(0, 1, len(unique_val)))
+        else: colors = [colors[idx] for idx in idx_list]
+
         # create a patch (proxy artist) for every color
         if patches is None: patches = [mpatches.Patch(color=colors[i]) for i in range(len(unique_val))]
+        else: patches = [mpatches.Patch(color=colors[i]) for i in range(len(colors))]
+
+        #patches = [copy.deepcopy(patches[idx]) for idx in idx_list]
 
         handles = patches
-        if labels is None: labels = unique_val
 
         extent = None
 
@@ -495,6 +507,7 @@ class ReportBuilder():
 
                             icol = unique_val.index(values[f])
                             ax.fill(x, y, color=colors[icol])
+
                             if (f<-1):
                                 print('    x:', x)
                                 print('    y:', y)

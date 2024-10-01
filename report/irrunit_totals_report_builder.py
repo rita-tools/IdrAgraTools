@@ -80,9 +80,14 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
         #print('baseFileList',baseFileList)
         baseFileList.sort()
         numOfFile = len(baseFileList)
-        nPlot = math.ceil((numOfFile) / 2)# always add one-axes for legend
+        nPlot = math.ceil((numOfFile) / 2)
+        nplot_col = 2
+        # TODO: make better position of legend
+        # always add one-axes for legend
+        if nPlot==1: nplot_col = 3
+        else: nPlot = nPlot+1
         #print('numOfFile',numOfFile,'nPlot',nPlot)
-        fig, axs = plt.subplots(nPlot, 2, figsize=(10, 3 * nPlot), constrained_layout=True)
+        fig, axs = plt.subplots(nPlot, nplot_col, figsize=(10, 3 * nPlot), constrained_layout=True)
         #print('axs',axs)
 
         tableList = []
@@ -167,7 +172,9 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             else:
                 ax.axis('off')
 
-        fig.legend(handles, labels,loc=7)
+        n_items = len(handles)
+        n_cols = math.ceil(n_items / 10)
+        ax.legend(handles, labels,ncol=n_cols)# loc=7,
 
         # join dataframe to only one
         newDf = pd.concat(tableList, axis=1)
@@ -226,6 +233,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
         landuseFile = os.path.join(landusePath, 'soil_uses.txt')
         landusePar = self.parseLanduseFile(landuseFile)
+        landusePar.sort_values(by='id', inplace=True)
         landusePar['new_id']= landusePar['id']
         landusePar.set_index('new_id',inplace=True)
 
@@ -245,22 +253,24 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             irrmethPar['name'].append(v['irrmeth_name'])
 
         irrmethPar = pd.DataFrame(irrmethPar)
+        irrmethPar.sort_values(by='id', inplace=True)
         irrmethPar['new_id'] = irrmethPar['id']
         irrmethPar.set_index('new_id', inplace=True)
+
 
         # set general land uses plot options
         lu_colors = cm.rainbow(np.linspace(0, 1, len(landusePar['id'])))
         # create a patch (proxy artist) for every color
         lu_patches = [mpatches.Patch(color=lu_colors[i]) for i in range(len(landusePar['id']))]
         # set labels
-        lu_labels = landusePar['id']
+        lu_labels = landusePar['id'].to_list()
 
         # set general irrigation methods plot options
         im_colors = cm.rainbow(np.linspace(0, 1, len(irrmethPar['id'])))
         # create a patch (proxy artist) for every color
         im_patches = [mpatches.Patch(color=im_colors[i]) for i in range(len(irrmethPar['id']))]
         # set labels
-        im_labels = irrmethPar['id']
+        im_labels = irrmethPar['id'].to_list()
 
         ### PLOT IRRIGATION UNITS MAP
 
@@ -283,7 +293,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             selIuRL = copy.deepcopy(iuRl)
             selIuRL['data'] = np.where(selIuRL['data']==iu,1,np.nan)
 
-            ### MAKE LANDUSE STATITICS
+            ### MAKE LANDUSE STATISTICS
             lu_image = os.path.join(outImageFolder, 'lu_by_year_map_%s.png'%(iu))
             soiluse_table = self.irrUnitsSummary(baseFN=os.path.join(geodataPath,'soiluse*.asc'),
                                                  mask_rl=selIuRL, values=list(landusePar['id']),
@@ -298,6 +308,9 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             soiluse_table.drop(columns=['cr1', 'cr2'], inplace=True) # delete unused column
             soiluse_table.rename(columns={"cr_name": "Land use"},inplace=True) # rename specific column
             soiluse_table.fillna(0,inplace=True) # replace nan with zeros
+            soiluse_table['id'] = pd.to_numeric(soiluse_table['id'])
+            soiluse_table.sort_values(by='id',inplace=True)
+            soiluse_table = soiluse_table.loc[soiluse_table.iloc[:, 2:].sum(axis=1) > 0, :]
 
             soiluse_table = self.dataframeToHtml(soiluse_table.values.tolist(),
                                                    list(soiluse_table.columns),
@@ -386,8 +399,10 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             im_image = os.path.relpath(im_image, os.path.dirname(outfile))
 
             irrmeth_table=pd.concat([irrmethPar,irrmeth_table], axis=1)
-
             irrmeth_table.fillna(0,inplace=True) # replace nan with zeros
+            irrmeth_table['id'] = pd.to_numeric(irrmeth_table['id'])
+            irrmeth_table.sort_values(by='id',inplace=True)
+            irrmeth_table = irrmeth_table.loc[irrmeth_table.iloc[:, 2:].sum(axis=1)>0,:]
 
             irrmeth_table = self.dataframeToHtml(irrmeth_table.values.tolist(),
                                                    list(irrmeth_table.columns),
@@ -404,7 +419,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                 'eva_act_agr': self.tr('Cumulative actual evaporation (mm)'),
                 'trasp_act_tot': self.tr('Cumulative actual transpiration (mm)'),
                 'run_tot': self.tr('Cumulative runoff (mm)'),
-                'flux_tot': self.tr('Net flux to groundwater (mm)')
+                'net_flux_gw': self.tr('Net flux to groundwater (mm)')
             }
 
             waterFlux_table = self.makeAnnualStats(outputPath, ['????_' + x for x in list(waterFlux.keys())],
@@ -455,7 +470,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             }
 
             stepWaterLabel = ['P', 'I', 'L', 'E','T', 'R', 'F', 'C']
-            stepWaterSign = [1, 1, -1, -1, -1, -1, -1, -1]
+            stepWaterSign = [1, 1, -1, -1, -1, -1, -1, 1]
 
             if simPar['mode']in [0,'0']:
                 stepWaterFlux = {
@@ -470,7 +485,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                     'caprise': self.tr('Capillary rise (mm)')
                 }
                 stepWaterLabel = ['P', 'Ic', 'Ip', 'L', 'E','T', 'R', 'F', 'C']
-                stepWaterSign = [1, 1, 1, -1, -1, -1, -1, -1, -1]
+                stepWaterSign = [1, 1, 1, -1, -1, -1, -1, -1, 1]
 
             noteString = []
             for label,descr in zip(stepWaterLabel,list(stepWaterFlux.values())):
@@ -638,8 +653,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder=r'C:\sim_to_debug\simout'
-    outputFile = r'C:\sim_to_debug\simout\test_irrigation_units_check.html'
+    simFolder = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim_distr_2020_vect'
+    outputFile = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim1\test_irrigation_units_check.html'
     RB = IrrunitTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)
