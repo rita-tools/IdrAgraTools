@@ -17,7 +17,7 @@ from report.toc_item import TocItem
 
 matplotlib.use('Agg')
 
-from datetime import datetime,timedelta
+from datetime import datetime,date,timedelta
 
 # import as module
 from report.my_progress import MyProgress
@@ -280,6 +280,8 @@ class ReportBuilder():
                         pars['inputpath'] = l[1]
                     elif parName == 'outputpath':
                         pars['outputpath'] = l[1]
+                    elif parName == 'watsourpath':
+                        pars['watsourpath'] = l[1]
                     elif parName == 'monthlyflag':
                         if l[1] == 'F':
                             pars['monthlyflag'] = False
@@ -336,6 +338,88 @@ class ReportBuilder():
             if f: f.close()
 
         return pars
+
+    def readWaterSources(self,wat_src_root,
+                         wat_src_fn = 'watsources.txt',
+                         mon_src_fn = 'monit_sources_i.txt',
+                         by_months = True,
+                         start_step = 1,end_step = 366,delta_step = 366):
+
+        res = pd.DataFrame({'yr':[]}) # empty res
+
+        wat_src_path = os.path.join(wat_src_root, wat_src_fn)
+        mon_src_path = os.path.join(wat_src_root, mon_src_fn)
+
+        # exit if files are missing
+        if not (os.path.exists(wat_src_path) and os.path.exists(mon_src_path)): return res
+
+        # watsources.txt contains the list of water sources for each irrigation uni
+        # DISTR_ID	SOURCE_CODE	SOURCE_TYPE	FLOW_RATIO
+        #    1	      1	             1   	0.5
+        wat_src_df = pd.read_table(wat_src_path)
+
+        # monit_sources_i.txt contains the daily delivered discharges at each irrigation unit
+        # 1
+        # 0.36
+        # 01/01/2020 -> 31/12/2022
+        #     0.000
+        #     0.000
+        #     [...]
+        # read first line with irrigation district ids
+        mon_src_ids = []
+        mon_src_q_nom = []
+        start_day = None
+        end_day = None
+        with open(mon_src_path, "r") as f:
+            # read first line to get the list of monitored sources
+            toks = f.readline().split(' ')
+            mon_src_ids = [str(x.strip()) for x in toks]
+            # read the second libe to get the list of nominal discharges
+            toks = f.readline().split(' ')
+            mon_src_q_nom = [float(x) for x in toks]
+            # read the third line to get period (start and end days)
+            toks = f.readline().split(' -> ')
+            start_day = datetime.strptime(toks[0].strip(), '%d/%m/%Y')
+            end_day = datetime.strptime(toks[1].strip(), '%d/%m/%Y')
+
+        # read all dataset
+        mon_src_df = pd.read_table(mon_src_path, names=mon_src_ids, skiprows=3)
+
+        # add time columns
+        mon_src_df['date'] = pd.date_range(start_day, end_day, freq='d')
+        mon_src_df['year'] = pd.DatetimeIndex(mon_src_df['date']).year
+        mon_src_df['month'] = pd.DatetimeIndex(mon_src_df['date']).month
+        mon_src_df['doy'] = pd.DatetimeIndex(mon_src_df['date']).dayofyear
+        mon_src_df['step'] = 0
+
+        # add step codes
+        step_doys = list(range(start_step, end_step, delta_step))+[end_step+1]
+        for i in range(len(step_doys)-1):
+            mon_src_df['step'].loc[(mon_src_df['doy'] >= step_doys[i]) & (mon_src_df['doy'] < step_doys[i+1])] = i+1 # step ids start from 1
+
+        wat_iu_df = mon_src_df.loc[:, ['year','month','doy','step']]
+
+        # get the list of irrigation units
+        iu_list = wat_src_df['DISTR_ID'].unique()
+        # calculate the sum of water availabilty for each irrigation units
+        for iu in iu_list:
+            wat_iu_df[str(iu)] = 0.
+            for index, row in wat_src_df.loc[wat_src_df['DISTR_ID'] == iu].iterrows():
+                src_id = str(int(row['SOURCE_CODE']))
+                frc = row['FLOW_RATIO']
+                if src_id in mon_src_ids:
+                    wat_iu_df[str(iu)] = wat_iu_df[str(iu)] + 24*3600*mon_src_df[str(src_id)]*frc
+
+        if by_months:
+            # make aggregated values by year-months
+            res = wat_iu_df.groupby(['year', 'month'],as_index = False).sum()
+        else:
+            # make aggregated values by steps
+            res = wat_iu_df.groupby(['year', 'step'], as_index=False).sum()
+            # remove empty steps
+            res = res.loc[res['step']>0]
+
+        return res
 
     def writeParsToTemplate(self,outfile, parsDict, templateName):
         """
@@ -572,13 +656,19 @@ if __name__ == '__main__':
     # print(maskData)
     #
     # print(res)
-    fileName = r'C:\examples\test_img\test_irrigation_units.html'
-    RB = ReportBuilder()
-    with open(fileName) as f:
-        lines = f.readlines()
+    # fileName = r'C:\examples\test_img\test_irrigation_units.html'
+    # RB = ReportBuilder()
+    # with open(fileName) as f:
+    #     lines = f.readlines()
+    #
+    # text = ''.join(lines)
+    # res = RB.makeToc(text)
+    # print('res',res)
 
-    text = ''.join(lines)
-    res = RB.makeToc(text)
-    print('res',res)
+    # debug read water sources
+    RB = ReportBuilder()
+    res = RB.readWaterSources(r'C:\enricodata\lezioni\GRIA_2023\idragra\test2\test2_SIM_use_check\wsources',
+                              by_months = False,start_step = 150,end_step = 240,delta_step = 10)
+    print('res', res)
 
 

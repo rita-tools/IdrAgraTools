@@ -257,6 +257,14 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
         irrmethPar['new_id'] = irrmethPar['id']
         irrmethPar.set_index('new_id', inplace=True)
 
+        # read irrigation sources (if available)
+        mon_irr_vols = self.readWaterSources(os.path.join(simFolder, simPar['watsourpath']),
+                                             wat_src_fn='watsources.txt',
+                                             mon_src_fn='monit_sources_i.txt',
+                                             by_months=simPar['monthlyflag'],
+                                             start_step=simPar['startdate'],
+                                             end_step=simPar['enddate'],
+                                             delta_step=simPar['deltadate'])
 
         # set general land uses plot options
         lu_colors = cm.rainbow(np.linspace(0, 1, len(landusePar['id'])))
@@ -445,7 +453,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
             wat_fluxes_by_year = os.path.relpath(temp_png, os.path.dirname(outfile))
 
-            waterFlux_table = self.dataframeToHtml(waterFlux_table.values.tolist(),
+            waterFlux_table = self.dataframeToHtml(
+                waterFlux_table.loc[:,~waterFlux_table.columns.isin(['area'])].values.tolist(),
                                                    ['year'] + list(waterFlux.values()),
                                                    statLabel,
                                                    ['{:.0f}'] + ['{:.0f}'] * (
@@ -481,7 +490,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                     'et_act': self.tr('Actual evaporation (mm)'),
                     'trasp_act': self.tr('Actual transpiration (mm)'),
                     'runoff': self.tr('Runoff (mm)'),
-                    'flux2': self.tr('Flux to groundwater (mm)'),
+                    'flux2': self.tr('Net flux to groundwater (mm)'),
                     'caprise': self.tr('Capillary rise (mm)')
                 }
                 stepWaterLabel = ['P', 'Ic', 'Ip', 'L', 'E','T', 'R', 'F', 'C']
@@ -513,17 +522,32 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                 # sort by step num
                 stepWaterFlux_table.sort_values(stepname, inplace = True)
 
+
+
+
                 # calculate E = ET-T
                 stepWaterFlux_table['Actual evaporation (mm)_average'] = stepWaterFlux_table['Actual evaporation (mm)_average']\
                                                                          -stepWaterFlux_table['Actual transpiration (mm)_average']
 
-                print('stepWaterFlux_table:',stepWaterFlux_table)
+                # adjust percolation (from net to gross)
+                stepWaterFlux_table['Flux to groundwater (mm)_average'] = stepWaterFlux_table[
+                                                                             'Flux to groundwater (mm)_average'] \
+                                                                         + stepWaterFlux_table[
+                                                                             'Capillary rise (mm)_average']
+
                 # make flux bar plot for each year
                 patches, labels = self.makeFluxBars(ax, stepWaterFlux_table, list(stepWaterFlux.values()),
                                                     stepWaterLabel,
                                                     stepWaterSign,
                                                     bar_w=1.,timeFld=stepname)
                 ax.set_title(str(y))
+
+                if simPar['mode'] in [0, '0']:
+                    stepWaterFlux_table['irr_vol_m3'] = 0.001 * stepWaterFlux_table['area'] * stepWaterFlux_table[
+                        'Irrigation from collective source (mm)_average']
+                else:
+                    stepWaterFlux_table['irr_vol_m3'] = 0.001 * stepWaterFlux_table['area'] * stepWaterFlux_table[
+                        'Irrigation (mm)_average']
 
                 step_stat_list.append(stepWaterFlux_table)
 
@@ -537,8 +561,12 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
             # add average value from plot
             stepWaterFlux_table = pd.concat(step_stat_list)
 
-            stepWaterFlux_table = self.dataframeToHtml(stepWaterFlux_table.values.tolist(),
-                                                  ['year','step'] + list(stepWaterFlux.values()),
+            # get only volumes
+            stepIrrEstVol_table = stepWaterFlux_table.loc[:, ['year', stepname, 'irr_vol_m3']]
+
+            stepWaterFlux_table = self.dataframeToHtml(
+                stepWaterFlux_table.loc[:,~stepWaterFlux_table.columns.isin(['area','irr_vol_m3'])].values.tolist(),
+                                                  ['year',stepname] + list(stepWaterFlux.values()),
                                                   [],
                                                   ['{:.0f}','{:.0f}'] + ['{:.0f}'] * (
                                                           len(list(stepWaterFlux_table.columns)) - 2))
@@ -563,12 +591,31 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                   selIuRL,
                                                   1,
                                                   areaFile)
-            waterMan_table = self.dataframeToHtml(waterMan_table.values.tolist(),
+            waterMan_table = self.dataframeToHtml(waterMan_table.loc[:,~waterMan_table.columns.isin(['area'])].values.tolist(),
                                                   ['year'] + list(waterMan.values()),
                                                   statLabel,
                                                   ['{:.0f}'] + ['{:.0f}'] * (
                                                           len(list(waterMan_table.columns)) - 1-4)
                                                   +['{:.2f}']*4)
+
+            # TODO
+            # compare to measured dataset
+            # if measure dataset exists, extract cumulate values according to the time steps
+
+            if len(mon_irr_vols)>0:
+                stepIrrMonVol_table = mon_irr_vols.loc[:, ['year',stepname, str(iu)]]
+            else:
+                stepIrrMonVol_table = stepIrrEstVol_table.loc[:, ['year', stepname]]
+                stepIrrMonVol_table['irr_vol_m3'] = np.nan
+
+            stepVol_table = pd.merge(stepIrrMonVol_table, stepIrrEstVol_table, left_on=['year', stepname],
+                                     right_on=['year', stepname], how='left',
+                                     suffixes=['_mon','_est'])#.drop('id1', axis=1)
+
+            stepVol_table = self.dataframeToHtml(stepVol_table.values.tolist(),
+                                                  ['year','step','Monitored volumes [m^3]','Estimated volumes [m^3]'],
+                                                  None,
+                                                  ['{:.0f}','{:.0f}','{:,.2f}','{:,.2f}'])
 
             ### ADD PRODUCTION STATISTICS ###
             self.FEEDBACK.pushInfo(self.tr('First crop production processing ...'))
@@ -585,7 +632,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                     selIuRL,
                                                     1,
                                                     areaFile)
-            first_prod_table = self.dataframeToHtml(first_prod_table.values.tolist(),
+            first_prod_table = self.dataframeToHtml(first_prod_table.loc[:,~first_prod_table.columns.isin(['area'])].values.tolist(),
                                                     ['year'] + list(production1Vars.values()),
                                                     statLabel,
                                                     ['{:.0f}'] + ['{:.2f}'] * (
@@ -606,7 +653,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                   selIuRL,
                                                   1,
                                                   areaFile)
-            sec_prod_table = self.dataframeToHtml(sec_prod_table.values.tolist(),
+            sec_prod_table = self.dataframeToHtml(sec_prod_table.loc[:,~sec_prod_table.columns.isin(['area'])].values.tolist(),
                                                   ['year'] + list(production2Vars.values()),
                                                   statLabel,
                                                   ['{:.0f}'] + ['{:.2f}'] * (
@@ -626,6 +673,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                                'stepname':stepname.capitalize(),
                                                                'step_fluxes':wat_fluxes_by_step,
                                                                'step_fluxes_table':stepWaterFlux_table,
+                                                               'step_vol_table': stepVol_table,
                                                                'step_notes':noteString,
                                                                'wbf_table': waterFlux_table,
                                                                'wm_table': waterMan_table,

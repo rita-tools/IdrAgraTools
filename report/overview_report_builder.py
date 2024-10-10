@@ -782,7 +782,7 @@ class OverviewReportBuilder(ReportBuilder):
         # TODO: actually, irr_eff is not a parameter of irrigation methods
         irrmethTable = {'id': [], 'name': [], 'irr_eff':[], 'h_wat_mm': [], 'k_stress': [], 'k_stress_well': []}
         for k,v in irrmethPars.items():
-            irrmethTable['id'].append(float(v['id']))
+            irrmethTable['id'].append(int(v['id']))
             irrmethTable['name'].append(v['irrmeth_name'])
             irrmethTable['irr_eff'].append(float(v['irr_eff']))
             irrmethTable['h_wat_mm'].append(float(v['qadaq']))
@@ -790,6 +790,8 @@ class OverviewReportBuilder(ReportBuilder):
             irrmethTable['k_stress_well'].append(float(v['k_stresswells']))
 
         irrmethTable = pd.DataFrame(irrmethTable)
+        irrmethTable.sort_values(by='id', inplace = True)
+
         irrmethTable = self.dataframeToHtml(irrmethTable.values.tolist(),
                                        [self.tr('id'), self.tr('name'), self.tr('irrigation efficiency'),self.tr('fixed irr. volume (mm)'),
                                         self.tr('k stress (collective)'), self.tr('k stress (private)')],
@@ -881,12 +883,21 @@ class OverviewReportBuilder(ReportBuilder):
         self.plotCatMap(temp_png, os.path.join(geodataPath,'soilid.asc'), domainFile,areaFile,featFile)
         temp_png_rel = os.path.relpath(temp_png, os.path.dirname(outfile))
 
+        soil_stat_tbl = self.rasterStat(os.path.join(geodataPath,'soilid.asc'), domainFile, areaFile)
+        soil_stat_tbl.sort_values(by='id', inplace = True)
+
+        soil_stat_tbl = self.dataframeToHtml(soil_stat_tbl.values.tolist(),
+                                             ['id', 'num. of cells', 'area (map units)', 'percentage'],
+                                             None,
+                                             ['{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}'])
+
         #print('soil pars', soil_par_table)
         soil_contents = self.writeParsToTemplate(None, {'soil_plot': temp_png_rel,
                                                      'soil_first_table': first_soil_par_table,
                                                      'soil_second_table':sec_soil_par_table,
                                                      'soil_deep_table':dep_soil_par_table,
-                                                     'soil_hydro_table': other_soil_par_table},
+                                                     'soil_hydro_table': other_soil_par_table,
+                                                     'soil_stat_table': soil_stat_tbl},
                                               self.soil_template)
 
         self.FEEDBACK.setProgress(80.)
@@ -922,8 +933,8 @@ class OverviewReportBuilder(ReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder = r'C:\sim_to_debug\simout'
-    outputFile = r'C:\sim_to_debug\simout\test_overview.html'
+    simFolder = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim_distr_2020_vect'#r'C:\sim_to_debug\simout'
+    outputFile = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim1\test_overview.html'#r'C:\sim_to_debug\simout\test_overview.html'
     RB = OverviewReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)

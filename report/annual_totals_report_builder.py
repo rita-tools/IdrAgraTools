@@ -30,6 +30,59 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         self.annual_template = os.path.join(self.rb_dir, 'default', 'annual_report.html')
 
+    def makeBoxPlot(self, outFile, all_data):
+        # dataToPlot is a dataframe with the following structure:
+        # year | category | value
+
+        # get the list of unique year
+        yrs = sorted(list(all_data['year'].unique()))
+        num_yrs = len(yrs)
+        cats = sorted(list(all_data['category'].unique()))
+        num_cats = len(cats)
+        fig, axs = plt.subplots(num_yrs, 1, figsize=(min(max(0.25*num_cats,6),10),3*num_yrs), constrained_layout=True)
+
+        if len(yrs) > 1: axsList = axs.flat
+        else: axsList = [axs]
+
+        for i, ax in enumerate(axsList):
+                sub_data = all_data.loc[all_data['year'] == yrs[i],['category','value']]
+                data_plot = []
+                for cat in cats:
+                    data_plot.append(sub_data.loc[sub_data['category'] == cat,:]['value'].tolist())
+
+                # ax.violinplot(data_plot,
+                #                   showmeans=False,
+                #                   showmedians=True)
+                ax.boxplot(data_plot)
+
+                ax.yaxis.grid(True)
+                ax.set_xticks([y + 1 for y in range(len(cats))],
+                              labels=cats)
+                ax.set_xlabel('Category')
+                ax.set_ylabel('Volumes (mm)')
+                ax.set_title(yrs[i])
+
+        # save to file
+        fig.savefig(outFile, format='png')
+        plt.close(fig)
+
+    def makeStatByGroup(self,varFN,groupFN,stat_list=['mean','min','max','median','std','sum', 'count']):
+        if isinstance(varFN,str): varRL = self.loadASC(varFN)
+        else: varRL = varFN
+
+        if isinstance(groupFN, str): groupRL = self.loadASC(groupFN)
+        else: groupRL = groupFN
+
+        # make a dataframe
+        val_df = pd.DataFrame({'group':groupRL['data'].flatten(),
+                      'val':varRL['data'].flatten()})
+
+        # remove any nan values
+        val_df = val_df.loc[val_df['val']!= varRL['nodata_value'],:]
+        res = val_df.groupby(['group'],as_index=False).agg(stat_list)#.reset_index(names=stat_list) aliases
+        res.columns = stat_list
+        return(res)
+
     def makeAnnualStats(self,outFolder,parFNList,parName,
                         statList=['min', 'mean', 'average','max'],
                         maskIdFN = 'pathTo/domain.asc',maskId = 1,
@@ -43,7 +96,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         mask_data = np.where(maskRl['data'] == maskRl['nodata_value'], np.nan, maskRl['data'])
         mask_data = np.where(mask_data[:] != maskId, np.nan, mask_data[:] * 0 + 1)
 
-        weights_data = mask_data
+        weights_data = mask_data*maskRl['cellsize']*maskRl['cellsize']
 
         if weightsFN:
             if isinstance(weightsFN, str):
@@ -52,8 +105,9 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             else:
                 weights_data = weightsFN*mask_data
 
+        area_iu = np.nansum(weights_data)
         # setup res table
-        res = {'year':[],'month':[],'step':[]}
+        res = {'year':[],'month':[],'step':[],'area':[]}
 
         for i in parName:
             for s in statList: res['%s_%s'%(i,s)]= []
@@ -67,6 +121,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             res['year']=[]
             res['month']=[]
             res['step']=[]
+            res['area']=[]
+
             #print('outFileList:', outFileList)
             for outFile in outFileList:
                 month = 0  # months range from 1 to 12
@@ -89,6 +145,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                 res['year'].append(y)
                 res['month'].append(month)
                 res['step'].append(step)
+                res['area'].append(area_iu)
 
                 # compute stats
                 parRl = self.loadASC(outFile, float)
@@ -105,6 +162,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                             # remove first all nans
                             filtered_weights_data2 = filtered_weights_data[~np.isnan(filtered_weights_data)]
                             filtered_pars_data2 = filtered_pars_data[~np.isnan(filtered_weights_data)]
+                            # print('DEBUG: tot.area:',sum(filtered_weights_data2))
                             #filtered_weights_data = np.nan_to_num(filtered_weights_data,False,0.)
                             aVal = self.statFun[stat](filtered_pars_data2,None,filtered_weights_data2)
                         else:
@@ -352,7 +410,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
             for n in range(nRows):
                 row = dataToPlot.iloc[[n]]
                 #print('row val',float(row[label+'_mean']))
-                flows.append(float(row[label + '_average']) * sign) #float(ser.iloc[0])
+                signed_val = float(row[label + '_average']) * sign
+                flows.append(signed_val) #float(ser.iloc[0])
                 time_step.append(str(int(row[timeFld])))
 
             if sign>0:
@@ -415,6 +474,29 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         idragraFile = os.path.join(simFolder, 'idragra_parameters.txt')
         simPar = self.readIdragraParameters(idragraFile, self.FEEDBACK, self.tr)
 
+        # read cropcoef file
+        cropcoefFile = os.path.join(simFolder, 'cropcoef.txt')
+        cropcoefPar = self.readIdragraParameters(cropcoefFile, self.FEEDBACK, self.tr)
+        landusePath = os.path.join(simFolder, cropcoefPar['cropinputsfolder'])
+        landuseFile = os.path.join(landusePath, 'soil_uses.txt')
+        landuse_df = self.parseLanduseFile(landuseFile)
+        landuse_df = landuse_df.set_index(['id'])
+        landuse_df = landuse_df.rename(columns={'cr_name':'name'})
+
+        # read irrigation methods
+        irrmethPath = os.path.join(simFolder, simPar['irrmethpath'])
+        irrmethFileList = glob.glob(os.path.join(irrmethPath, '*.txt'))
+
+        irrmethPars = {}
+        for irrmethFile in irrmethFileList:
+            if os.path.basename(irrmethFile) != 'irrmethods.txt':
+                irrmethPars[os.path.basename(irrmethFile)] = self.readIdragraParameters(irrmethFile, self.FEEDBACK,self.tr)
+
+        irrmeth_df = pd.DataFrame(irrmethPars).T
+        irrmeth_df['id'] = irrmeth_df['id'].astype(int)
+        irrmeth_df = irrmeth_df.set_index(['id'])
+        irrmeth_df = irrmeth_df.rename(columns={'irrmeth_name': 'name'})
+
         # set domain file
         geodataPath = os.path.join(simFolder, simPar['inputpath'])
         domainFile = os.path.join(geodataPath, 'domain.asc')
@@ -461,11 +543,11 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         temp_png_rel = os.path.relpath(temp_png, os.path.dirname(outfile))
 
-        waterFlux_table = self.dataframeToHtml(waterFlux_table.values.tolist(),
+        waterFlux_table = self.dataframeToHtml(waterFlux_table.loc[:,~waterFlux_table.columns.isin(['area','irr_vol_m3'])].values.tolist(),
                                                     ['year'] + list(waterFlux.values()),
                                                     statLabel,
                                                     ['{:.0f}'] + ['{:.0f}'] * (
-                                                                len(list(waterFlux_table.columns)) - 1))
+                                                                len(list(waterFlux_table.columns)) - 2))
 
         self.FEEDBACK.setProgress(30.)
 
@@ -487,11 +569,11 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                               domainFile,
                                               1,
                                               areaFile)
-        waterProd_table = self.dataframeToHtml(waterProd_table.values.tolist(),
+        waterProd_table = self.dataframeToHtml(waterProd_table.loc[:,~waterProd_table.columns.isin(['area','irr_vol_m3'])].values.tolist(),
                                               ['year'] + list(waterProd.values()),
                                               statLabel,
                                               ['{:.0f}'] + ['{:.0f}'] * (
-                                                      len(list(waterProd_table.columns)) - 1))
+                                                      len(list(waterProd_table.columns)) - 2))
 
         ### ADD WATER MANAGEMENT STATISTICS ###
         self.FEEDBACK.pushInfo(self.tr('processing water management...'))
@@ -510,11 +592,11 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                               domainFile,
                                               1,
                                               areaFile)
-        waterMan_table = self.dataframeToHtml(waterMan_table.values.tolist(),
+        waterMan_table = self.dataframeToHtml(waterMan_table.loc[:,~waterMan_table.columns.isin(['area','irr_vol_m3'])].values.tolist(),
                                                ['year'] + list(waterMan.values()),
                                                statLabel,
                                                ['{:.0f}'] + ['{:.0f}'] * (
-                                                       len(list(waterMan_table.columns)) - 1-4)
+                                                       len(list(waterMan_table.columns)) - 2-4)
                                                   +['{:.2f}']*4)
 
 
@@ -537,11 +619,173 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                                 domainFile,
                                                 1,
                                                 areaFile)
-        first_prod_table = self.dataframeToHtml(first_prod_table.values.tolist(),
+        first_prod_table = self.dataframeToHtml(first_prod_table.loc[:,~first_prod_table.columns.isin(['area','irr_vol_m3'])].values.tolist(),
                                               ['year'] + list(production1Vars.values()),
                                               statLabel,
                                               ['{:.0f}'] + ['{:.2f}'] * (
-                                                      len(list(first_prod_table.columns)) - 1))
+                                                      len(list(first_prod_table.columns)) - 2))
+
+        ### ADD VOLUME STATISTICS BY SOIL TYPES AND LAND USES ###
+
+        areaFile = os.path.join(geodataPath,'shapearea.asc')
+        areaRL = self.loadASC(areaFile,float)
+        areaRL['data'] = np.where(areaRL['data'] == areaRL['nodata_value'],np.nan,areaRL['data'])
+
+        soilidFile = os.path.join(geodataPath, 'soilid.asc')
+        soilidRL = self.loadASC(soilidFile, int)
+        soil_stat_table = self.makeStatByGroup(areaRL, soilidRL,['sum'])
+        soil_stat_table.columns = ['area']
+        soil_area = deepcopy(soil_stat_table)
+
+        soil_stat_table['id'] = soil_stat_table.index
+        soil_stat_table = soil_stat_table.drop('area', axis=1)
+
+        soiluseFile = os.path.join(geodataPath, 'soiluse.asc')
+        soiluseRL = self.loadASC(soiluseFile, int)
+
+        use_stat_table = self.makeStatByGroup(areaRL, soiluseRL, ['sum'])
+        use_stat_table.columns = ['area']
+        use_area = deepcopy(use_stat_table)
+
+        use_stat_table['id'] = use_stat_table.index
+        use_stat_table = use_stat_table.drop('area', axis=1)
+        use_stat_table = pd.merge(use_stat_table, landuse_df.loc[:,['name']], left_index=True, right_index=True, how='outer')
+
+        irrmethFile = os.path.join(geodataPath, 'irr_meth.asc')
+        irrmethRL = self.loadASC(irrmethFile, int)
+        irrmeth_stat_table = self.makeStatByGroup(areaRL, irrmethRL, ['sum'])
+        irrmeth_stat_table.columns = ['area']
+        irrmeth_area = deepcopy(irrmeth_stat_table)
+
+        irrmeth_stat_table['id'] = irrmeth_stat_table.index
+        irrmeth_stat_table = irrmeth_stat_table.drop('area', axis=1)
+        irrmeth_stat_table = pd.merge(irrmeth_stat_table, irrmeth_df.loc[:, ['name']], left_index=True, right_index=True,
+                                  how='outer')
+
+        outFileList = glob.glob(os.path.join(outputPath,'????_irr_tot.asc'))
+        outFileList.sort()
+
+        soilid_plot_df = pd.DataFrame(columns=['year', 'category', 'value'])
+        use_plot_df = pd.DataFrame(columns=['year', 'category', 'value'])
+        irrmeth_plot_df = pd.DataFrame(columns=['year', 'category', 'value'])
+
+        for outFile in outFileList:
+            basename = os.path.basename(outFile)
+            year = basename[0:4]
+            valRL = self.loadASC(outFile, float)
+            valRL['data'] = np.where(valRL['data'] == valRL['nodata_value'], np.nan, valRL['data'])
+
+            soil_valRL = deepcopy(valRL)
+
+            soilid_plot_df = pd.concat([soilid_plot_df,
+                                        pd.DataFrame({
+                                            'year': [year] * len(soil_valRL['data'].tolist()),
+                                            'category': soilidRL['data'].tolist(),
+                                            'value': soil_valRL['data'].tolist()
+                                        })
+                                        ]
+                                       )
+
+            soil_valRL['data'] = 0.001 * soil_valRL['data']*areaRL['data']
+            mean_by_soilid = self.makeStatByGroup(soil_valRL, soilidRL,['mean'])#['group',['val']['mean']]
+            mean_by_soilid.columns = [year]
+            mean_by_soilid[year] = 1000 * mean_by_soilid[year] / soil_area['area']
+            # append to area
+            soil_stat_table = pd.merge(soil_stat_table, mean_by_soilid, left_index=True, right_index=True,how='outer')
+
+
+            # do the same also with land uses (update if necessary)
+            if os.path.exists(os.path.join(geodataPath,'soiluse_'+year+'.asc')):
+                soiluseFile = os.path.join(geodataPath,'soiluse_'+year+'.asc')
+                soiluseRL = self.loadASC(soiluseFile, int)
+                use_area = self.makeStatByGroup(areaRL, soiluseRL, ['sum'])
+                use_area.columns = ['area']
+
+            use_valRL = deepcopy(valRL)
+
+            use_plot_df = pd.concat([use_plot_df,
+                                        pd.DataFrame({
+                                            'year': [year] * len(use_valRL['data'].tolist()),
+                                            'category': soiluseRL['data'].tolist(),
+                                            'value': use_valRL['data'].tolist()
+                                        })
+                                        ]
+                                       )
+
+            use_valRL['data'] = 0.001 * use_valRL['data'] * areaRL['data']
+            mean_by_soiluse = self.makeStatByGroup(use_valRL, soiluseRL, ['mean'])  # ['group',['val']['mean']]
+            mean_by_soiluse.columns = [year]
+            mean_by_soiluse[year] = 1000*mean_by_soiluse[year]/use_area['area']
+            # append to area
+            use_stat_table = pd.merge(use_stat_table, mean_by_soiluse, left_index=True, right_index=True, how='outer')
+
+            # do the same also with land uses (update if necessary)
+            if os.path.exists(os.path.join(geodataPath, 'irr_meth_' + year + '.asc')):
+                irrmethFile = os.path.join(geodataPath, 'irr_meth_' + year + '.asc')
+                irrmethRL = self.loadASC(irrmethFile, int)
+                irrmeth_area = self.makeStatByGroup(areaRL, irrmethRL, ['sum'])
+                irrmeth_area.columns = ['area']
+
+            irrmeth_valRL = deepcopy(valRL)
+
+            irrmeth_plot_df = pd.concat([irrmeth_plot_df,
+                                        pd.DataFrame({
+                                            'year': [year] * len(irrmeth_valRL['data'].tolist()),
+                                            'category': irrmethRL['data'].tolist(),
+                                            'value': irrmeth_valRL['data'].tolist()
+                                        })
+                                        ]
+                                       )
+
+            irrmeth_valRL['data'] = 0.001 * irrmeth_valRL['data'] * areaRL['data']
+            mean_by_irrmeth = self.makeStatByGroup(irrmeth_valRL, irrmethRL, ['mean'])  # ['group',['val']['mean']]
+            mean_by_irrmeth.columns = [year]
+            mean_by_irrmeth[year] = 1000 * mean_by_irrmeth[year] / irrmeth_area['area']
+            # append to area
+            irrmeth_stat_table = pd.merge(irrmeth_stat_table, mean_by_irrmeth, left_index=True, right_index=True, how='outer')
+
+        # update index
+        soil_stat_table['id'] = soil_stat_table.index
+        use_stat_table['id'] = use_stat_table.index
+        irrmeth_stat_table['id'] = irrmeth_stat_table.index
+
+        # merge soil name
+
+
+        soil_stat_table = self.dataframeToHtml(soil_stat_table.values.tolist(),
+                                                  list(soil_stat_table.columns),
+                                                  None,
+                                                  ['{:.0f}'] + ['{:.2f}'] * (
+                                                          len(list(soil_stat_table.columns)) - 1))
+
+        # make a plot
+        soil_vol_bxp = os.path.join(outImageFolder, 'soil_vol_bxp.png')
+        self.makeBoxPlot(soil_vol_bxp, soilid_plot_df)
+        soil_vol_bxp = os.path.relpath(soil_vol_bxp, os.path.dirname(outfile))
+
+        use_vol_bxp = os.path.join(outImageFolder, 'use_vol_bxp.png')
+        self.makeBoxPlot(use_vol_bxp, use_plot_df)
+        use_vol_bxp = os.path.relpath(use_vol_bxp, os.path.dirname(outfile))
+
+        irrmeth_vol_bxp = os.path.join(outImageFolder, 'irrmeth_vol_bxp.png')
+        self.makeBoxPlot(irrmeth_vol_bxp, irrmeth_plot_df)
+        irrmeth_vol_bxp = os.path.relpath(irrmeth_vol_bxp, os.path.dirname(outfile))
+
+        use_stat_table = use_stat_table.dropna(subset=use_stat_table.columns[2:], how='all')
+
+        use_stat_table = self.dataframeToHtml(use_stat_table.values.tolist(),
+                                                  list(use_stat_table.columns),
+                                                  None,
+                                                  ['{:.0f}','{:}'] + ['{:.2f}'] * (
+                                                          len(list(use_stat_table.columns)) - 2))
+
+        irrmeth_stat_table = irrmeth_stat_table.dropna(subset=irrmeth_stat_table.columns[2:], how='all')
+
+        irrmeth_stat_table = self.dataframeToHtml(irrmeth_stat_table.values.tolist(),
+                                          list(irrmeth_stat_table.columns),
+                                          None,
+                                          ['{:.0f}','{:}'] + ['{:.2f}'] * (
+                                                  len(list(irrmeth_stat_table.columns)) - 2))
 
         ### ADD PRODUCTION STATISTICS ###
         self.FEEDBACK.pushInfo(self.tr('Second crop production processing ...'))
@@ -559,11 +803,11 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                               domainFile,
                                               1,
                                               areaFile)
-        sec_prod_table = self.dataframeToHtml(sec_prod_table.values.tolist(),
+        sec_prod_table = self.dataframeToHtml(sec_prod_table.loc[:,~sec_prod_table.columns.isin(['area','irr_vol_m3'])].values.tolist(),
                                           ['year'] + list(production2Vars.values()),
                                           statLabel,
                                           ['{:.0f}'] + ['{:.2f}'] * (
-                                                  len(list(sec_prod_table.columns)) - 1))
+                                                  len(list(sec_prod_table.columns)) - 2))
 
 
         self.FEEDBACK.setProgress(90.)
@@ -572,6 +816,12 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                                           'wbf_table': waterFlux_table,
                                                           'wp_table': waterProd_table,
                                                           'wm_table':waterMan_table,
+                                                          'soil_stat_table':soil_stat_table,
+                                                          'soil_vol_bxp':soil_vol_bxp,
+                                                          'use_vol_bxp':use_vol_bxp,
+                                                          'irrmeth_vol_bxp':irrmeth_vol_bxp,
+                                                          'use_stat_table':use_stat_table,
+                                                          'irrmeth_stat_table':irrmeth_stat_table,
                                                           'fcp_table':first_prod_table,
                                                           'scp_table':sec_prod_table},
                                                     self.annual_template)
@@ -598,3 +848,11 @@ if __name__ == '__main__':
     RB = AnnualTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)
+
+    # var_fn = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim_distr_2020_vect\simout\2020_irr_tot.asc'
+    # grp_fn = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim_distr_2020_vect\geodata\irr_meth.asc'
+    #
+    # RB = AnnualTotalsReportBuilder()
+    # res = RB.makeStatByGroup(var_fn, grp_fn)
+    # print(res)
+
