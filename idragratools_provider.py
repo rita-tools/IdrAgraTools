@@ -34,6 +34,7 @@ from qgis.core import QgsProcessingProvider
 
 from PyQt5.QtGui import QIcon
 
+from .algs.idragra_create_elev_to_field import IdragraCreateElevToField
 from .algs.idragra_clean_overlap import IdragraCleanOverlap
 from .algs.idragra_multi_join import IdragraMultiJoin
 from .algs.idragra_resultsmap import IdragraResultsMap
@@ -114,7 +115,8 @@ class IdrAgraToolsProvider(QgsProcessingProvider):
 						IdragraExportControlPointsVector(),
 						IdragraResultsMap(),
 						IdragraMultiJoin(),
-						IdragraCleanOverlap()
+						IdragraCleanOverlap(),
+						IdragraCreateElevToField()
 						]
 
 	def unload(self):

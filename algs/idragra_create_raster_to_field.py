@@ -96,15 +96,8 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 
 	FIELD_LAY = 'FIELD_LAY'
 
-	ELEV_LAY = 'ELEV_LAY'
-	WT_ELEV_LAY = 'WT_ELEV_LAY'
-	LANDUSE_LAY = 'LANDUSE_LAY'
-	IRRMETH_LAY = 'IRRMETH_LAY'
-
-	SLP_MIN = 'SLP_MIN' # minimum values for slope
-	SLP_MAX = 'SLP_MAX' # maximum values for slope
-
-	WTD_MIN = 'WTD_MIN' # water table depth minimum value
+	RASTER_LIST = 'RASTER_LIST'
+	FLD_NAME_LIST = 'FLD_NAME_LIST'
 
 	OUT_LAY = 'OUT_LAY'
 
@@ -165,19 +158,16 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 		"""
 		
 		helpStr = """
-						The algorithm create a new shapes file with slope and water table depth values obtained from raster maps.
+						The algorithm create a new shapes file with the most represented value
+						in the raster(s) and add new fields as defined by the user.
 						<b>Parameters:</b>
 						Fields: the field map [FIELD_LAY]
-						Elevation: elevation raster map [ELEV_LAY]
-						Water table elevation: one or more water table elevation raster map [WT_ELEV_LAY]
-						Land uses: one or more landuse raster map [LANDUSE_LAY]
-						Irrigation methods: one or more irrigation method raster map [IRRMETH_LAY]
-						Minimum slope value: the lowest acceptable value for slopes [SLP_MIN]
-						Maximum slope value: the highest acceptable value for slopes [SLP_MAX]
-						Minimum water table depth value: the lowest acceptable value for water table [WTD_MIN]
+						Raster(s): the list of selected rasters
+						Attribute name(s): the list of the names of new attributes
 						Output table: the file path to the output table [OUT_LAY]
 						
 						<b>Notes</b>
+						The modal statistic (majority value) is calculated by default.
 						"""
 		
 		return self.tr(helpStr)
@@ -196,165 +186,78 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 		self.addParameter(QgsProcessingParameterFeatureSource(self.FIELD_LAY, self.tr('Fields'),
 															  [QgsProcessing.TypeVectorPolygon], None, False))
 
-		self.addParameter(QgsProcessingParameterRasterLayer(self.ELEV_LAY, self.tr('Elevation'),None, True))
-
-		self.addParameter(QgsProcessingParameterMultipleLayers(self.WT_ELEV_LAY, self.tr('Water table elevation'), \
+		self.addParameter(QgsProcessingParameterMultipleLayers(self.RASTER_LIST, self.tr('Raster(s) list'), \
 															   QgsProcessing.TypeRaster, '', True))
-
-		self.addParameter(QgsProcessingParameterMultipleLayers(self.LANDUSE_LAY, self.tr('Raster land use'), \
-															   QgsProcessing.TypeRaster, '', True))
-
-		self.addParameter(QgsProcessingParameterMultipleLayers(self.IRRMETH_LAY, self.tr('Raster irrigation method'), \
-															   QgsProcessing.TypeRaster, '', True))
-
-		self.addParameter(QgsProcessingParameterNumber(self.SLP_MIN, self.tr('Minimum slope value'),
-													   QgsProcessingParameterNumber.Double, 0.0,True))
-
-		self.addParameter(QgsProcessingParameterNumber(self.SLP_MAX, self.tr('Maximum slope value'),
-													   QgsProcessingParameterNumber.Double, 1000,True))
-
-		self.addParameter(QgsProcessingParameterNumber(self.WTD_MIN, self.tr('Minimum water table depth'),
-													   QgsProcessingParameterNumber.Double, 0.5,True))
+		self.addParameter(QgsProcessingParameterString(self.FLD_NAME_LIST, self.tr('Attribute(s) list'),\
+			'', False, True))
 
 		self.addParameter(
-			QgsProcessingParameterFeatureSink(self.OUT_LAY, self.tr('Output layer'), QgsProcessing.TypeVectorPolygon))
+			QgsProcessingParameterFeatureSink(self.OUT_LAY, self.tr('Output layer'), \
+											  QgsProcessing.TypeVectorPolygon))
 
 	def processAlgorithm(self, parameters, context, feedback):
 		"""
 		Here is where the processing itself takes place.
 		"""
 		self.FEEDBACK = feedback
-		wt_col_list = []
-		landuse_col_list = []
-		irrmeth_col_list = []
 
 		# get params
 		field_lay = self.parameterAsVectorLayer(parameters, self.FIELD_LAY, context)
 
-		try:
-			elev_lay = self.parameterAsRasterLayer(parameters, self.ELEV_LAY, context)
-			wt_lay_list = self.parameterAsLayerList(parameters, self.WT_ELEV_LAY, context)
-		except:
-			elev_lay = None
-			wt_lay_list = []
+		raster_lay_list =  self.parameterAsLayerList(parameters, self.RASTER_LIST, context)
+		if not raster_lay_list: raster_lay_list=[]
 
-		landuse_lay_list =  self.parameterAsRasterLayer(parameters, self.LANDUSE_LAY, context)
-		if not landuse_lay_list: landuse_lay_list=[]
+		raster_names = [x.name() for x in raster_lay_list]
 
-		irrmeth_lay_list = self.parameterAsRasterLayer(parameters, self.IRRMETH_LAY, context)
-		if not irrmeth_lay_list: irrmeth_lay_list = []
+		self.FEEDBACK.pushInfo(self.tr('Raster names %s') % ','.join(raster_names))
 
-		slp_min = self.parameterAsDouble(parameters, self.SLP_MIN, context)
-		slp_max = self.parameterAsDouble(parameters, self.SLP_MAX, context)
-		wtd_min = self.parameterAsDouble(parameters, self.WTD_MIN, context)
+		n_raster = len(raster_names)
+		attributes_str = self.parameterAsString(parameters, self.FLD_NAME_LIST, context)
+		attributes_list = attributes_str.split(' ')
 
-		# TODO: check if elev and/or water table is missing
-		# store elevation col name
-		elev_col = 'elev_mean'
-		# store slope col name
-		slp_col = 'slp_mean'
-		# store base water table depth
-		wt_col = 'watertable_mean'
+		if '' in attributes_list: attributes_list = attributes_list.remove('')
+
+		if attributes_list: n_attr = len(attributes_list)
+		else:
+			n_attr = 0
+			attributes_list = []
+
+		# fill missing attribute names
+		if n_attr>=n_raster:
+			attributes_list = attributes_list[0:n_raster]
+		else:
+			attributes_list = attributes_list+raster_names[n_attr:n_raster+1]
+
+		self.FEEDBACK.pushInfo(self.tr('Attribute names %s') % ','.join(attributes_list))
+
+		n_attr	= n_raster
 
 		# init algresult
-		self.alg_result['OUTPUT'] = field_lay
+		self.alg_result1['OUTPUT'] = field_lay
 
-		if elev_lay:
-			self.FEEDBACK.pushInfo(self.tr('Processing %s' % elev_lay.name()))
-			elev_file = QgsProcessingUtils.generateTempFilename('elev_stats.gpkg')
+		for raster_lay in raster_lay_list:
+			self.FEEDBACK.pushInfo(self.tr('Processing %s' % raster_lay.name()))
+			self.alg_result['OUTPUT'] = QgsProcessingUtils.generateTempFilename(raster_lay.name() + '.gpkg')
+
 			# make zonal statistics
 			self.alg_result = processing.run("native:zonalstatisticsfb",
-											  {'INPUT': field_lay,
-											   'INPUT_RASTER': elev_lay, 'RASTER_BAND': 1,
-											   'COLUMN_PREFIX': 'elev_', 'STATISTICS': [2],
-											   'OUTPUT': elev_file},
-												context = context, feedback = self.FEEDBACK, is_child_algorithm = True
-												)
-
-
-			# make slope map
-			slp_file = QgsProcessingUtils.generateTempFilename('slp_stats.gpkg')
-
-			self.alg_result1 = processing.run("native:slope",
-									   {'INPUT': elev_lay,
-										'Z_FACTOR': 1,
-										'OUTPUT': 'TEMPORARY_OUTPUT'},
-												context = context, feedback = self.FEEDBACK, is_child_algorithm = True
-												)
-
-
-			self.alg_result = processing.run("native:zonalstatisticsfb",
-										   {'INPUT': elev_file,
-											'INPUT_RASTER': self.alg_result1['OUTPUT'], 'RASTER_BAND': 1,
-											'COLUMN_PREFIX': 'slp_', 'STATISTICS': [2],
-											'OUTPUT': slp_file},
-												context = context, feedback = self.FEEDBACK, is_child_algorithm = True
-												)
-
-			self.alg_result['OUTPUT'] = slp_file
-			self.alg_result1['OUTPUT'] = self.alg_result['OUTPUT']
-
-			# get water table elevation
-			for wt_lay in wt_lay_list:
-				self.FEEDBACK.pushInfo(self.tr('Processing %s' % wt_lay.name()))
-				self.alg_result['OUTPUT'] = QgsProcessingUtils.generateTempFilename(wt_lay.name()+'.gpkg')
-				self.alg_result = processing.run("native:zonalstatisticsfb",
-												 {'INPUT': self.alg_result1['OUTPUT'],
-												  'INPUT_RASTER': wt_lay, 'RASTER_BAND': 1,
-												  'COLUMN_PREFIX': wt_lay.name()+'_', 'STATISTICS': [2],
-												  'OUTPUT': self.alg_result['OUTPUT']},
+											  {'INPUT': self.alg_result1['OUTPUT'],
+											   'INPUT_RASTER': raster_lay.source(),
+											   'RASTER_BAND': 1, 'COLUMN_PREFIX': raster_lay.name()+'_', 'STATISTICS': [9],
+											   'OUTPUT': self.alg_result['OUTPUT']},
 												context = context, feedback = self.FEEDBACK, is_child_algorithm = False
 												)
 
-				wt_col_list.append(wt_lay.name()+'_mean')
-				self.alg_result1['OUTPUT'] = self.alg_result['OUTPUT']
-
-		# get landuse
-		self.alg_result1['OUTPUT'] = self.alg_result['OUTPUT']
-		for landuse_lay in landuse_lay_list:
-			self.FEEDBACK.pushInfo(self.tr('Processing %s' % landuse_lay.name()))
-			self.alg_result['OUTPUT'] = QgsProcessingUtils.generateTempFilename(landuse_lay.name() + '.gpkg')
-
-			self.alg_result = processing.run("native:zonalstatisticsfb",
-											 {'INPUT': self.alg_result1['OUTPUT'],
-											  'INPUT_RASTER': landuse_lay, 'RASTER_BAND': 1,
-											  'COLUMN_PREFIX': landuse_lay.name()+'_', 'STATISTICS': [2],
-											  'OUTPUT': self.alg_result['OUTPUT']},
-											context = context, feedback = self.FEEDBACK, is_child_algorithm = False
-											)
-
-			landuse_col_list.append(landuse_lay.name()+'_mean')
 			self.alg_result1['OUTPUT'] = self.alg_result['OUTPUT']
 
-		# get irrmeth
-		self.alg_result1['OUTPUT'] = self.alg_result['OUTPUT']
-		for irrmeth_lay in irrmeth_lay_list:
-			self.FEEDBACK.pushInfo(self.tr('Processing %s' % irrmeth_lay.name()))
-			self.alg_result['OUTPUT'] = QgsProcessingUtils.generateTempFilename(landuse_lay.name() + '.gpkg')
-
-			self.alg_result = processing.run("native:zonalstatisticsfb",
-											 {'INPUT': self.alg_result1['OUTPUT'],
-											  'INPUT_RASTER': irrmeth_lay, 'RASTER_BAND': 1,
-											  'COLUMN_PREFIX': irrmeth_lay.name() + '_', 'STATISTICS': [2],
-											  'OUTPUT': self.alg_result['OUTPUT']},
-											 context=context, feedback=self.FEEDBACK, is_child_algorithm=False
-											 )
-
-			irrmeth_col_list.append(irrmeth_lay.name() + '_mean')
-
-		self.FEEDBACK.pushInfo(self.tr('Get data from %s' % self.alg_result['OUTPUT']))
-
-		self.alg_result['OUTPUT'] = QgsVectorLayer(self.alg_result['OUTPUT'],'temp','ogr')
+		self.alg_result['OUTPUT'] = QgsVectorLayer(self.alg_result['OUTPUT'], 'temp', 'ogr')
 
 		# copy feature to sink and parse results
-		fldList = self.alg_result['OUTPUT'].fields()
+		fldList = field_lay.fields()
 
-		if not (slp_col in fldList.names()):
-			fldList.append(QgsField(slp_col,QVariant.Double))
-
-		if not elev_lay:
-			fldList.append(QgsField(wt_col,QVariant.Double))
-
+		for attr_name in attributes_list:
+			if not (attr_name in fldList.names()):
+				fldList.append(QgsField(attr_name, QVariant.Double))
 
 		(sink, dest_id) = self.parameterAsSink(
 			parameters,
@@ -374,42 +277,10 @@ class IdragraCreateRasterToField(QgsProcessingAlgorithm):
 			self.FEEDBACK.setProgress(100.0 * c / nFeat)
 
 			new_feat = QgsFeature(feat)
-			if elev_lay:
-				elev = new_feat[elev_col]
 
-				if elev:
-					# transform slope from degree to tangent
-					slp_deg = new_feat[slp_col]
-					slp_tan = 100*tan(slp_deg/180)
-					slp_tan = max(slp_tan,slp_min)
-					slp_tan = min(slp_tan, slp_max)
-				else:
-					slp_tan = slp_min
-					self.FEEDBACK.reportError(
-						self.tr('Unable to calculate slope for element %s [%s]' %
-								(new_feat['name'], new_feat['id'])), False)
-				# save results
-				new_feat[slp_col] = slp_tan
-
-				# transform watertable elev to water table depth
-				for wt_col in wt_col_list:
-					wt_elev = new_feat[wt_col]
-
-					if wt_elev:
-						wt_depth = elev-wt_elev
-					else:
-						wt_depth = wtd_min
-						self.FEEDBACK.reportError(
-							self.tr('Unable to calculate water depth for element %s [%s]'%
-									(new_feat['name'],new_feat['id'])),False)
-
-					wt_depth = max(wt_depth, wtd_min)
-					# save results
-					new_feat[wt_col] = wt_depth
-			else:
-				new_feat[slp_col] = slp_min
-				new_feat[wt_col] = wtd_min
+			# DO SOMETHING
 
 			sink.addFeature(new_feat, QgsFeatureSink.FastInsert)
+
 
 		return {self.OUT_LAY: dest_id}

@@ -294,7 +294,8 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 
 		fldList.append(QgsField('land_use', QVariant.Int))
 		for yr in year_seq:
-			fldList.append(QgsField('land_use_%s' % yr, QVariant.Int))
+			temp_name = 'land_use_%s' % yr
+			if temp_name not in fldList: fldList.append(QgsField('land_use_%s' % yr, QVariant.Int))
 
 		fldList.append(QgsField('soil_id', QVariant.Int))
 		#fldList.append(QgsField('soil_gidx', QVariant.Double))
@@ -303,7 +304,8 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 		#fldList.append(QgsField('irrmeth_gidx', QVariant.Double))
 
 		for yr in year_seq:
-			fldList.append(QgsField('irrmeth_id_%s'%yr, QVariant.Int))
+			temp_name = 'irrmeth_id_%s' % yr
+			if temp_name not in fldList: fldList.append(QgsField('irrmeth_id_%s'%yr, QVariant.Int))
 
 		fldList.append(QgsField('irrunit_id', QVariant.Int))
 		# fldList.append(QgsField('irrunit_gidx', QVariant.Double))
@@ -392,8 +394,6 @@ class IdragraCreateFieldTable(QgsProcessingAlgorithm):
 			new_feat.setAttributes(attr_list)
 
 			sink.addFeature(new_feat, QgsFeatureSink.FastInsert)
-
-
 
 		return {self.OUT_LAY: dest_id}
 
