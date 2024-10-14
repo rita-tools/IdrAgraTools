@@ -31,6 +31,9 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         self.annual_template = os.path.join(self.rb_dir, 'default', 'annual_report.html')
 
     def makeBoxPlot(self, outFile, all_data):
+        # remove nodata
+        all_data = all_data.loc[all_data['category'].notna()]
+        all_data = all_data.loc[all_data['value'].notna()]
         # dataToPlot is a dataframe with the following structure:
         # year | category | value
 
@@ -79,6 +82,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         # remove any nan values
         val_df = val_df.loc[val_df['val']!= varRL['nodata_value'],:]
+        val_df = val_df.loc[val_df['val'].notna(), :]
+
         res = val_df.groupby(['group'],as_index=False).agg(stat_list)#.reset_index(names=stat_list) aliases
         res.columns = stat_list
         return(res)
@@ -633,6 +638,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         soilidFile = os.path.join(geodataPath, 'soilid.asc')
         soilidRL = self.loadASC(soilidFile, int)
+        soilidRL['data'] = np.where(soilidRL['data'] == soilidRL['nodata_value'], np.nan, soilidRL['data'])
+
         soil_stat_table = self.makeStatByGroup(areaRL, soilidRL,['sum'])
         soil_stat_table.columns = ['area']
         soil_area = deepcopy(soil_stat_table)
@@ -679,9 +686,9 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
             soilid_plot_df = pd.concat([soilid_plot_df,
                                         pd.DataFrame({
-                                            'year': [year] * len(soil_valRL['data'].tolist()),
-                                            'category': soilidRL['data'].tolist(),
-                                            'value': soil_valRL['data'].tolist()
+                                            'year': [year] * len(soil_valRL['data'].flatten().tolist()),
+                                            'category': soilidRL['data'].flatten().tolist(),
+                                            'value': soil_valRL['data'].flatten().tolist()
                                         })
                                         ]
                                        )
@@ -705,9 +712,9 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
             use_plot_df = pd.concat([use_plot_df,
                                         pd.DataFrame({
-                                            'year': [year] * len(use_valRL['data'].tolist()),
-                                            'category': soiluseRL['data'].tolist(),
-                                            'value': use_valRL['data'].tolist()
+                                            'year': [year] * len(use_valRL['data'].flatten().tolist()),
+                                            'category': soiluseRL['data'].flatten().tolist(),
+                                            'value': use_valRL['data'].flatten().tolist()
                                         })
                                         ]
                                        )
@@ -730,9 +737,9 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
             irrmeth_plot_df = pd.concat([irrmeth_plot_df,
                                         pd.DataFrame({
-                                            'year': [year] * len(irrmeth_valRL['data'].tolist()),
-                                            'category': irrmethRL['data'].tolist(),
-                                            'value': irrmeth_valRL['data'].tolist()
+                                            'year': [year] * len(irrmeth_valRL['data'].flatten().tolist()),
+                                            'category': irrmethRL['data'].flatten().tolist(),
+                                            'value': irrmeth_valRL['data'].flatten().tolist()
                                         })
                                         ]
                                        )
@@ -843,16 +850,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim_distr_2020_vect'
-    outputFile = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim1\test_annual_check.html'
+    from test_conf import * # should contain "simFolder","outputFile" and other useful variable
     RB = AnnualTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)
-
-    # var_fn = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim_distr_2020_vect\simout\2020_irr_tot.asc'
-    # grp_fn = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim_distr_2020_vect\geodata\irr_meth.asc'
-    #
-    # RB = AnnualTotalsReportBuilder()
-    # res = RB.makeStatByGroup(var_fn, grp_fn)
-    # print(res)
-
