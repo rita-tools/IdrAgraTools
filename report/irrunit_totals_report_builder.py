@@ -701,8 +701,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim_distr_2020_vect'
-    outputFile = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim1\test_irrigation_units_check.html'
+    from test_conf import *  # should contain "simFolder","outputFile" and other useful variable
     RB = IrrunitTotalsReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)

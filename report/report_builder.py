@@ -639,8 +639,8 @@ class ReportBuilder():
 
 
 if __name__ == '__main__':
-    # simFolder='C:/examples/demo/demo_import3_SIM'
-    # outputFile = 'C:/examples/test_img/test_empty.html'
+    from test_conf import *  # should contain "simFolder","outputFile" and other useful variable
+
     # RB = ReportBuilder()
     # outfile = RB.makeReport(simFolder,outputFile)
     # # print(outfile)
@@ -667,7 +667,7 @@ if __name__ == '__main__':
 
     # debug read water sources
     RB = ReportBuilder()
-    res = RB.readWaterSources(r'C:\enricodata\lezioni\GRIA_2023\idragra\test2\test2_SIM_use_check\wsources',
+    res = RB.readWaterSources(os.path.join(simFolder,'wsources'),
                               by_months = False,start_step = 150,end_step = 240,delta_step = 10)
     print('res', res)
 

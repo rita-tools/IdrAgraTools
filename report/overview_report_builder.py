@@ -933,8 +933,7 @@ class OverviewReportBuilder(ReportBuilder):
 
 
 if __name__ == '__main__':
-    simFolder = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim_distr_2020_vect'#r'C:\sim_to_debug\simout'
-    outputFile = r'C:\enricodata\progetto_INCIPIT\gruppi\bologna\CB_Renana_consegna_alberto\sim1\test_overview.html'#r'C:\sim_to_debug\simout\test_overview.html'
+    from test_conf import *  # should contain "simFolder","outputFile" and other useful variable
     RB = OverviewReportBuilder()
     outfile = RB.makeReport(simFolder,outputFile)
     print(outfile)
