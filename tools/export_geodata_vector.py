@@ -76,19 +76,58 @@ class ExportGeodataVector(QObject):
             for wt_map in list(self.sim_dict['WATERTABLEMAP'].keys()):
                 wt_lay_list.append('GPKG:'+db_name +':'+wt_map)
 
-            self.algResults = processing.run("idragratools:IdragraCreateRasterToField",
+            self.algResults = processing.run("idragratools:IdragraCreateElevToField",
                                 {'FIELD_LAY': db_name + '|layername=idr_domainmap',
                                 'ELEV_LAY': elev_name,
                                 'WT_ELEV_LAY': wt_lay_list,
                                 'SLP_MIN': 0,
                                 'SLP_MAX': 1000, 'WTD_MIN': 0.5,
-                                 'OUT_LAY': 'TEMPORARY_OUTPUT'},
+                                'OUT_LAY': 'TEMPORARY_OUTPUT'},
                                              context=None, feedback=self.feedback, is_child_algorithm=False)
 
             print('1',self.algResults['OUT_LAY'].fields().names())
 
+        self.feedback.pushInfo(self.tr('Get land use and irrigation methods from raster'))
+        self.feedback.setProgress(15.0)
+
+        lu_raster_list = []
+        fld_names = ''
+
+        for lu_raster in list(self.sim_dict['LANDUSEMAP'].keys()):
+            current_yr = int(lu_raster[8:-4])
+            if current_yr in self.sim_dict['YEARS']:
+                lu_raster_list.append('GPKG:' + db_name + ':' + lu_raster)
+                fld_names=fld_names+' land_use_%s'%current_yr
+
+        if len(lu_raster_list)>0:
+            self.algResults = processing.run("idragratools:IdragraCreateRasterToField",
+                                             {'FIELD_LAY': self.algResults['OUT_LAY'],
+                                              'RASTER_LIST': lu_raster_list,
+                                              'FLD_NAME_LIST': fld_names,
+                                              'OUT_LAY': 'TEMPORARY_OUTPUT'},
+                                             context=None, feedback=self.feedback, is_child_algorithm=False)
+
+        im_raster_list = []
+        fld_names = ''
+        for im_raster in list(self.sim_dict['IRRMETHMAP'].keys()):
+            current_yr = int(im_raster[8:-4])
+            if current_yr in self.sim_dict['YEARS']:
+                im_raster_list.append('GPKG:' + db_name + ':' + im_raster)
+                # get the name
+                fld_names = fld_names + ' irr_meth_%s' % current_yr
+
+        if len(im_raster_list) > 0:
+            self.algResults = processing.run("idragratools:IdragraCreateRasterToField",
+                                             {'FIELD_LAY': self.algResults['OUT_LAY'],
+                                              'RASTER_LIST': im_raster_list,
+                                              'FLD_NAME_LIST': fld_names,
+                                              'OUT_LAY': 'TEMPORARY_OUTPUT'},
+                                             context=None, feedback=self.feedback, is_child_algorithm=False)
+
+        #print('1', self.algResults['OUT_LAY'].fields().names())
+
         self.feedback.pushInfo(self.tr('Get land use, irrigation methods, irrigation units and meteo weights'))
-        self.feedback.setProgress(20.0)
+        self.feedback.setProgress(25.0)
 
         # make a new shapefile with main landuse, soil, irrigation methods, irrigation units and meteo weights
         #print('self.sim_dict',self.sim_dict)
@@ -432,13 +471,13 @@ class ExportGeodataVector(QObject):
                  (wt_depth >= 60.0 * cm2m) and
                  (min_ksat50 <= 1.0 * nms2cmh)): hsg = 4
         # ---------------------------
-        if ((max_depth > 100.0 * cm2m) and (wt_depth > 60.0 * cm2m) and (wt_depth <= 100.0 * cm2m) and
+        if ((max_depth > 100.0 * cm2m) and (wt_depth >= 60.0 * cm2m) and (wt_depth <= 100.0 * cm2m) and
                  (min_ksat50 > 40.0 * nms2cmh)): hsg = 1
-        if ((max_depth > 100.0 * cm2m) and (wt_depth > 60.0 * cm2m) and (wt_depth <= 100.0 * cm2m) and
+        if ((max_depth > 100.0 * cm2m) and (wt_depth >= 60.0 * cm2m) and (wt_depth <= 100.0 * cm2m) and
                  (min_ksat50 <= 40.0 * nms2cmh) and (min_ksat50 > 10.0 * nms2cmh)): hsg= 2
-        if((max_depth > 100.0 * cm2m) and (wt_depth > 60.0 * cm2m) and (wt_depth <= 100.0 * cm2m) and
+        if((max_depth > 100.0 * cm2m) and (wt_depth >= 60.0 * cm2m) and (wt_depth <= 100.0 * cm2m) and
                  (min_ksat50 <= 10.0 * nms2cmh) and (min_ksat50 > 1.0 * nms2cmh)): hsg = 3
-        if((max_depth > 100.0 * cm2m) and (wt_depth > 60.0 * cm2m) and (wt_depth <= 100.0 * cm2m) and
+        if((max_depth > 100.0 * cm2m) and (wt_depth >= 60.0 * cm2m) and (wt_depth <= 100.0 * cm2m) and
                  (min_ksat50 <= 1.0 * nms2cmh)): hsg = 4
         # ---------------------------
         if (wt_depth > 100.0 * cm2m) and (min_ksat100 > 40.0 * nms2cmh): hsg = 1
