@@ -89,8 +89,8 @@ def importFromCSV(filename, dbname, tablename, timeFldIdx, valueFldIdx, sensorId
 				break
 			
 			# process the line
-			in_line = in_line[:-1]
-			#print 'LN %d: %s'%(i,in_line)
+			in_line = in_line.rstrip() # remove newline
+			#print('LN %d: %s'%(i,in_line))
 			data = in_line.split(column_sep)
 			timestamp = datetime.strptime(data[timeFldIdx], timeFormat)
 			value = float(data[valueFldIdx])
