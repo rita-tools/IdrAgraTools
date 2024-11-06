@@ -5,7 +5,7 @@
     <div class="image_container">
         <img src="[%annual_fluxes%]">
     </div>
-    <p class="caption">Figure 1: water fluxes into the soil volume</p>
+    <p class="caption">Figure [%img_num%]: water fluxes into the soil volume</p>
 
     <div class="notes">
         <p><strong>Notation:</strong></p>
@@ -17,17 +17,23 @@
 </div>
 
 <div>
-    <p class="caption">Table 1: water fluxes</p>
-    [%wbf_table%]
+    <p class="caption">Table [%tbl_num%]: income water fluxes (flux to ground water can be also income-negative in case of capillary rise)</p>
+    [%wbf_table_income%]
 </div>
 
 <div>
-    <p class="caption">Table 2: water productivity</p>
+    <p class="caption">Table [%tbl_num%]: outcome water fluxes</p>
+    [%wbf_table_outcome%]
+</div>
+
+
+<div>
+    <p class="caption">Table [%tbl_num%]: water productivity</p>
     [%wp_table%]
 </div>
 
 <div>
-    <p class="caption">Table 3: water management</p>
+    <p class="caption">Table [%tbl_num%]: water management</p>
     [%wm_table%]
 </div>
 
@@ -36,38 +42,38 @@
 <div class="image_container">
     <img src="[%soil_vol_bxp%]">
 </div>
-<p class="caption">Figure 2: irrigation volumes by soil type</p>
+<p class="caption">Figure [%img_num%]: irrigation volumes by soil type</p>
 <div>
-    <p class="caption">Table 4: average irrigation volumes by soil type and year</p>
+    <p class="caption">Table [%tbl_num%]: average irrigation volumes by soil type and year</p>
     [%soil_stat_table%]
 </div>
 <h4>By soil use:</h4>
 <div class="image_container">
     <img src="[%use_vol_bxp%]">
 </div>
-<p class="caption">Figure 3: irrigation volumes by land uses</p>
+<p class="caption">Figure [%img_num%]: irrigation volumes by land uses</p>
 <div>
-    <p class="caption">Table 5: average irrigation volumes by land use and year</p>
+    <p class="caption">Table [%tbl_num%]: average irrigation volumes by land use and year</p>
     [%use_stat_table%]
 </div>
 <h4>By irrigation method:</h4>
 <div class="image_container">
     <img src="[%irrmeth_vol_bxp%]">
 </div>
-<p class="caption">Figure 3: irrigation volumes by irrigation method</p>
+<p class="caption">Figure [%img_num%]: irrigation volumes by irrigation method</p>
 <div>
-    <p class="caption">Table 6: average irrigation volumes by irrigation method and year</p>
+    <p class="caption">Table [%tbl_num%]: average irrigation volumes by irrigation method and year</p>
     [%irrmeth_stat_table%]
 </div>
 
 <a id="fcp"><h3>Crop production</h3></a>
 <div>
-    <p class="caption">Table 7: first crop production</p>
+    <p class="caption">Table [%tbl_num%]: first crop production</p>
     [%fcp_table%]
 </div>
 
 <div>
-    <p class="caption">Table 8: second crop production</p>
+    <p class="caption">Table [%tbl_num%]: second crop production</p>
     [%scp_table%]
 </div>
 

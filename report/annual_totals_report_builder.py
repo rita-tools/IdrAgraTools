@@ -548,12 +548,67 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         temp_png_rel = os.path.relpath(temp_png, os.path.dirname(outfile))
 
-        waterFlux_table = self.dataframeToHtml(waterFlux_table.loc[:,~waterFlux_table.columns.isin(['area','irr_vol_m3'])].values.tolist(),
-                                                    ['year'] + list(waterFlux.values()),
-                                                    statLabel,
-                                                    ['{:.0f}'] + ['{:.0f}'] * (
-                                                                len(list(waterFlux_table.columns)) - 2))
+        waterFlux_income_table = self.dataframeToHtml(
+            waterFlux_table.loc[:,['year',
+                                   'Cumulative precipitation (mm)_min',
+                                    'Cumulative precipitation (mm)_mean',
+                                    'Cumulative precipitation (mm)_average',
+                                    'Cumulative precipitation (mm)_std',
+                                    'Cumulative precipitation (mm)_max',
+                                    'Cumulative irrigation (mm)_min',
+                                    'Cumulative irrigation (mm)_mean',
+                                    'Cumulative irrigation (mm)_average',
+                                    'Cumulative irrigation (mm)_std',
+                                    'Cumulative irrigation (mm)_max',
+                                    'Net flux to groundwater (mm)_min',
+                                    'Net flux to groundwater (mm)_mean',
+                                    'Net flux to groundwater (mm)_average',
+                                    'Net flux to groundwater (mm)_std',
+                                    'Net flux to groundwater (mm)_max'
+                                    ]].values.tolist(),
+            ['year'] + ['Cumulative precipitation (mm)',
+                            'Cumulative irrigation (mm)',
+                            'Net flux to groundwater (mm)'],
+            statLabel,
+            ['{:.0f}'] + ['{:.0f}'] *15)
 
+        waterFlux_outcome_table = self.dataframeToHtml(
+            waterFlux_table.loc[:, ['year',
+                                    'Cumulative actual evaporation (mm)_min',
+                                    'Cumulative actual evaporation (mm)_mean',
+                                    'Cumulative actual evaporation (mm)_average',
+                                    'Cumulative actual evaporation (mm)_std',
+                                    'Cumulative actual evaporation (mm)_max',
+                                    'Cumulative actual transpiration (mm)_min',
+                                    'Cumulative actual transpiration (mm)_mean',
+                                    'Cumulative actual transpiration (mm)_average',
+                                    'Cumulative actual transpiration (mm)_std',
+                                    'Cumulative actual transpiration (mm)_max',
+                                    'Irrigation application losses (mm)_min',
+                                    'Irrigation application losses (mm)_mean',
+                                    'Irrigation application losses (mm)_average',
+                                    'Irrigation application losses (mm)_std',
+                                    'Irrigation application losses (mm)_max',
+                                    'Cumulative runoff (mm)_min',
+                                    'Cumulative runoff (mm)_mean',
+                                    'Cumulative runoff (mm)_average',
+                                    'Cumulative runoff (mm)_std',
+                                    'Cumulative runoff (mm)_max'
+                                    ]].values.tolist(),
+            ['year'] + ['Cumulative actual evaporation (mm)',
+                        'Cumulative actual transpiration (mm)',
+                        'Irrigation application losses (mm)',
+                        'Cumulative runoff (mm)'],
+            statLabel,
+            ['{:.0f}'] + ['{:.0f}'] * 20)
+
+        # waterFlux_table = self.dataframeToHtml(
+        #     waterFlux_table.loc[:, ~waterFlux_table.columns.isin(['area', 'irr_vol_m3'])].values.tolist(),
+        #     ['year'] + list(waterFlux.values()),
+        #     statLabel,
+        #     ['{:.0f}'] + ['{:.0f}'] * (
+        #             len(list(waterFlux_table.columns)) - 2))
+        #
         self.FEEDBACK.setProgress(30.)
 
         ### ADD WATER PRODUCTIVITY STATISTICS ###
@@ -820,7 +875,8 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
         self.FEEDBACK.setProgress(90.)
 
         report_contents = self.writeParsToTemplate(None, {'annual_fluxes': temp_png_rel,
-                                                          'wbf_table': waterFlux_table,
+                                                          'wbf_table_income': waterFlux_income_table,
+                                                          'wbf_table_outcome': waterFlux_outcome_table,
                                                           'wp_table': waterProd_table,
                                                           'wm_table':waterMan_table,
                                                           'soil_stat_table':soil_stat_table,
@@ -835,6 +891,10 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
 
         # BUILD MAIN TOC
         mainToc = self.makeToc(report_contents)
+
+        # UNPADE NUMBERING FOR FIGURES AND TABLES
+        report_contents = self.update_refnum(report_contents, '[%tbl_num%]')
+        report_contents = self.update_refnum(report_contents, '[%img_num%]')
 
         ### WRITE TO FILE ###
         self.writeParsToTemplate(outfile, {'sub_title': self.tr(' - Annual results'),

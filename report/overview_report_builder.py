@@ -919,6 +919,10 @@ class OverviewReportBuilder(ReportBuilder):
         # BUILD MAIN TOC
         mainToc = self.makeToc(report_contents)
 
+        # UNPADE NUMBERING FOR FIGURES AND TABLES
+        report_contents = self.update_refnum(report_contents, '[%tbl_num%]')
+        report_contents = self.update_refnum(report_contents, '[%img_num%]')
+
         ### WRITE TO FILE ###
         self.writeParsToTemplate(outfile, {'sub_title': self.tr(' - general information'),
                                       'current_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

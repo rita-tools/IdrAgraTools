@@ -449,6 +449,23 @@ class ReportBuilder():
 
         return content
 
+    def update_refnum(self, content, target = '[%tbl_num%]'):
+        start_list = []
+        start = 0
+        while True:
+            start = content.find(target, start)
+            if start == -1: break
+            start_list.append(start)
+            start += len(target)  # use start += 1 to find overlapping matches
+
+        c = len(start_list)
+        start_list.reverse()
+        for s in start_list:
+            content = content[0:s]+str(c)+content[s+len(target):]
+            c = c-1
+
+        return content
+
     def makeImgFolder(self,outfile):
         """
         Set the image folder for html output

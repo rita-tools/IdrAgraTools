@@ -153,6 +153,8 @@ def plotTransWC(wsId,name):
 	cw = ChartWidget(myDialog, '', False, False)
 	cw.setAxis(pos=111, secondAxis=False, label=['main plot'])
 
+	print('cp:',type(df['Giulian_day'].values[0]))
+
 	if df is not None:
 		df['theta2'] = df['theta2_mm'] / (df['thickness_II_m'] * 1000)
 		# dlg = ChartDialog(myDialog, tr('Water content from %s' % name))

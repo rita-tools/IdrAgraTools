@@ -5,25 +5,26 @@
         <img src="[%lu_image%]">
     </div>
     <div>
+        <p class="caption">Table [%tbl_num%]: land uses</p>
         [%landuse_table%]
     </div>
 </div>
 
 <a id="so_[%irr_unit_id%]"><h4>Soil parameters</h4></a>
 <div>
-    <p><strong>First layer parameters</strong></p>
+    <p class="caption">Table [%tbl_num%]: first layer parameters</p>
     [%soil_first_table%]
 </div>
 <div>
-    <p><strong>Second layer parameters</strong></p>
+    <p class="caption">Table [%tbl_num%]: second layer parameters</p>
     [%soil_second_table%]
 </div>
 <div>
-    <p><strong>Deep layer parameters</strong></p>
+    <p class="caption">Table [%tbl_num%]: deep layer parameters</p>
     [%soil_deep_table%]
 </div>
 <div>
-    <p><strong>Other soil hydrological parameters</strong></p>
+    <p class="caption">Table [%tbl_num%]: other soil hydrological parameters</p>
     [%soil_hydro_table%]
 
     <div class="notes">
@@ -40,6 +41,7 @@
         <img src="[%im_image%]">
     </div>
     <div>
+        <p class="caption">Table [%tbl_num%]: irrigation methods</p>
         [%irrmeth_table%]
     </div>
 </div>
@@ -73,37 +75,44 @@
 
     <p><strong>[%stepname%] water balance</strong></p>
     <div>
+        <p class="caption">Table [%tbl_num%]: water fluxes</p>
         [%step_fluxes_table%]
     </div>
 
     <p><strong>Total water balance</strong></p>
     <div>
-        [%wbf_table%]
+        <p class="caption">Table [%tbl_num%]: income water fluxes (flux to ground water can be also income-negative in case of capillary rise)</p>
+        [%wbf_income_table%]
     </div>
 
-    <p><strong>Total water management</strong></p>
     <div>
+        <p class="caption">Table [%tbl_num%]: outcome water fluxes</p>
+        [%wbf_outcome_table%]
+    </div>
+
+    <div>
+        <p class="caption">Table [%tbl_num%]: water management indicators</p>
         [%wm_table%]
     </div>
-
-    <p><strong>Monitored VS estimated volumes</strong></p>
+>
     <div>
+        <p class="caption">Table [%tbl_num%]: monitored VS estimated volumes</p>
         [%step_vol_table%]
     </div>
 </div>
 
 
 <a id="cp_[%irr_unit_id%]"><h4>Crop production</h4></a>
-<p><stron>First crop</stron></p>
 <div>
     <div>
+        <p class="caption">Table [%tbl_num%]: first crop</p>
         [%fcp_table%]
     </div>
 </div>
 
-<p><stron>Second crop</stron></p>
 <div>
     <div>
+        <p class="caption">Table [%tbl_num%]: second crop</p>
         [%scp_table%]
     </div>
 </div>

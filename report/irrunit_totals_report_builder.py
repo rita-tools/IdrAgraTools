@@ -453,12 +453,65 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
 
             wat_fluxes_by_year = os.path.relpath(temp_png, os.path.dirname(outfile))
 
-            waterFlux_table = self.dataframeToHtml(
-                waterFlux_table.loc[:,~waterFlux_table.columns.isin(['area'])].values.tolist(),
-                                                   ['year'] + list(waterFlux.values()),
-                                                   statLabel,
-                                                   ['{:.0f}'] + ['{:.0f}'] * (
-                                                           len(list(waterFlux_table.columns)) - 1))
+            # waterFlux_table = self.dataframeToHtml(
+            #     waterFlux_table.loc[:,~waterFlux_table.columns.isin(['area'])].values.tolist(),
+            #                                        ['year'] + list(waterFlux.values()),
+            #                                        statLabel,
+            #                                        ['{:.0f}'] + ['{:.0f}'] * (
+            #                                                len(list(waterFlux_table.columns)) - 1))
+
+            waterFlux_income_table = self.dataframeToHtml(
+                waterFlux_table.loc[:, ['year',
+                                        'Cumulative precipitation (mm)_min',
+                                        'Cumulative precipitation (mm)_mean',
+                                        'Cumulative precipitation (mm)_average',
+                                        'Cumulative precipitation (mm)_max',
+
+                                        'Cumulative irrigation (mm)_min',
+                                        'Cumulative irrigation (mm)_mean',
+                                        'Cumulative irrigation (mm)_average',
+                                        'Cumulative irrigation (mm)_max',
+
+                                        'Net flux to groundwater (mm)_min',
+                                        'Net flux to groundwater (mm)_mean',
+                                        'Net flux to groundwater (mm)_average',
+                                        'Net flux to groundwater (mm)_max'
+                                        ]].values.tolist(),
+                ['year'] + ['Cumulative precipitation (mm)',
+                            'Cumulative irrigation (mm)',
+                            'Net flux to groundwater (mm)'],
+                statLabel,
+                ['{:.0f}'] + ['{:.0f}'] * 12)
+
+            waterFlux_outcome_table = self.dataframeToHtml(
+                waterFlux_table.loc[:, ['year',
+
+                                        'Cumulative actual evaporation (mm)_min',
+                                        'Cumulative actual evaporation (mm)_mean',
+                                        'Cumulative actual evaporation (mm)_average',
+                                        'Cumulative actual evaporation (mm)_max',
+
+                                        'Cumulative actual transpiration (mm)_min',
+                                        'Cumulative actual transpiration (mm)_mean',
+                                        'Cumulative actual transpiration (mm)_average',
+                                        'Cumulative actual transpiration (mm)_max',
+
+                                        'Irrigation application losses (mm)_min',
+                                        'Irrigation application losses (mm)_mean',
+                                        'Irrigation application losses (mm)_average',
+                                        'Irrigation application losses (mm)_max',
+
+                                        'Cumulative runoff (mm)_min',
+                                        'Cumulative runoff (mm)_mean',
+                                        'Cumulative runoff (mm)_average',
+                                        'Cumulative runoff (mm)_max'
+                                        ]].values.tolist(),
+                ['year'] + ['Cumulative actual evaporation (mm)',
+                            'Cumulative actual transpiration (mm)',
+                            'Irrigation application losses (mm)',
+                            'Cumulative runoff (mm)'],
+                statLabel,
+                ['{:.0f}'] + ['{:.0f}'] * 16)
 
             # make flux plot for each period and year
             stepname = 'step'
@@ -591,14 +644,56 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                   selIuRL,
                                                   1,
                                                   areaFile)
-            waterMan_table = self.dataframeToHtml(waterMan_table.loc[:,~waterMan_table.columns.isin(['area'])].values.tolist(),
-                                                  ['year'] + list(waterMan.values()),
-                                                  statLabel,
-                                                  ['{:.0f}'] + ['{:.0f}'] * (
-                                                          len(list(waterMan_table.columns)) - 1-4)
-                                                  +['{:.2f}']*4)
+            # waterMan_table = self.dataframeToHtml(waterMan_table.loc[:,~waterMan_table.columns.isin(['area'])].values.tolist(),
+            #                                       ['year'] + list(waterMan.values()),
+            #                                       statLabel,
+            #                                       ['{:.0f}'] + ['{:.0f}'] * (
+            #                                               len(list(waterMan_table.columns)) - 1-4)
+            #                                       +['{:.2f}']*4)
 
-            # TODO
+            waterMan_table = self.dataframeToHtml(
+                waterMan_table.loc[:, ['year',
+
+                                        'Cumulative potential evaporation (mm)_min',
+                                        'Cumulative potential evaporation (mm)_mean',
+                                        'Cumulative potential evaporation (mm)_average',
+                                        'Cumulative potential evaporation (mm)_max',
+
+                                        'Cumulative potential transpiration (mm)_min',
+                                        'Cumulative potential transpiration (mm)_mean',
+                                        'Cumulative potential evaporation (mm)_average',
+                                        'Cumulative potential transpiration (mm)_max',
+
+                                        'Irrigation application losses (mm)_min',
+                                        'Irrigation application losses (mm)_mean',
+                                        'Irrigation application losses (mm)_average',
+                                        'Irrigation application losses (mm)_max',
+
+                                        'Mean irrigation application (mm)_min',
+                                        'Mean irrigation application (mm)_mean',
+                                        'Mean irrigation application (mm)_average',
+                                        'Mean irrigation application (mm)_max',
+
+                                        'Number of irrigation application (-)_min',
+                                        'Number of irrigation application (-)_mean',
+                                        'Number of irrigation application (-)_average',
+                                        'Number of irrigation application (-)_max',
+
+                                        'Irrigation efficiency (-)_min',
+                                        'Irrigation efficiency (-)_mean',
+                                        'Irrigation efficiency (-)_average',
+                                        'Irrigation efficiency (-)_max'
+
+                                       ]].values.tolist(),
+                ['year'] + ['Cumulative potential evaporation (mm)',
+                            'Cumulative potential transpiration (mm)',
+                            'Irrigation application losses (mm)',
+                            'Mean irrigation application (mm)',
+                            'Number of irrigation application (-)',
+                            'Irrigation efficiency (-)'],
+                statLabel,
+                ['{:.0f}'] + ['{:.0f}'] * 6*4)
+
             # compare to measured dataset
             # if measure dataset exists, extract cumulate values according to the time steps
 
@@ -675,7 +770,8 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                                                                'step_fluxes_table':stepWaterFlux_table,
                                                                'step_vol_table': stepVol_table,
                                                                'step_notes':noteString,
-                                                               'wbf_table': waterFlux_table,
+                                                               'wbf_income_table': waterFlux_income_table,
+                                                               'wbf_outcome_table': waterFlux_outcome_table,
                                                                'wm_table': waterMan_table,
                                                                'fcp_table': first_prod_table,
                                                                'scp_table': sec_prod_table},
@@ -686,6 +782,10 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
         ### BUILD MAIN TOC
         #mainToc = mainItem.to_html()
         mainToc = self.makeToc(report_contents)
+
+        # UNPADE NUMBERING FOR FIGURES AND TABLES
+        report_contents = self.update_refnum(report_contents,'[%tbl_num%]')
+        report_contents = self.update_refnum(report_contents, '[%img_num%]')
 
         ### WRITE TO FILE ###
         self.writeParsToTemplate(outfile, {'sub_title': self.tr(' - Irrigation units results'),
