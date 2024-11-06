@@ -1638,9 +1638,12 @@ class IdrAgraTools():
         self.updatePars()
         self.exportIrrigationMethodsTH(progress)
         self.updatePars()
-        if (self.SIMDIC['MODE'] in [1,'1']):
-            self.exportWaterSourcesDataTH(progress)
-            self.updatePars()
+        # if (self.SIMDIC['MODE'] in [1,'1']):
+        #     self.exportWaterSourcesDataTH(progress)
+        #     self.updatePars()
+        #
+        self.exportWaterSourcesDataTH(progress)
+        self.updatePars()
 
         self.exportSimProjTH(progress)
         self.execBatFile('run_cropcoef.bat',progress)
@@ -1840,10 +1843,11 @@ class IdrAgraTools():
         progress.setPercentage(100.)
 
     def exportWaterSourcesData(self, progress):
-        if str(self.SIMDIC['MODE'])=='1':
-            self.runAsThread(function = self.exportWaterSourcesDataTH, onFinished = self.updatePars)
-        else:
-            showCriticalMessageBox(self.tr('Water sources are not required by simulation mode'),'','')
+        self.runAsThread(function=self.exportWaterSourcesDataTH, onFinished=self.updatePars)
+        # if str(self.SIMDIC['MODE'])=='1':
+        #     self.runAsThread(function = self.exportWaterSourcesDataTH, onFinished = self.updatePars)
+        # else:
+        #     showCriticalMessageBox(self.tr('Water sources are not required by simulation mode'),'','')
 
     def exportWaterSourcesDataTH(self, progress):
         progress.setText(self.tr('Export water sources'))
@@ -2804,9 +2808,9 @@ class IdrAgraTools():
                             break
 
                         # process the line
-                        in_line = in_line[:-1]
+                        in_line = in_line.rstrip() # remove newline
                         if column_sep != ' ': in_line = in_line.replace(' ', '')
-                        # print 'LN %d: %s'%(i,in_line)
+                        #print('LN %d: %s'%(i,in_line))
                         data = in_line.split(column_sep)
                         timestamp = datetime.strptime(str(year) + data[timeFldIdx], timeFormat)
                         value = float(data[valueFldIdx])
