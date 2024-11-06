@@ -193,6 +193,9 @@ def plotMeteoVars(wsId,name):
 			shadow = p['color']+'29'
 		# get data
 		dateTimeList, values = qgis.utils.plugins['IdragraTools'].DBM.getTimeSeries(p['table'],p['id'])
+		print('ws:',type(dateTimeList[0]))
+		#dateTimeList = [np.datetime64(dt) for dt in dateTimeList]
+		print('ws:', type(dateTimeList[0]))
 		cw.addTimeSerie(dateTimeList,values,lineType='-',color=p['color'],name = p['name'],yaxis = p['axes'],shadow= shadow)
 		if p['axes']=='y': y1Title.append(p['name'])
 		if p['axes']=='y2': y2Title.append(p['name'])
