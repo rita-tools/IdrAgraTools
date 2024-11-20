@@ -162,8 +162,8 @@ class IdrAgraTools():
 
         # TODO: check the latest version of idragra and cropcoef
         self.s = QSettings('UNIMI-DISAA', 'IdrAgraTools')
-        if self.s.value('idragraPath','')=='': self.s.setValue('idragraPath', os.path.join(self.plugin_dir,'bin','idragra_20210907ASC.exe'))
-        if self.s.value('cropcoeffPath','')=='': self.s.setValue('cropcoeffPath', os.path.join(self.plugin_dir,'bin','CropCoef_v4.exe'))
+        if self.s.value('idragraPath','')=='': self.s.setValue('idragraPath', os.path.join(self.plugin_dir,'bin','idragra.exe'))
+        if self.s.value('cropcoeffPath','')=='': self.s.setValue('cropcoeffPath', os.path.join(self.plugin_dir,'bin','cropcoef.exe'))
         if self.s.value('MCRpath', '') == '': self.s.setValue('MCRpath',checkMatlabInstalled(version= '9.9'))
         #if self.s.value('MinGWPath', '') == '': self.s.setValue('MinGWPath', checkMatlabInstalled(version='9.9'))
 
@@ -1825,6 +1825,7 @@ class IdrAgraTools():
             progress.pushInfo('Directory %s already exists' % path2fielduse, False)
 
         soiluseIds = exportLandUse(self.DBM, path2fielduse, progress, self.tr)
+        #print('soiluseIds',soiluseIds)
         numOfLanduses = len(soiluseIds)
         self.SIMDIC['NOFSOILUSES'] = numOfLanduses
         self.SIMDIC['SOILUSESLIST'] = ' '.join(soiluseIds)

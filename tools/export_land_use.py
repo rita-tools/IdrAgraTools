@@ -85,6 +85,7 @@ def checkCropPars(crop,feedback,tr):
 	checkValue('gdd',gdd, None, 'asc', tr, feedback)
 
 def exportLandUse(DBM,outPath, feedback = None,tr=None):
+	#print('in export_land_use')
 	# export crop params
 	allCropsDict = {}
 
@@ -98,6 +99,8 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 		shutil.rmtree(path2croppar)
 
 	os.makedirs(path2croppar)
+
+	#print('in export_land_use, maxCropId:',maxCropId)
 
 	fakeFileName = '*'
 	for cropId in range(0, maxCropId + 1):
@@ -143,7 +146,7 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 					'CROPTABLE': 'GDD Kcb LAI Hc Sr\n0 0 0 0 0\n0 0 0 0 0'
 					}
 		soiluse = DBM.getRecordAsDict(tableName='idr_crop_types', fieldsList='', filterFld='id', filterValue=cropId)
-
+		#print('in export_land_use, soiluse:',soiluse)
 		if len(soiluse)>0:
 			soiluse = soiluse[0]
 
@@ -216,10 +219,12 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 
 		allCropsDict[str(cropId)]=cropFileName
 
+
 	# FIX: adjust gaps between soil use ids
 	# get maximum num of soil uses
 	maxSoilUseId = DBM.getMax('idr_soiluses', 'id')
-	print('maxSoilUseId',maxSoilUseId)
+
+	#print('in export_land_use, maxSoilUseId:', maxSoilUseId)
 	if maxSoilUseId is None:
 		feedback.reportError('No aoil uses to be processed. Exiting...', True)
 
@@ -288,4 +293,5 @@ def exportLandUse(DBM,outPath, feedback = None,tr=None):
 									templateName='soil_uses.txt')
 	
 
+	#print('in export_land_use',soiluseIds)
 	return soiluseIds
