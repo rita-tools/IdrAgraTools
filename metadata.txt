@@ -8,9 +8,9 @@
 
 [general]
 name=Idragra Tools
-qgisMinimumVersion=3.0
+qgisMinimumVersion=3.28
 description= A QGIS plugin to manage input e output to/from IdrAgra water districts model
-version=0.1
+version=0.4
 author=Enrico A. Chiaradia
 email=enrico.chiaradia@unimi.it
 
