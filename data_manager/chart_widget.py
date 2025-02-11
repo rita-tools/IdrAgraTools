@@ -162,9 +162,9 @@ class ChartWidget(QWidget):
 		#ax.set_xticks(ind + width / 2)
 		#plt.tight_layout()
 
-		format_str = '%y-%m'
-		format_ = mdates.DateFormatter(format_str)
-		self.ax.xaxis.set_major_formatter(format_)
+		#format_str = '%y-%m'
+		#format_ = mdates.DateFormatter(format_str)
+		#self.ax.xaxis.set_major_formatter(format_)
 
 		self.figure.autofmt_xdate()
 		# beautify the x-labels

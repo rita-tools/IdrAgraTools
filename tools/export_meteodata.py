@@ -125,7 +125,7 @@ def exportMeteodata(filename, dbname, sensorId, sensorName, sensorLat, sensorAlt
 	
 	sql = createQuery(fromTime,toTime,sensorId)
 		
-	#feedback.pushInfo(sql)
+	feedback.pushInfo(tr('Processing weather station %s [%s]')%(sensorName,sensorId))
 	
 	msg = ''
 	data = None
