@@ -543,7 +543,7 @@ class IrrunitTotalsReportBuilder(AnnualTotalsReportBuilder):
                     'et_act': self.tr('Actual evaporation (mm)'),
                     'trasp_act': self.tr('Actual transpiration (mm)'),
                     'runoff': self.tr('Runoff (mm)'),
-                    'flux2': self.tr('Net flux to groundwater (mm)'),
+                    'flux2': self.tr('Flux to groundwater (mm)'),
                     'caprise': self.tr('Capillary rise (mm)')
                 }
                 stepWaterLabel = ['P', 'Ic', 'Ip', 'L', 'E','T', 'R', 'F', 'C']

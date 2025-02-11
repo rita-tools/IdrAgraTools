@@ -749,7 +749,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                        )
 
             soil_valRL['data'] = 0.001 * soil_valRL['data']*areaRL['data']
-            mean_by_soilid = self.makeStatByGroup(soil_valRL, soilidRL,['mean'])#['group',['val']['mean']]
+            mean_by_soilid = self.makeStatByGroup(soil_valRL, soilidRL,['sum'])#['group',['val']['mean']]
             mean_by_soilid.columns = [year]
             mean_by_soilid[year] = 1000 * mean_by_soilid[year] / soil_area['area']
             # append to area
@@ -775,7 +775,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                        )
 
             use_valRL['data'] = 0.001 * use_valRL['data'] * areaRL['data']
-            mean_by_soiluse = self.makeStatByGroup(use_valRL, soiluseRL, ['mean'])  # ['group',['val']['mean']]
+            mean_by_soiluse = self.makeStatByGroup(use_valRL, soiluseRL, ['sum'])  # ['group',['val']['mean']]
             mean_by_soiluse.columns = [year]
             mean_by_soiluse[year] = 1000*mean_by_soiluse[year]/use_area['area']
             # append to area
@@ -800,7 +800,7 @@ class AnnualTotalsReportBuilder(OverviewReportBuilder):
                                        )
 
             irrmeth_valRL['data'] = 0.001 * irrmeth_valRL['data'] * areaRL['data']
-            mean_by_irrmeth = self.makeStatByGroup(irrmeth_valRL, irrmethRL, ['mean'])  # ['group',['val']['mean']]
+            mean_by_irrmeth = self.makeStatByGroup(irrmeth_valRL, irrmethRL, ['sum'])  # ['group',['val']['mean']]
             mean_by_irrmeth.columns = [year]
             mean_by_irrmeth[year] = 1000 * mean_by_irrmeth[year] / irrmeth_area['area']
             # append to area
