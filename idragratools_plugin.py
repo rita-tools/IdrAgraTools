@@ -201,14 +201,14 @@ class IdrAgraTools():
 
         # the order is the same in the legend (from bottom to top)
         self.LYRGRPNAME = { 'idr_soil_types': self.tr('Soil'),
-                           'idr_soil_profiles':self.tr('Soil'),
-                           'idr_crop_types': self.tr('Land use'),
-                           'idr_soiluses': self.tr('Land use'),
-                           'idr_irrmet_types': self.tr('Land use'),
-                           'ws_tmin': self.tr('Weather'), 'ws_tmax': self.tr('Weather'),
-                           'ws_ptot': self.tr('Weather'),
-                           'ws_umin': self.tr('Weather'), 'ws_umax': self.tr('Weather'),
-                           'ws_vmed': self.tr('Weather'), 'ws_rgcorr': self.tr('Weather'),
+                            'idr_soil_profiles':self.tr('Soil'),
+                            'idr_crop_types': self.tr('Land use'),
+                            'idr_soiluses': self.tr('Land use'),
+                            'idr_irrmet_types': self.tr('Land use'),
+                            'ws_tmin': self.tr('Weather'), 'ws_tmax': self.tr('Weather'),
+                            'ws_ptot': self.tr('Weather'),
+                            'ws_umin': self.tr('Weather'), 'ws_umax': self.tr('Weather'),
+                            'ws_vmed': self.tr('Weather'), 'ws_rgcorr': self.tr('Weather'),
                             'ws_co2': self.tr('Weather'),
                             'idr_soilmap': self.tr('Soil'),
                             'idr_usemap': self.tr('Land use'),
@@ -229,9 +229,8 @@ class IdrAgraTools():
                             'stp_caprise': self.tr('Analysis'),
                             'stp_flux2': self.tr('Analysis'),
 
-
-                           'node_act_disc': self.tr('Network'),
-                           'node_disc': self.tr('Network'),
+                            'node_act_disc': self.tr('Network'),
+                            'node_disc': self.tr('Network'),
                             'idr_nodes': self.tr('Network'), 'idr_links': self.tr('Network'),
                             'idr_distrmap': self.tr('Network'),
 
@@ -2437,7 +2436,7 @@ class IdrAgraTools():
             for i, node in nodesDF.iterrows():
                 if node['node_type'] in [13]: replaceFieldTable[str(node['id'])] = 'Source_' + str(node['id'])
 
-            irrFromCrsDF = self.getDischargeFromCSV(yearList, '%s_Qcrs.csv', progress, replaceFieldTable)
+            irrFromCrsDF = self.getDischargeFromCSV(yearList, '%s_Qcrs.csv', progress, replaceFieldTableIN) #replaceFieldTable)
             surplusDF = self.getDischargeFromCSV(yearList, '%s_Qsurplus.csv', progress, replaceFieldTableOUT)
         else:
             irrFromDiversionDF = self.getDischargeFromMaps(watDistrAreas = areaTable, tableName ='stp_irr',
