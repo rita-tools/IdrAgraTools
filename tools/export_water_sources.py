@@ -195,7 +195,7 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 	#print('divList:',divList)
 	# make a big discharge query
 	sql = createDischQuery(sDate = fromTime, eDate= toTime, wsIdList = divList)
-	#print('sql',sql)
+	#print('sql createDischQuery',sql)
 
 	msg = ''
 	data = None
@@ -289,7 +289,7 @@ def exportWaterSources(DBM,outPath, startY,endY,feedback = None,tr=None):
 	# save water sources file
 	table = []
 	for ws in watSources:
-		table.append('\t'.join([str(x) for x in ws]))
+		if ws[1] in (divList+publicWellList): table.append('\t'.join([str(x) for x in ws])) # append anly water sources in the list
 
 	table = '\n'.join(table)
 	writeParsToTemplate(outfile=os.path.join(outPath, 'watsources.txt'),
